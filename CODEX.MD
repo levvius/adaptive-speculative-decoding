@@ -1,0 +1,93 @@
+# CODEX
+
+This file tracks project structure and changes. Update it whenever new files,
+features, or behaviors are added.
+
+## Purpose
+- Provide a quick map of the project layout.
+- Record recent changes for future requests.
+
+## Structure
+- `Makefile`: Unified entrypoints for checks, preset listing, local benchmarks, AutoJudge runs, and Docker CPU/GPU flows.
+- `benchmarks/bench_speculative.py`: Benchmark runner for baseline, speculative, and AutoJudge methods. Supports HF models, KV cache, quantization, method selection, and JSONL logging.
+- `configs/models.json`: Model presets (target/draft HF models, device, dtype, quantization, tokenizer, chat template).
+- `configs/methods.json`: Method presets (baseline/speculative/autojudge/all + placeholder for SpecExec).
+- `configs/experiments.json`: Target/draft pairing presets for common comparisons.
+- `configs/method_templates.json`: Templates for AutoJudge and future SpecExec configs with parameters/metrics.
+- `scripts/validate_configs.py`: Static validator for configs (cross-file references, method constraints, tokenizer compatibility for target/draft pair methods).
+- `README.MD`: Project overview, usage, and examples.
+- `sp_samp/autojudge.py`: AutoJudge implementation (synthetic label collection, judge training, and decoding).
+- `sp_samp/cli.py`: Unified CLI runner (bench + autojudge shortcut + specexec placeholder).
+- `sp_samp/__init__.py`: Public exports with optional lazy behavior for torch-dependent modules.
+- `sp_samp/hf_adapter.py`: HF model adapter with KV cache and optional bitsandbytes quantization.
+- `sp_samp/hf_sampling.py`: HF sampling (baseline + speculative) using KV cache.
+- `sp_samp/sampling.py`: Reference CPU implementations + metrics.
+- `sp_samp/mtbench.py`: MT-Bench loader.
+- `sp_samp/methods/`: Placeholders for future AutoJudge and SpecExec implementations.
+- `tests/test_sampling.py`: Core correctness tests for baseline/speculative sampling.
+- `tests/test_autojudge.py`: Unit tests for AutoJudge features, classifier fitting, and stats.
+- `Dockerfile`, `Dockerfile.gpu`: CPU/GPU containers.
+- `requirements.txt`, `requirements-gpu.txt`: Dependencies.
+
+## Recent Changes (2026-02-10)
+- Added `scripts/validate_configs.py` and integrated it into `make check` and `make validate-configs`.
+- Added `make smoke-hf` for quick end-to-end HF pipeline verification with a tiny model.
+- Added `TARGET_PRESET`/`DRAFT_PRESET` variables in `Makefile` for `bench-method` to avoid hardcoded mismatched pairs.
+- Fixed benchmark import bug by explicitly importing `JudgeMLP` in `benchmarks/bench_speculative.py`.
+- Fixed AutoJudge run determinism path by forwarding per-run `seed` into `autojudge_sample_hf`.
+- Improved HF architecture in `benchmarks/bench_speculative.py`:
+- separated target/draft runtime settings (`draft_tokenizer`, `draft_device`, `draft_dtype`, `draft_quant`, `draft_bnb_compute_dtype`);
+- stopped forcing draft to use target tokenizer path;
+- added tokenizer compatibility guard for speculative/AutoJudge methods;
+- avoided unnecessary draft-model construction for baseline-only runs.
+- Expanded benchmark JSONL records with resolved target/draft runtime fields for reproducibility.
+- Expanded CLI run args in `sp_samp/cli.py` to pass draft-specific overrides.
+- Added draft-preset mapping in `sp_samp/cli.py` to avoid target-arg overwrites.
+- Updated `configs/experiments.json` to correctness-safe target/draft pairings (identical tokenizer presets).
+- Updated `Makefile` defaults to valid experiment IDs (`llama3_all_methods`, `llama3_target_llama3_autojudge_k4`).
+- Updated `README.MD` with config validation and HF smoke targets, and refreshed experiment examples.
+- Updated `README.MD` HF command examples to tokenizer-compatible target/draft pairs.
+- Added preset configs for models and methods in `configs/`.
+- Added experiment pair presets in `configs/experiments.json`.
+- Added AutoJudge/SpecExec config templates in `configs/method_templates.json`.
+- Added CLI runner in `sp_samp/cli.py`.
+- Added CLI support for `--experiment` presets.
+- Exposed benchmark parser/run for programmatic use.
+- Added `benchmarks/__init__.py` for importable benchmark module.
+- Added CODEX.MD and README.MD.
+- Expanded README with a full from-zero setup guide.
+- Fixed GPU requirements to avoid reinstalling CPU-only torch.
+- Implemented `sp_samp/autojudge.py` with:
+- synthetic judge-label collection from target/draft models;
+- MLP judge classifier training;
+- AutoJudge decoding loop with threshold decisions and fallback-to-target.
+- Integrated AutoJudge into `benchmarks/bench_speculative.py`:
+- new methods: `autojudge`, `all`;
+- AutoJudge train/inference args;
+- method-specific JSONL metrics.
+- Updated CLI for method selection:
+- `bench --method autojudge|all`;
+- `autojudge` command now routes to benchmark runner.
+- Updated configs:
+- new method presets `autojudge_k4`, `compare_all_k4`;
+- new experiment presets for AutoJudge and all-method comparisons.
+- Added tests in `tests/test_autojudge.py`.
+- Updated `README.MD` with end-to-end usage for AutoJudge and all-method runs.
+- Added `Makefile` with:
+- `make help`, `make check`, `make list-presets`;
+- quick local run (`make bench-toy`);
+- preset runs (`make bench`, `make autojudge`, `make bench-all`);
+- Docker runs (`make docker-build`, `make docker-build-gpu`, `make docker-bench`, `make docker-autojudge`, `make docker-bench-all`).
+- Simplified `sp_samp/cli.py`:
+- removed duplicated parser arguments via shared helper;
+- switched to lazy benchmark import so `list-presets` works without ML dependencies.
+- expanded passthrough arguments for toy/HF parity (`vocab_size`, `draft_noise`, `seed`).
+- Hardened package import behavior in `sp_samp/__init__.py`:
+- moved HF/AutoJudge exports to optional imports, preserving lightweight commands without `torch`.
+- Improved `benchmarks/bench_speculative.py` portability:
+- supports toy-mode execution without `torch`;
+- emits clear dependency errors only for HF/AutoJudge paths.
+- changed toy default `vocab_size` to `2048` (from `32000`) to avoid pathological memory/time in `RandomModel`.
+- added fail-fast validation for `autojudge` without HF model arguments.
+- Standardized benchmark invocations to module mode (`python -m benchmarks.bench_speculative`) in docs and Makefile.
+- Tuned `make bench-toy` defaults for fast smoke runs.

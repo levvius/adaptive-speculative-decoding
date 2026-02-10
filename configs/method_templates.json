@@ -1,0 +1,51 @@
+{
+  "templates": {
+    "autojudge": {
+      "method": "autojudge",
+      "parameters": {
+        "max_new_tokens": 128,
+        "k": 4,
+        "autojudge_threshold": 0.5,
+        "autojudge_train_samples": 4000,
+        "autojudge_train_steps": 400,
+        "autojudge_train_batch_size": 128,
+        "autojudge_train_lr": 0.001,
+        "autojudge_audit_ratio": 0.0,
+        "use_chat_template": true,
+        "system_prompt": null
+      },
+      "metrics": [
+        "tokens_per_sec",
+        "acceptance_rate",
+        "avg_tokens_per_step",
+        "judge_accept_rate",
+        "target_fallback_rate",
+        "target_calls_per_token",
+        "autojudge_train_loss"
+      ],
+      "notes": "Template for AutoJudge configuration and expected metrics."
+    },
+    "specexec": {
+      "method": "specexec",
+      "parameters": {
+        "max_new_tokens": 128,
+        "k": 4,
+        "parallel_branches": 8,
+        "branch_prune_threshold": 0.5,
+        "max_batch_size": 8,
+        "use_chat_template": true,
+        "system_prompt": null
+      },
+      "metrics": [
+        "tokens_per_sec",
+        "acceptance_rate",
+        "avg_tokens_per_step",
+        "branch_prune_rate",
+        "effective_parallelism",
+        "latency_ms",
+        "memory_gb"
+      ],
+      "notes": "Template for SpecExec configuration and expected metrics."
+    }
+  }
+}

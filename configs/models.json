@@ -1,0 +1,43 @@
+{
+  "models": {
+    "llama3_8b_instruct": {
+      "hf_model": "meta-llama/Meta-Llama-3-8B-Instruct",
+      "tokenizer": "meta-llama/Meta-Llama-3-8B-Instruct",
+      "device": "cuda",
+      "dtype": "bfloat16",
+      "quant": null,
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": true,
+      "trust_remote_code": false
+    },
+    "mistral_7b_instruct": {
+      "hf_model": "mistralai/Mistral-7B-Instruct-v0.3",
+      "tokenizer": "mistralai/Mistral-7B-Instruct-v0.3",
+      "device": "cuda",
+      "dtype": "bfloat16",
+      "quant": null,
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": true,
+      "trust_remote_code": false
+    },
+    "gpt_oss_20b_4bit": {
+      "hf_model": "RedHatAI/gpt-oss-20b",
+      "tokenizer": "RedHatAI/gpt-oss-20b",
+      "device": "cuda",
+      "dtype": "bfloat16",
+      "quant": "4bit",
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": true,
+      "trust_remote_code": true
+    },
+    "toy_random": {
+      "hf_model": null,
+      "device": "cpu",
+      "dtype": "auto",
+      "quant": null,
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": false,
+      "trust_remote_code": false
+    }
+  }
+}

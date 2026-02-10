@@ -1,0 +1,75 @@
+{
+  "methods": {
+    "baseline": {
+      "method": "baseline",
+      "k": 0,
+      "max_new_tokens": 128,
+      "runs": 5,
+      "max_samples": 50,
+      "turn_index": 0,
+      "add_special_tokens": false
+    },
+    "speculative_k4": {
+      "method": "speculative",
+      "k": 4,
+      "max_new_tokens": 128,
+      "runs": 5,
+      "max_samples": 50,
+      "turn_index": 0,
+      "add_special_tokens": false
+    },
+    "speculative_k8": {
+      "method": "speculative",
+      "k": 8,
+      "max_new_tokens": 128,
+      "runs": 5,
+      "max_samples": 50,
+      "turn_index": 0,
+      "add_special_tokens": false
+    },
+    "autojudge_k4": {
+      "method": "autojudge",
+      "k": 4,
+      "max_new_tokens": 128,
+      "runs": 5,
+      "max_samples": 50,
+      "turn_index": 0,
+      "autojudge_threshold": 0.5,
+      "autojudge_train_samples": 4000,
+      "autojudge_train_steps": 400,
+      "autojudge_train_batch_size": 128,
+      "autojudge_train_lr": 0.001,
+      "autojudge_audit_ratio": 0.0
+    },
+    "compare_all_k4": {
+      "method": "all",
+      "k": 4,
+      "max_new_tokens": 128,
+      "runs": 5,
+      "max_samples": 50,
+      "turn_index": 0,
+      "autojudge_threshold": 0.5,
+      "autojudge_train_samples": 4000,
+      "autojudge_train_steps": 400,
+      "autojudge_train_batch_size": 128,
+      "autojudge_train_lr": 0.001,
+      "autojudge_audit_ratio": 0.0
+    },
+    "autojudge_placeholder": {
+      "method": "autojudge",
+      "status": "placeholder",
+      "max_new_tokens": 128,
+      "runs": 5,
+      "max_samples": 50,
+      "turn_index": 0
+    },
+    "specexec_placeholder": {
+      "method": "specexec",
+      "status": "placeholder",
+      "max_new_tokens": 128,
+      "runs": 5,
+      "max_samples": 50,
+      "turn_index": 0
+    }
+  }
+}

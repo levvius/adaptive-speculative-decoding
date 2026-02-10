@@ -1,0 +1,79 @@
+{
+  "experiments": {
+    "llama3_target_llama3_draft_k4": {
+      "description": "Llama-3 8B target with Llama-3 8B draft, speculative k=4.",
+      "target_preset": "llama3_8b_instruct",
+      "draft_preset": "llama3_8b_instruct",
+      "method_preset": "speculative_k4"
+    },
+    "llama3_target_llama3_draft_k8": {
+      "description": "Llama-3 8B target with Llama-3 8B draft, speculative k=8.",
+      "target_preset": "llama3_8b_instruct",
+      "draft_preset": "llama3_8b_instruct",
+      "method_preset": "speculative_k8"
+    },
+    "llama3_target_llama3_autojudge_k4": {
+      "description": "Llama-3 8B target with Llama-3 8B draft, AutoJudge k=4.",
+      "target_preset": "llama3_8b_instruct",
+      "draft_preset": "llama3_8b_instruct",
+      "method_preset": "autojudge_k4"
+    },
+    "llama3_all_methods": {
+      "description": "Run baseline, speculative, and AutoJudge in one benchmark for Llama-3 8B.",
+      "target_preset": "llama3_8b_instruct",
+      "draft_preset": "llama3_8b_instruct",
+      "method_preset": "compare_all_k4"
+    },
+    "mistral_target_mistral_draft_k4": {
+      "description": "Mistral 7B target with Mistral 7B draft, speculative k=4.",
+      "target_preset": "mistral_7b_instruct",
+      "draft_preset": "mistral_7b_instruct",
+      "method_preset": "speculative_k4"
+    },
+    "mistral_target_mistral_autojudge_k4": {
+      "description": "Mistral 7B target with Mistral 7B draft, AutoJudge k=4.",
+      "target_preset": "mistral_7b_instruct",
+      "draft_preset": "mistral_7b_instruct",
+      "method_preset": "autojudge_k4"
+    },
+    "mistral_all_methods": {
+      "description": "Run baseline, speculative, and AutoJudge in one benchmark for Mistral 7B.",
+      "target_preset": "mistral_7b_instruct",
+      "draft_preset": "mistral_7b_instruct",
+      "method_preset": "compare_all_k4"
+    },
+    "gptoss20b_target_gptoss20b_draft_k4": {
+      "description": "GPT-OSS 20B target (4-bit) with GPT-OSS 20B draft, speculative k=4.",
+      "target_preset": "gpt_oss_20b_4bit",
+      "draft_preset": "gpt_oss_20b_4bit",
+      "method_preset": "speculative_k4"
+    },
+    "gptoss20b_target_gptoss20b_autojudge_k4": {
+      "description": "GPT-OSS 20B target (4-bit) with GPT-OSS 20B draft, AutoJudge k=4.",
+      "target_preset": "gpt_oss_20b_4bit",
+      "draft_preset": "gpt_oss_20b_4bit",
+      "method_preset": "autojudge_k4"
+    },
+    "gptoss20b_all_methods": {
+      "description": "Run baseline, speculative, and AutoJudge in one benchmark for GPT-OSS 20B (4-bit).",
+      "target_preset": "gpt_oss_20b_4bit",
+      "draft_preset": "gpt_oss_20b_4bit",
+      "method_preset": "compare_all_k4"
+    },
+    "llama3_baseline": {
+      "description": "Llama-3 8B baseline.",
+      "target_preset": "llama3_8b_instruct",
+      "method_preset": "baseline"
+    },
+    "mistral_baseline": {
+      "description": "Mistral 7B baseline.",
+      "target_preset": "mistral_7b_instruct",
+      "method_preset": "baseline"
+    },
+    "gptoss20b_baseline": {
+      "description": "GPT-OSS 20B baseline (4-bit).",
+      "target_preset": "gpt_oss_20b_4bit",
+      "method_preset": "baseline"
+    }
+  }
+}
