@@ -102,6 +102,7 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--autojudge-checkpoint", type=str, default=None)
     parser.add_argument("--parallel-branches", type=int, default=None)
     parser.add_argument("--branch-prune-threshold", type=float, default=None)
+    parser.add_argument("--require-headless", action="store_true")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -307,6 +308,8 @@ def _handle_bench(args: argparse.Namespace) -> int:
         bench_args.parallel_branches = args.parallel_branches
     if args.branch_prune_threshold is not None:
         bench_args.branch_prune_threshold = args.branch_prune_threshold
+    if args.require_headless:
+        bench_args.require_headless = True
 
     bench_speculative.run_with_args(bench_args)
     return 0

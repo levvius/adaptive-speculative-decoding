@@ -4,11 +4,14 @@ import argparse
 import hashlib
 import json
 import random
+import socket
 import statistics
+import subprocess
 import time
+import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 
 try:
     import torch
@@ -242,6 +245,213 @@ def _append_result(path: Path, record: dict) -> None:
         fh.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def _run_cmd(cmd: List[str]) -> Optional[str]:
+    try:
+        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, text=True)
+    except Exception:
+        return None
+    return out.strip()
+
+
+def _collect_system_metadata(require_headless: bool = False) -> Dict[str, Optional[str]]:
+    git_sha = _run_cmd(["git", "rev-parse", "HEAD"])
+    hostname = socket.gethostname()
+
+    torch_version = None
+    cuda_runtime = None
+    if torch is not None:
+        torch_version = getattr(torch, "__version__", None)
+        cuda_runtime = getattr(torch.version, "cuda", None)
+
+    transformers_version = None
+    try:
+        import transformers  # type: ignore
+
+        transformers_version = getattr(transformers, "__version__", None)
+    except Exception:
+        transformers_version = None
+
+    gpu_name = None
+    gpu_driver = None
+    display_active = None
+    nvidia_out = _run_cmd(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,driver_version,display_active",
+            "--format=csv,noheader",
+        ]
+    )
+    if nvidia_out:
+        rows = [row.strip() for row in nvidia_out.splitlines() if row.strip()]
+        if rows:
+            names: List[str] = []
+            drivers: List[str] = []
+            displays: List[str] = []
+            for row in rows:
+                parts = [part.strip() for part in row.split(",")]
+                if len(parts) >= 3:
+                    names.append(parts[0])
+                    drivers.append(parts[1])
+                    displays.append(parts[2].lower())
+            gpu_name = "; ".join(names) if names else None
+            gpu_driver = "; ".join(drivers) if drivers else None
+            if displays:
+                active = any(value in {"enabled", "on", "active"} for value in displays)
+                display_active = "enabled" if active else "disabled"
+                if active and require_headless:
+                    raise SystemExit(
+                        "Headless mode required, but nvidia-smi reports display-active GPU. "
+                        "Stop GUI/Xorg/Wayland sessions or rerun without --require-headless."
+                    )
+                if active and not require_headless:
+                    print(
+                        "[WARN] GPU display is active; for long runs prefer headless mode "
+                        "(pass --require-headless to enforce)."
+                    )
+
+    return {
+        "git_sha": git_sha,
+        "hostname": hostname,
+        "gpu_name": gpu_name,
+        "gpu_driver": gpu_driver,
+        "cuda_runtime": cuda_runtime,
+        "torch_version": torch_version,
+        "transformers_version": transformers_version,
+        "display_active": display_active,
+    }
+
+
+def _base_record_fields(
+    *,
+    method: str,
+    backend: str,
+    resolved_target_model: str,
+    resolved_draft_model: str,
+    resolved_target_tokenizer: str,
+    resolved_draft_tokenizer: str,
+    args: argparse.Namespace,
+    resolved_draft_device: str,
+    resolved_draft_dtype: str,
+    resolved_draft_quant: Optional[str],
+    resolved_draft_bnb_compute_dtype: Optional[str],
+    autojudge_train_samples: int,
+    autojudge_train_loss: float,
+) -> Dict[str, object]:
+    return {
+        "method": method,
+        "backend": backend,
+        "target_model": resolved_target_model,
+        "draft_model": resolved_draft_model,
+        "tokenizer": resolved_target_tokenizer,
+        "draft_tokenizer": resolved_draft_tokenizer,
+        "device": args.device,
+        "dtype": args.dtype,
+        "quant": args.quant,
+        "bnb_compute_dtype": args.bnb_compute_dtype,
+        "draft_device": resolved_draft_device,
+        "draft_dtype": resolved_draft_dtype,
+        "draft_quant": resolved_draft_quant,
+        "draft_bnb_compute_dtype": resolved_draft_bnb_compute_dtype,
+        "use_chat_template": args.use_chat_template,
+        "system_prompt": args.system_prompt,
+        "k": args.k,
+        "max_new_tokens": args.max_new_tokens,
+        "max_samples": args.max_samples,
+        "turn_index": args.turn_index,
+        "dataset": args.dataset,
+        "autojudge_threshold": args.autojudge_threshold,
+        "autojudge_train_samples": autojudge_train_samples,
+        "autojudge_train_loss": autojudge_train_loss,
+        "autojudge_checkpoint": args.autojudge_checkpoint,
+        "parallel_branches": args.parallel_branches,
+        "branch_prune_threshold": args.branch_prune_threshold,
+    }
+
+
+def _resume_identity(
+    *,
+    run: int,
+    base_fields: Dict[str, object],
+) -> Dict[str, object]:
+    identity = dict(base_fields)
+    identity["run"] = run
+    identity["summary"] = False
+    identity["status"] = "ok"
+    return identity
+
+
+def _make_resume_key(identity: Dict[str, object]) -> str:
+    return json.dumps(identity, ensure_ascii=False, sort_keys=True)
+
+
+def _record_resume_key(record: Dict[str, object]) -> Optional[str]:
+    existing = record.get("resume_key")
+    if isinstance(existing, str):
+        return existing
+    if record.get("summary"):
+        return None
+    if record.get("status") not in {None, "ok"}:
+        return None
+    required = [
+        "method",
+        "backend",
+        "target_model",
+        "draft_model",
+        "tokenizer",
+        "draft_tokenizer",
+        "device",
+        "dtype",
+        "quant",
+        "bnb_compute_dtype",
+        "draft_device",
+        "draft_dtype",
+        "draft_quant",
+        "draft_bnb_compute_dtype",
+        "use_chat_template",
+        "system_prompt",
+        "k",
+        "max_new_tokens",
+        "max_samples",
+        "turn_index",
+        "dataset",
+        "autojudge_threshold",
+        "autojudge_train_samples",
+        "autojudge_train_loss",
+        "autojudge_checkpoint",
+        "parallel_branches",
+        "branch_prune_threshold",
+        "run",
+    ]
+    missing = [key for key in required if key not in record]
+    if missing:
+        return None
+    identity = {key: record.get(key) for key in required}
+    identity["summary"] = False
+    identity["status"] = "ok"
+    return _make_resume_key(identity)
+
+
+def _load_completed_run_keys(path: Path) -> Set[str]:
+    keys: Set[str] = set()
+    if not path.exists():
+        return keys
+    with path.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(record, dict):
+                continue
+            key = _record_resume_key(record)
+            if key:
+                keys.add(key)
+    return keys
+
+
 def _resolve_methods(method: str) -> List[str]:
     if method == "both":
         return ["baseline", "speculative"]
@@ -351,6 +561,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--autojudge-checkpoint", type=str, default=None, help="Path to save/load judge checkpoint (.pt).")
     parser.add_argument("--parallel-branches", type=int, default=8, help="Number of draft branches for SpecExec.")
     parser.add_argument("--branch-prune-threshold", type=float, default=0.0, help="Draft-probability pruning threshold in [0,1] for SpecExec.")
+    parser.add_argument("--require-headless", action="store_true", help="Fail fast if GPU is display-active (recommended for long runs).")
     parser.add_argument("--out", type=str, default=None, help="Path to JSONL metrics file.")
     return parser
 
@@ -521,30 +732,88 @@ def run_with_args(args: argparse.Namespace) -> None:
                     checkpoint_path,
                 )
 
+    system_metadata = _collect_system_metadata(require_headless=args.require_headless)
     out_path = _resolve_out_path(args.out)
+    completed_run_keys = _load_completed_run_keys(out_path)
+    if completed_run_keys:
+        print(
+            f"[INFO] Resume mode: found {len(completed_run_keys)} completed run(s) in {out_path}."
+        )
+
+    backend = "hf" if args.hf_model else "toy"
+
     for method in methods:
+        base_fields = _base_record_fields(
+            method=method,
+            backend=backend,
+            resolved_target_model=resolved_target_model,
+            resolved_draft_model=resolved_draft_model,
+            resolved_target_tokenizer=resolved_target_tokenizer,
+            resolved_draft_tokenizer=resolved_draft_tokenizer,
+            args=args,
+            resolved_draft_device=resolved_draft_device,
+            resolved_draft_dtype=resolved_draft_dtype,
+            resolved_draft_quant=resolved_draft_quant,
+            resolved_draft_bnb_compute_dtype=resolved_draft_bnb_compute_dtype,
+            autojudge_train_samples=autojudge_train_samples,
+            autojudge_train_loss=autojudge_train_loss,
+        )
+
         results = []
         acceptance_rates = []
         avg_tokens_per_step = []
         judge_accept_rates = []
         fallback_rates = []
         cache_hit_rates = []
+        successful_runs = 0
+        failed_runs = 0
+        skipped_runs = 0
+
         for run in range(args.runs):
-            tps, duration, total_tokens, stats, prompt_tokens = _run_once(
-                prompts=prompts,
-                encode_fn=encode_fn,
-                target_model=target_model,
-                draft_model=draft_model,
-                method=method,
-                max_new_tokens=args.max_new_tokens,
-                k=args.k,
-                seed=args.seed + run,
-                autojudge_model=autojudge_model,
-                autojudge_threshold=args.autojudge_threshold,
-                autojudge_audit_ratio=args.autojudge_audit_ratio,
-                specexec_parallel_branches=args.parallel_branches,
-                specexec_branch_prune_threshold=args.branch_prune_threshold,
-            )
+            run_number = run + 1
+            identity = _resume_identity(run=run_number, base_fields=base_fields)
+            resume_key = _make_resume_key(identity)
+            if resume_key in completed_run_keys:
+                skipped_runs += 1
+                print(f"{method} run {run_number}: skipped (already completed).")
+                continue
+
+            try:
+                tps, duration, total_tokens, stats, prompt_tokens = _run_once(
+                    prompts=prompts,
+                    encode_fn=encode_fn,
+                    target_model=target_model,
+                    draft_model=draft_model,
+                    method=method,
+                    max_new_tokens=args.max_new_tokens,
+                    k=args.k,
+                    seed=args.seed + run,
+                    autojudge_model=autojudge_model,
+                    autojudge_threshold=args.autojudge_threshold,
+                    autojudge_audit_ratio=args.autojudge_audit_ratio,
+                    specexec_parallel_branches=args.parallel_branches,
+                    specexec_branch_prune_threshold=args.branch_prune_threshold,
+                )
+            except Exception as exc:
+                failed_runs += 1
+                error_record = {
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "error",
+                    "summary": False,
+                    "run": run_number,
+                    "resume_key": resume_key,
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc),
+                    "traceback": traceback.format_exc(),
+                }
+                error_record.update(base_fields)
+                error_record.update(system_metadata)
+                _append_result(out_path, error_record)
+                print(f"[ERROR] {method} run {run_number} failed: {exc}")
+                continue
+
+            successful_runs += 1
+
             if hasattr(stats, "train_samples"):
                 stats.train_samples = autojudge_train_samples
             if hasattr(stats, "train_loss"):
@@ -558,45 +827,26 @@ def run_with_args(args: argparse.Namespace) -> None:
                 fallback_rates.append(stats.target_fallback_rate)
             if hasattr(stats, "cache_hit_rate"):
                 cache_hit_rates.append(stats.cache_hit_rate)
+
             record = {
                 "timestamp": datetime.now().isoformat(),
-                "method": method,
-                "backend": "hf" if args.hf_model else "toy",
-                "target_model": resolved_target_model,
-                "draft_model": resolved_draft_model,
-                "tokenizer": resolved_target_tokenizer,
-                "draft_tokenizer": resolved_draft_tokenizer,
-                "device": args.device,
-                "dtype": args.dtype,
-                "quant": args.quant,
-                "bnb_compute_dtype": args.bnb_compute_dtype,
-                "draft_device": resolved_draft_device,
-                "draft_dtype": resolved_draft_dtype,
-                "draft_quant": resolved_draft_quant,
-                "draft_bnb_compute_dtype": resolved_draft_bnb_compute_dtype,
-                "use_chat_template": args.use_chat_template,
-                "system_prompt": args.system_prompt,
-                "k": args.k,
-                "max_new_tokens": args.max_new_tokens,
-                "max_samples": args.max_samples,
-                "turn_index": args.turn_index,
-                "dataset": args.dataset,
+                "status": "ok",
+                "summary": False,
+                "run": run_number,
+                "resume_key": resume_key,
                 "total_prompt_tokens": prompt_tokens,
                 "total_generated_tokens": total_tokens,
                 "duration_sec": duration,
                 "tokens_per_sec": tps,
-                "autojudge_threshold": args.autojudge_threshold,
-                "autojudge_train_samples": autojudge_train_samples,
-                "autojudge_train_loss": autojudge_train_loss,
-                "autojudge_checkpoint": args.autojudge_checkpoint,
-                "parallel_branches": args.parallel_branches,
-                "branch_prune_threshold": args.branch_prune_threshold,
-                "run": run + 1,
             }
+            record.update(base_fields)
+            record.update(system_metadata)
             record.update(_stats_record_fields(stats))
             _append_result(out_path, record)
+            completed_run_keys.add(resume_key)
+
             msg = (
-                f"{method} run {run + 1}: {tps:.2f} tok/s "
+                f"{method} run {run_number}: {tps:.2f} tok/s "
                 f"({total_tokens} tokens in {duration:.3f}s), "
                 f"accept={stats.acceptance_rate:.3f}, "
                 f"avg_tokens/step={stats.avg_tokens_per_step:.3f}"
@@ -612,64 +862,60 @@ def run_with_args(args: argparse.Namespace) -> None:
                     f"target_calls/token={stats.target_calls_per_token:.3f}"
                 )
             print(msg)
-        median_tps = statistics.median(results)
-        median_accept = statistics.median(acceptance_rates)
-        median_tps_step = statistics.median(avg_tokens_per_step)
-        median_judge_accept = statistics.median(judge_accept_rates) if judge_accept_rates else None
-        median_fallback = statistics.median(fallback_rates) if fallback_rates else None
-        median_cache_hit = statistics.median(cache_hit_rates) if cache_hit_rates else None
+
         summary_record = {
             "timestamp": datetime.now().isoformat(),
-            "method": method,
-            "backend": "hf" if args.hf_model else "toy",
-            "target_model": resolved_target_model,
-            "draft_model": resolved_draft_model,
-            "tokenizer": resolved_target_tokenizer,
-            "draft_tokenizer": resolved_draft_tokenizer,
-            "device": args.device,
-            "dtype": args.dtype,
-            "quant": args.quant,
-            "bnb_compute_dtype": args.bnb_compute_dtype,
-            "draft_device": resolved_draft_device,
-            "draft_dtype": resolved_draft_dtype,
-            "draft_quant": resolved_draft_quant,
-            "draft_bnb_compute_dtype": resolved_draft_bnb_compute_dtype,
-            "use_chat_template": args.use_chat_template,
-            "system_prompt": args.system_prompt,
-            "k": args.k,
-            "max_new_tokens": args.max_new_tokens,
-            "max_samples": args.max_samples,
-            "turn_index": args.turn_index,
-            "dataset": args.dataset,
-            "autojudge_threshold": args.autojudge_threshold,
-            "autojudge_train_samples": autojudge_train_samples,
-            "autojudge_train_loss": autojudge_train_loss,
-            "autojudge_checkpoint": args.autojudge_checkpoint,
-            "parallel_branches": args.parallel_branches,
-            "branch_prune_threshold": args.branch_prune_threshold,
-            "tokens_per_sec_median": median_tps,
-            "acceptance_rate_median": median_accept,
-            "avg_tokens_per_step_median": median_tps_step,
-            "runs": args.runs,
             "summary": True,
+            "runs": args.runs,
+            "runs_successful": successful_runs,
+            "runs_failed": failed_runs,
+            "runs_skipped": skipped_runs,
+            "status": "ok" if successful_runs > 0 else ("error" if failed_runs > 0 else "skipped"),
         }
-        if median_judge_accept is not None:
-            summary_record["judge_accept_rate_median"] = median_judge_accept
-        if median_fallback is not None:
-            summary_record["target_fallback_rate_median"] = median_fallback
-        if median_cache_hit is not None:
-            summary_record["cache_hit_rate_median"] = median_cache_hit
-        _append_result(out_path, summary_record)
-        msg = (
-            f"{method} median: {median_tps:.2f} tok/s, "
-            f"accept={median_accept:.3f}, "
-            f"avg_tokens/step={median_tps_step:.3f}"
-        )
-        if median_judge_accept is not None and median_fallback is not None:
-            msg += f", judge_accept={median_judge_accept:.3f}, fallback={median_fallback:.3f}"
-        if median_cache_hit is not None:
-            msg += f", cache_hit={median_cache_hit:.3f}"
-        print(msg)
+        summary_record.update(base_fields)
+        summary_record.update(system_metadata)
+
+        if successful_runs > 0:
+            median_tps = statistics.median(results)
+            median_accept = statistics.median(acceptance_rates)
+            median_tps_step = statistics.median(avg_tokens_per_step)
+            median_judge_accept = (
+                statistics.median(judge_accept_rates) if judge_accept_rates else None
+            )
+            median_fallback = statistics.median(fallback_rates) if fallback_rates else None
+            median_cache_hit = statistics.median(cache_hit_rates) if cache_hit_rates else None
+            summary_record["tokens_per_sec_median"] = median_tps
+            summary_record["acceptance_rate_median"] = median_accept
+            summary_record["avg_tokens_per_step_median"] = median_tps_step
+            if median_judge_accept is not None:
+                summary_record["judge_accept_rate_median"] = median_judge_accept
+            if median_fallback is not None:
+                summary_record["target_fallback_rate_median"] = median_fallback
+            if median_cache_hit is not None:
+                summary_record["cache_hit_rate_median"] = median_cache_hit
+            _append_result(out_path, summary_record)
+
+            msg = (
+                f"{method} median: {median_tps:.2f} tok/s, "
+                f"accept={median_accept:.3f}, "
+                f"avg_tokens/step={median_tps_step:.3f}"
+            )
+            if median_judge_accept is not None and median_fallback is not None:
+                msg += (
+                    f", judge_accept={median_judge_accept:.3f}, "
+                    f"fallback={median_fallback:.3f}"
+                )
+            if median_cache_hit is not None:
+                msg += f", cache_hit={median_cache_hit:.3f}"
+            print(msg)
+        elif failed_runs > 0:
+            summary_record["error_message"] = "No successful runs for this method."
+            _append_result(out_path, summary_record)
+            print(f"[ERROR] {method}: no successful runs. See JSONL error records.")
+        else:
+            summary_record["info_message"] = "All runs were skipped by resume mode."
+            _append_result(out_path, summary_record)
+            print(f"{method}: all runs skipped by resume mode.")
 
 
 def main() -> None:

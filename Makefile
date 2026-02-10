@@ -14,6 +14,8 @@ SMOKE_HF_TOKENIZER ?= sshleifer/tiny-gpt2
 IMAGE_CPU ?= sp-samp
 IMAGE_GPU ?= sp-samp-gpu
 DOCKER_GPU_ARGS ?= --gpus all
+HEADLESS ?= 0
+HEADLESS_ARG := $(if $(filter 1 true yes,$(HEADLESS)),--require-headless,)
 
 DATA_DIR ?= $(if $(DATASET),$(shell dirname "$(DATASET)"),/tmp)
 DATASET_IN_CONTAINER ?= $(if $(DATASET),/data/$(notdir $(DATASET)),)
@@ -67,6 +69,7 @@ bench: ## Run benchmark using EXPERIMENT preset (requires DATASET)
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(EXPERIMENT) \
 		--dataset $(DATASET) \
+		$(HEADLESS_ARG) \
 		--out $(OUT)
 
 bench-method: ## Run benchmark with explicit METHOD using model presets (requires DATASET)
@@ -77,6 +80,7 @@ bench-method: ## Run benchmark with explicit METHOD using model presets (require
 		--draft-preset $(DRAFT_PRESET) \
 		--method $(METHOD) \
 		--dataset $(DATASET) \
+		$(HEADLESS_ARG) \
 		--out $(OUT)
 
 autojudge: ## Run AutoJudge preset (requires DATASET)
@@ -85,6 +89,7 @@ autojudge: ## Run AutoJudge preset (requires DATASET)
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(AUTOJUDGE_EXPERIMENT) \
 		--dataset $(DATASET) \
+		$(HEADLESS_ARG) \
 		--out $(OUT)
 
 specexec: ## Run SpecExec preset (requires DATASET)
@@ -93,6 +98,7 @@ specexec: ## Run SpecExec preset (requires DATASET)
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(SPECEXEC_EXPERIMENT) \
 		--dataset $(DATASET) \
+		$(HEADLESS_ARG) \
 		--out $(OUT)
 
 bench-all: ## Run baseline+speculative+autojudge+specexec in one call (requires DATASET)
@@ -102,6 +108,7 @@ bench-all: ## Run baseline+speculative+autojudge+specexec in one call (requires 
 		--experiment $(EXPERIMENT) \
 		--method all \
 		--dataset $(DATASET) \
+		$(HEADLESS_ARG) \
 		--out $(OUT)
 
 docker-build: ## Build CPU Docker image
@@ -124,6 +131,7 @@ docker-bench: ## Run benchmark in GPU Docker using EXPERIMENT preset (requires D
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(EXPERIMENT) \
 		--dataset $(DATASET_IN_CONTAINER) \
+		$(HEADLESS_ARG) \
 		--out $(OUT_IN_CONTAINER)
 
 docker-autojudge: ## Run AutoJudge in GPU Docker (requires DATASET)
@@ -133,6 +141,7 @@ docker-autojudge: ## Run AutoJudge in GPU Docker (requires DATASET)
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(AUTOJUDGE_EXPERIMENT) \
 		--dataset $(DATASET_IN_CONTAINER) \
+		$(HEADLESS_ARG) \
 		--out $(OUT_IN_CONTAINER)
 
 docker-specexec: ## Run SpecExec in GPU Docker (requires DATASET)
@@ -142,6 +151,7 @@ docker-specexec: ## Run SpecExec in GPU Docker (requires DATASET)
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(SPECEXEC_EXPERIMENT) \
 		--dataset $(DATASET_IN_CONTAINER) \
+		$(HEADLESS_ARG) \
 		--out $(OUT_IN_CONTAINER)
 
 docker-bench-all: ## Run all methods (baseline+speculative+autojudge+specexec) in GPU Docker (requires DATASET)
@@ -152,4 +162,5 @@ docker-bench-all: ## Run all methods (baseline+speculative+autojudge+specexec) i
 		--experiment $(EXPERIMENT) \
 		--method all \
 		--dataset $(DATASET_IN_CONTAINER) \
+		$(HEADLESS_ARG) \
 		--out $(OUT_IN_CONTAINER)

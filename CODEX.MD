@@ -9,7 +9,7 @@ features, or behaviors are added.
 
 ## Structure
 - `Makefile`: Unified entrypoints for checks, preset listing, local benchmarks, AutoJudge runs, and Docker CPU/GPU flows.
-- `benchmarks/bench_speculative.py`: Benchmark runner for baseline, speculative, AutoJudge, and SpecExec methods. Supports HF models, KV cache, quantization, method selection, and JSONL logging.
+- `benchmarks/bench_speculative.py`: Benchmark runner for baseline, speculative, AutoJudge, and SpecExec methods. Supports HF models, KV cache, quantization, resume mode, enriched JSONL logging, and per-run error persistence.
 - `configs/models.json`: Model presets (target/draft HF models, device, dtype, quantization, tokenizer, chat template).
 - `configs/methods.json`: Method presets (baseline/speculative/autojudge/specexec/all).
 - `configs/experiments.json`: Target/draft pairing presets for common comparisons.
@@ -18,7 +18,7 @@ features, or behaviors are added.
 - `README.MD`: Project overview, usage, and examples.
 - `sp_samp/autojudge.py`: AutoJudge implementation (synthetic label collection, judge training, and decoding).
 - `sp_samp/specexec.py`: CPU SpecExec implementation (exact target sampling with draft-tree cache prefill and pruning).
-- `sp_samp/hf_specexec.py`: HF SpecExec implementation.
+- `sp_samp/hf_specexec.py`: HF SpecExec implementation with KV-cache reuse along prefix-tree edges.
 - `sp_samp/cli.py`: Unified CLI runner (`bench`, `autojudge`, `specexec`, preset application).
 - `sp_samp/__init__.py`: Public exports with optional lazy behavior for torch-dependent modules.
 - `sp_samp/hf_adapter.py`: HF model adapter with KV cache and optional bitsandbytes quantization.
@@ -33,6 +33,16 @@ features, or behaviors are added.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
 
 ## Recent Changes (2026-02-10)
+- Added benchmark reliability/runtime instrumentation in `benchmarks/bench_speculative.py`:
+- system metadata is written to each JSONL record (`git_sha`, host, GPU/driver, torch/transformers versions);
+- resume mode skips already completed runs via `resume_key`;
+- per-run exceptions are persisted to JSONL (`status=error`, traceback) without aborting the whole method.
+- Added headless execution guard:
+- new CLI/benchmark flag `--require-headless`;
+- `Makefile` support via `HEADLESS=1`.
+- Optimized HF SpecExec cache building in `sp_samp/hf_specexec.py`:
+- draft tree expansion now reuses KV cache via `prefill + step`;
+- target cache fill now uses depth-wise tree traversal with KV reuse.
 - Reworked SpecExec to paper-aligned exact behavior:
 - SpecExec now samples exactly from target distribution while using draft-tree cache prefill (no branch-selection sampling bias).
 - Added stronger SpecExec diagnostics (`SpecExecError`) with stage/prefix context for faster failure triage.

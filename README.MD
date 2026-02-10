@@ -10,7 +10,7 @@ This project provides:
 **Features**
 1. Baseline, speculative, AutoJudge, and SpecExec decoding in one benchmark entrypoint.
 2. MT-Bench loader (JSON/JSONL).
-3. Benchmark runner with median timing and method-specific metrics.
+3. Benchmark runner with median timing, resume support, and method-specific metrics.
 4. Preset configs for models, methods, and paired experiments.
 5. Makefile shortcuts for local and Docker workflows.
 6. Docker support for CPU and GPU.
@@ -145,6 +145,10 @@ make docker-build-gpu
 make docker-bench DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results.jsonl
 make docker-specexec DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results_specexec.jsonl
 ```
+11. Enforce headless GPU mode for long runs:
+```bash
+make bench DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results.jsonl HEADLESS=1
+```
 
 **Presets**
 - Models: `configs/models.json`
@@ -200,9 +204,20 @@ python -m sp_samp.cli specexec \
   --dataset /path/to/mt_bench.jsonl \
   --out results_specexec.jsonl
 ```
+7. Require headless GPU mode (fail-fast when display is active):
+```bash
+python -m sp_samp.cli bench \
+  --config-dir configs \
+  --experiment llama3_all_methods \
+  --dataset /path/to/mt_bench.jsonl \
+  --require-headless \
+  --out results.jsonl
+```
 
 **Metrics Output**
 The benchmark writes JSONL records with per-run metrics and a summary record per method. Fields include:
+- `status` (`ok`/`error`/`skipped`)
+- `resume_key` (used to skip completed runs on re-launch)
 - `tokens_per_sec`
 - `acceptance_rate`
 - `avg_tokens_per_step`
@@ -216,6 +231,8 @@ The benchmark writes JSONL records with per-run metrics and a summary record per
 - `draft_calls_per_token` (SpecExec only)
 - `cache_hit_rate` (SpecExec only)
 - `max_active_branches` (SpecExec only)
+- `error_type`, `error_message`, `traceback` (for failed runs)
+- System metadata: `git_sha`, `hostname`, `gpu_name`, `gpu_driver`, `cuda_runtime`, `torch_version`, `transformers_version`, `display_active`
 
 **Project Layout**
 - `sp_samp/`: core library, AutoJudge, SpecExec, HF adapter.
@@ -226,6 +243,9 @@ The benchmark writes JSONL records with per-run metrics and a summary record per
 
 **Notes**
 - SpecExec is implemented as an exact (distribution-preserving) decoder with speculative cache prefill and configurable `parallel_branches` / `branch_prune_threshold`.
+- HF SpecExec uses KV-cache reuse and depth-wise tree passes for faster cache construction.
 - Draft and target models must share an identical tokenizer vocabulary mapping for speculative, AutoJudge, and SpecExec correctness.
+- Re-running a benchmark with the same `OUT` file automatically skips completed runs (resume mode).
+- Failed runs are written to JSONL and do not stop the whole benchmark method loop.
 - `make validate-configs` checks config references and tokenizer compatibility in `configs/*.json`.
 - Current default experiments are correctness-safe (same tokenizer family) and may show limited speedup when target=draft.
