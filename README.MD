@@ -3,11 +3,12 @@
 This project provides:
 - Exact speculative sampling (SpS).
 - AutoJudge (lossy judge-decoding style method with synthetic labels, no manual annotation).
+- SpecExec (draft-branch execution with target validation and branch pruning).
 - A Hugging Face adapter with KV cache and optional quantization.
 - A benchmark harness on MT-Bench with JSONL metrics.
 
 **Features**
-1. Baseline, speculative, and AutoJudge decoding in one benchmark entrypoint.
+1. Baseline, speculative, AutoJudge, and SpecExec decoding in one benchmark entrypoint.
 2. MT-Bench loader (JSON/JSONL).
 3. Benchmark runner with median timing and method-specific metrics.
 4. Preset configs for models, methods, and paired experiments.
@@ -59,7 +60,7 @@ docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
   --runs 5 \
   --out /data/results.jsonl
 ```
-8. Run all methods in one launch (baseline + speculative + autojudge):
+8. Run all methods in one launch (baseline + speculative + autojudge + specexec):
 ```bash
 docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
   python -m benchmarks.bench_speculative \
@@ -73,7 +74,18 @@ docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
   --runs 5 \
   --out /data/results_all.jsonl
 ```
-9. Run AutoJudge only with checkpoint reuse:
+9. Run SpecExec only (branch execution parameters included):
+```bash
+docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
+  python -m sp_samp.cli specexec \
+  --config-dir configs \
+  --experiment llama3_target_llama3_specexec_k4 \
+  --dataset /data/mt_bench.jsonl \
+  --parallel-branches 8 \
+  --branch-prune-threshold 0.0 \
+  --out /data/results_specexec.jsonl
+```
+10. Run AutoJudge only with checkpoint reuse:
 ```bash
 docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
   python -m benchmarks.bench_speculative \
@@ -123,17 +135,22 @@ make bench DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results.jsonl
 ```bash
 make autojudge DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results_autojudge.jsonl
 ```
-9. Build and run GPU Docker flow:
+9. Run SpecExec preset:
+```bash
+make specexec DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results_specexec.jsonl
+```
+10. Build and run GPU Docker flow:
 ```bash
 make docker-build-gpu
 make docker-bench DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results.jsonl
+make docker-specexec DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results_specexec.jsonl
 ```
 
 **Presets**
 - Models: `configs/models.json`
 - Methods: `configs/methods.json`
 - Experiments (target/draft pairings): `configs/experiments.json`
-- Method templates (future AutoJudge/SpecExec): `configs/method_templates.json`
+- Method templates (AutoJudge/SpecExec): `configs/method_templates.json`
 
 **CLI Runner**
 1. List presets:
@@ -143,10 +160,12 @@ python -m sp_samp.cli list-presets --config-dir configs
 2. Direct method selection:
 ```bash
 python -m benchmarks.bench_speculative \
-  --method autojudge \
+  --method specexec \
   --dataset /path/to/mt_bench.jsonl \
   --hf-model meta-llama/Meta-Llama-3-8B-Instruct \
-  --hf-draft-model meta-llama/Meta-Llama-3-8B-Instruct
+  --hf-draft-model meta-llama/Meta-Llama-3-8B-Instruct \
+  --parallel-branches 8 \
+  --branch-prune-threshold 0.0
 ```
 3. Run benchmark using presets:
 ```bash
@@ -173,6 +192,14 @@ python -m sp_samp.cli autojudge \
   --dataset /path/to/mt_bench.jsonl \
   --out results_autojudge.jsonl
 ```
+6. Run SpecExec shortcut command:
+```bash
+python -m sp_samp.cli specexec \
+  --config-dir configs \
+  --experiment llama3_target_llama3_specexec_k4 \
+  --dataset /path/to/mt_bench.jsonl \
+  --out results_specexec.jsonl
+```
 
 **Metrics Output**
 The benchmark writes JSONL records with per-run metrics and a summary record per method. Fields include:
@@ -182,18 +209,22 @@ The benchmark writes JSONL records with per-run metrics and a summary record per
 - `proposed`, `accepted`, `rejections`
 - `judge_accept_rate` (AutoJudge only)
 - `target_fallback_rate` (AutoJudge only)
-- `target_calls_per_token` (AutoJudge only)
 - `autojudge_train_samples`, `autojudge_train_loss` (AutoJudge only)
+- `branch_prune_rate` (SpecExec only)
+- `effective_parallelism` (SpecExec only)
+- `target_calls_per_token` (AutoJudge and SpecExec)
+- `draft_calls_per_token` (SpecExec only)
+- `max_active_branches` (SpecExec only)
 
 **Project Layout**
-- `sp_samp/`: core library, AutoJudge, HF adapter.
+- `sp_samp/`: core library, AutoJudge, SpecExec, HF adapter.
 - `benchmarks/`: benchmark runner.
 - `configs/`: preset configs.
 - `tests/`: tests.
 - `Dockerfile`, `Dockerfile.gpu`: containers.
 
 **Notes**
-- SpecExec is still placeholder.
-- Draft and target models must share an identical tokenizer vocabulary mapping for speculative/AutoJudge correctness.
+- SpecExec is implemented as branch-execution decoding with configurable `parallel_branches` and `branch_prune_threshold`.
+- Draft and target models must share an identical tokenizer vocabulary mapping for speculative, AutoJudge, and SpecExec correctness.
 - `make validate-configs` checks config references and tokenizer compatibility in `configs/*.json`.
 - Current default experiments are correctness-safe (same tokenizer family) and may show limited speedup when target=draft.

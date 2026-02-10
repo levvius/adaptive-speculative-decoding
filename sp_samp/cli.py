@@ -69,7 +69,7 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
         "--method",
         type=str,
         default=None,
-        choices=["baseline", "speculative", "autojudge", "both", "all"],
+        choices=["baseline", "speculative", "autojudge", "specexec", "both", "all"],
     )
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--max-new-tokens", type=int, default=None)
@@ -100,6 +100,8 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--autojudge-train-lr", type=float, default=None)
     parser.add_argument("--autojudge-audit-ratio", type=float, default=None)
     parser.add_argument("--autojudge-checkpoint", type=str, default=None)
+    parser.add_argument("--parallel-branches", type=int, default=None)
+    parser.add_argument("--branch-prune-threshold", type=float, default=None)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -111,7 +113,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     autojudge_parser = subparsers.add_parser("autojudge", help="Run benchmark in AutoJudge mode.")
     _add_run_args(autojudge_parser)
-    subparsers.add_parser("specexec", help="SpecExec runner (placeholder).")
+    specexec_parser = subparsers.add_parser("specexec", help="Run benchmark in SpecExec mode.")
+    _add_run_args(specexec_parser)
     list_parser = subparsers.add_parser("list-presets", help="List available presets.")
     list_parser.add_argument("--config-dir", type=str, default="configs")
 
@@ -188,7 +191,14 @@ def _handle_bench(args: argparse.Namespace) -> int:
                 return 2
             preset = method_presets[method_preset]
             method = preset.get("method")
-            if method not in {"baseline", "speculative", "autojudge", "both", "all"}:
+            if method not in {
+                "baseline",
+                "speculative",
+                "autojudge",
+                "specexec",
+                "both",
+                "all",
+            }:
                 print(
                     f"Method preset '{method_preset}' is not supported by bench.",
                     file=sys.stderr,
@@ -214,7 +224,14 @@ def _handle_bench(args: argparse.Namespace) -> int:
             return 2
         preset = method_presets[args.method_preset]
         method = preset.get("method")
-        if method not in {"baseline", "speculative", "autojudge", "both", "all"}:
+        if method not in {
+            "baseline",
+            "speculative",
+            "autojudge",
+            "specexec",
+            "both",
+            "all",
+        }:
             print(
                 f"Method preset '{args.method_preset}' is not supported by bench.",
                 file=sys.stderr,
@@ -286,6 +303,10 @@ def _handle_bench(args: argparse.Namespace) -> int:
         bench_args.autojudge_audit_ratio = args.autojudge_audit_ratio
     if args.autojudge_checkpoint is not None:
         bench_args.autojudge_checkpoint = args.autojudge_checkpoint
+    if args.parallel_branches is not None:
+        bench_args.parallel_branches = args.parallel_branches
+    if args.branch_prune_threshold is not None:
+        bench_args.branch_prune_threshold = args.branch_prune_threshold
 
     bench_speculative.run_with_args(bench_args)
     return 0
@@ -302,8 +323,8 @@ def main() -> int:
         args.method = "autojudge"
         return _handle_bench(args)
     if args.command == "specexec":
-        print("SpecExec runner not implemented yet.", file=sys.stderr)
-        return 2
+        args.method = "specexec"
+        return _handle_bench(args)
     return 0
 
 

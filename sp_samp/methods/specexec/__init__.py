@@ -1,1 +1,6 @@
-"""SpecExec method placeholder (implementation added later)."""
+from ...specexec import SpecExecStats, specexec_sample
+
+__all__ = [
+    "SpecExecStats",
+    "specexec_sample",
+]

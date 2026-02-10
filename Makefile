@@ -5,6 +5,7 @@ OUT ?= benchmarks/results.jsonl
 METHOD ?= all
 EXPERIMENT ?= llama3_all_methods
 AUTOJUDGE_EXPERIMENT ?= llama3_target_llama3_autojudge_k4
+SPECEXEC_EXPERIMENT ?= llama3_target_llama3_specexec_k4
 TARGET_PRESET ?= llama3_8b_instruct
 DRAFT_PRESET ?= llama3_8b_instruct
 SMOKE_HF_MODEL ?= sshleifer/tiny-gpt2
@@ -18,8 +19,8 @@ DATA_DIR ?= $(if $(DATASET),$(shell dirname "$(DATASET)"),/tmp)
 DATASET_IN_CONTAINER ?= $(if $(DATASET),/data/$(notdir $(DATASET)),)
 OUT_IN_CONTAINER ?= /data/$(notdir $(OUT))
 
-.PHONY: help check validate-configs list-presets test bench-toy smoke-hf bench bench-method autojudge bench-all \
-	docker-build docker-build-gpu docker-test docker-bench docker-autojudge docker-bench-all
+.PHONY: help check validate-configs list-presets test bench-toy smoke-hf bench bench-method autojudge specexec bench-all \
+	docker-build docker-build-gpu docker-test docker-bench docker-autojudge docker-specexec docker-bench-all
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -86,7 +87,15 @@ autojudge: ## Run AutoJudge preset (requires DATASET)
 		--dataset $(DATASET) \
 		--out $(OUT)
 
-bench-all: ## Run baseline+speculative+autojudge in one call (requires DATASET)
+specexec: ## Run SpecExec preset (requires DATASET)
+	@if [ -z "$(DATASET)" ]; then echo "Set DATASET=/path/to/mt_bench.jsonl"; exit 2; fi
+	$(PYTHON) -m sp_samp.cli specexec \
+		--config-dir $(CONFIG_DIR) \
+		--experiment $(SPECEXEC_EXPERIMENT) \
+		--dataset $(DATASET) \
+		--out $(OUT)
+
+bench-all: ## Run baseline+speculative+autojudge+specexec in one call (requires DATASET)
 	@if [ -z "$(DATASET)" ]; then echo "Set DATASET=/path/to/mt_bench.jsonl"; exit 2; fi
 	$(PYTHON) -m sp_samp.cli bench \
 		--config-dir $(CONFIG_DIR) \
@@ -126,7 +135,16 @@ docker-autojudge: ## Run AutoJudge in GPU Docker (requires DATASET)
 		--dataset $(DATASET_IN_CONTAINER) \
 		--out $(OUT_IN_CONTAINER)
 
-docker-bench-all: ## Run all methods in GPU Docker (requires DATASET)
+docker-specexec: ## Run SpecExec in GPU Docker (requires DATASET)
+	@if [ -z "$(DATASET)" ]; then echo "Set DATASET=/path/to/mt_bench.jsonl"; exit 2; fi
+	docker run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
+		python -m sp_samp.cli specexec \
+		--config-dir $(CONFIG_DIR) \
+		--experiment $(SPECEXEC_EXPERIMENT) \
+		--dataset $(DATASET_IN_CONTAINER) \
+		--out $(OUT_IN_CONTAINER)
+
+docker-bench-all: ## Run all methods (baseline+speculative+autojudge+specexec) in GPU Docker (requires DATASET)
 	@if [ -z "$(DATASET)" ]; then echo "Set DATASET=/path/to/mt_bench.jsonl"; exit 2; fi
 	docker run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
 		python -m sp_samp.cli bench \

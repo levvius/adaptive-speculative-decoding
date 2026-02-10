@@ -41,9 +41,21 @@
       "autojudge_train_lr": 0.001,
       "autojudge_audit_ratio": 0.0
     },
+    "specexec_k4": {
+      "method": "specexec",
+      "k": 4,
+      "parallel_branches": 8,
+      "branch_prune_threshold": 0.0,
+      "max_new_tokens": 128,
+      "runs": 5,
+      "max_samples": 50,
+      "turn_index": 0
+    },
     "compare_all_k4": {
       "method": "all",
       "k": 4,
+      "parallel_branches": 8,
+      "branch_prune_threshold": 0.0,
       "max_new_tokens": 128,
       "runs": 5,
       "max_samples": 50,
@@ -57,14 +69,6 @@
     },
     "autojudge_placeholder": {
       "method": "autojudge",
-      "status": "placeholder",
-      "max_new_tokens": 128,
-      "runs": 5,
-      "max_samples": 50,
-      "turn_index": 0
-    },
-    "specexec_placeholder": {
-      "method": "specexec",
       "status": "placeholder",
       "max_new_tokens": 128,
       "runs": 5,

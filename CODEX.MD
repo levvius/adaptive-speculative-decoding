@@ -9,27 +9,50 @@ features, or behaviors are added.
 
 ## Structure
 - `Makefile`: Unified entrypoints for checks, preset listing, local benchmarks, AutoJudge runs, and Docker CPU/GPU flows.
-- `benchmarks/bench_speculative.py`: Benchmark runner for baseline, speculative, and AutoJudge methods. Supports HF models, KV cache, quantization, method selection, and JSONL logging.
+- `benchmarks/bench_speculative.py`: Benchmark runner for baseline, speculative, AutoJudge, and SpecExec methods. Supports HF models, KV cache, quantization, method selection, and JSONL logging.
 - `configs/models.json`: Model presets (target/draft HF models, device, dtype, quantization, tokenizer, chat template).
-- `configs/methods.json`: Method presets (baseline/speculative/autojudge/all + placeholder for SpecExec).
+- `configs/methods.json`: Method presets (baseline/speculative/autojudge/specexec/all).
 - `configs/experiments.json`: Target/draft pairing presets for common comparisons.
-- `configs/method_templates.json`: Templates for AutoJudge and future SpecExec configs with parameters/metrics.
+- `configs/method_templates.json`: Templates for AutoJudge and SpecExec configs with parameters/metrics.
 - `scripts/validate_configs.py`: Static validator for configs (cross-file references, method constraints, tokenizer compatibility for target/draft pair methods).
 - `README.MD`: Project overview, usage, and examples.
 - `sp_samp/autojudge.py`: AutoJudge implementation (synthetic label collection, judge training, and decoding).
-- `sp_samp/cli.py`: Unified CLI runner (bench + autojudge shortcut + specexec placeholder).
+- `sp_samp/specexec.py`: CPU SpecExec implementation (draft branch execution, pruning, residual fallback).
+- `sp_samp/hf_specexec.py`: HF SpecExec implementation.
+- `sp_samp/cli.py`: Unified CLI runner (`bench`, `autojudge`, `specexec`, preset application).
 - `sp_samp/__init__.py`: Public exports with optional lazy behavior for torch-dependent modules.
 - `sp_samp/hf_adapter.py`: HF model adapter with KV cache and optional bitsandbytes quantization.
 - `sp_samp/hf_sampling.py`: HF sampling (baseline + speculative) using KV cache.
 - `sp_samp/sampling.py`: Reference CPU implementations + metrics.
 - `sp_samp/mtbench.py`: MT-Bench loader.
-- `sp_samp/methods/`: Placeholders for future AutoJudge and SpecExec implementations.
+- `sp_samp/methods/`: Method-facing exports (including SpecExec export).
 - `tests/test_sampling.py`: Core correctness tests for baseline/speculative sampling.
 - `tests/test_autojudge.py`: Unit tests for AutoJudge features, classifier fitting, and stats.
+- `tests/test_specexec.py`: Unit tests for SpecExec behavior and stats.
 - `Dockerfile`, `Dockerfile.gpu`: CPU/GPU containers.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
 
 ## Recent Changes (2026-02-10)
+- Implemented SpecExec as a first-class method:
+- added `sp_samp/specexec.py` (toy/CPU) and `sp_samp/hf_specexec.py` (HF);
+- added `SpecExecStats` with branch metrics (`branch_prune_rate`, `effective_parallelism`, `max_active_branches`, call rates).
+- Integrated SpecExec into benchmark flow (`benchmarks/bench_speculative.py`):
+- new method option `specexec`;
+- `all` now runs baseline + speculative + autojudge + specexec;
+- new args `--parallel-branches` and `--branch-prune-threshold`;
+- JSONL records now include SpecExec configuration/metrics fields.
+- Integrated SpecExec into CLI (`sp_samp/cli.py`):
+- new subcommand `specexec`;
+- method presets now accept `specexec`;
+- passthrough for `parallel_branches` and `branch_prune_threshold`.
+- Updated configs:
+- `configs/methods.json`: added `specexec_k4`, updated `compare_all_k4`, removed SpecExec placeholder preset;
+- `configs/experiments.json`: added SpecExec experiment presets for Llama3/Mistral/GPT-OSS;
+- `configs/method_templates.json`: aligned SpecExec template metrics with actual output.
+- Updated automation entrypoints:
+- `Makefile`: added `SPECEXEC_EXPERIMENT`, `specexec`, and `docker-specexec` targets; refreshed `bench-all` description.
+- Added unit tests for SpecExec in `tests/test_specexec.py`.
+- Updated `README.MD` with SpecExec usage examples and metrics documentation.
 - Added `scripts/validate_configs.py` and integrated it into `make check` and `make validate-configs`.
 - Added `make smoke-hf` for quick end-to-end HF pipeline verification with a tiny model.
 - Added `TARGET_PRESET`/`DRAFT_PRESET` variables in `Makefile` for `bench-method` to avoid hardcoded mismatched pairs.

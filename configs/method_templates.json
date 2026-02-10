@@ -31,8 +31,7 @@
         "max_new_tokens": 128,
         "k": 4,
         "parallel_branches": 8,
-        "branch_prune_threshold": 0.5,
-        "max_batch_size": 8,
+        "branch_prune_threshold": 0.0,
         "use_chat_template": true,
         "system_prompt": null
       },
@@ -42,10 +41,11 @@
         "avg_tokens_per_step",
         "branch_prune_rate",
         "effective_parallelism",
-        "latency_ms",
-        "memory_gb"
+        "target_calls_per_token",
+        "draft_calls_per_token",
+        "max_active_branches"
       ],
-      "notes": "Template for SpecExec configuration and expected metrics."
+      "notes": "Template for SpecExec configuration and emitted metrics."
     }
   }
 }

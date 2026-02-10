@@ -18,6 +18,7 @@ except ModuleNotFoundError:
 from sp_samp.models import NoisyModel, RandomModel
 from sp_samp.mtbench import load_mtbench
 from sp_samp.sampling import SamplingStats, sample_baseline, speculative_sample
+from sp_samp.specexec import SpecExecStats, specexec_sample
 
 HFModel = None
 AutoJudgeTrainConfig = None
@@ -27,6 +28,7 @@ AutoJudgeStats = None
 autojudge_sample_hf = None
 sample_baseline_hf = None
 speculative_sample_hf = None
+specexec_sample_hf = None
 
 if torch is not None:
     from sp_samp.autojudge import (
@@ -38,6 +40,7 @@ if torch is not None:
     )
     from sp_samp.hf_adapter import HFModel
     from sp_samp.hf_sampling import sample_baseline_hf, speculative_sample_hf
+    from sp_samp.hf_specexec import specexec_sample_hf
 
 
 class HashTokenizer:
@@ -76,6 +79,11 @@ def _accumulate_stats(total, stats) -> None:
         "target_fallbacks",
         "draft_calls",
         "draft_prefills",
+        "target_prefills",
+        "branches_total",
+        "branches_kept",
+        "branches_pruned",
+        "max_active_branches",
         "audit_samples",
         "audit_expected_accept",
     ]
@@ -96,6 +104,8 @@ def _run_once(
     autojudge_model=None,
     autojudge_threshold: float = 0.5,
     autojudge_audit_ratio: float = 0.0,
+    specexec_parallel_branches: int = 8,
+    specexec_branch_prune_threshold: float = 0.0,
 ) -> Tuple[float, float, int, object, int]:
     rng = random.Random(seed)
     if torch is not None:
@@ -106,6 +116,8 @@ def _run_once(
         if AutoJudgeStats is None:
             raise RuntimeError("AutoJudge requires torch dependencies.")
         total_stats = AutoJudgeStats()
+    elif method == "specexec":
+        total_stats = SpecExecStats()
     else:
         total_stats = SamplingStats()
     start = time.perf_counter()
@@ -146,6 +158,21 @@ def _run_once(
                     seed=seed,
                     audit_ratio=autojudge_audit_ratio,
                 )
+            elif method == "specexec":
+                if specexec_sample_hf is None:
+                    raise RuntimeError("SpecExec HF implementation is unavailable.")
+                generated, stats = specexec_sample_hf(
+                    target_model=target_model,
+                    draft_model=draft_model,
+                    prompt_tokens=prompt_tokens,
+                    max_new_tokens=max_new_tokens,
+                    k=k,
+                    parallel_branches=specexec_parallel_branches,
+                    branch_prune_threshold=specexec_branch_prune_threshold,
+                    eos_id=target_model.eos_token_id,
+                    seed=seed,
+                    return_stats=True,
+                )
             else:
                 raise ValueError(f"Unknown method: {method}")
         else:
@@ -169,6 +196,18 @@ def _run_once(
                 )
             elif method == "autojudge":
                 raise ValueError("AutoJudge is currently supported only for HF models.")
+            elif method == "specexec":
+                generated, stats = specexec_sample(
+                    target_model,
+                    draft_model,
+                    prompt_tokens,
+                    max_new_tokens,
+                    k=k,
+                    parallel_branches=specexec_parallel_branches,
+                    branch_prune_threshold=specexec_branch_prune_threshold,
+                    rng=rng,
+                    return_stats=True,
+                )
             else:
                 raise ValueError(f"Unknown method: {method}")
         total_tokens += len(generated)
@@ -198,7 +237,7 @@ def _resolve_methods(method: str) -> List[str]:
     if method == "both":
         return ["baseline", "speculative"]
     if method == "all":
-        return ["baseline", "speculative", "autojudge"]
+        return ["baseline", "speculative", "autojudge", "specexec"]
     return [method]
 
 
@@ -228,6 +267,12 @@ def _stats_record_fields(stats) -> dict:
         record["target_fallback_rate"] = stats.target_fallback_rate
     if hasattr(stats, "target_calls_per_token"):
         record["target_calls_per_token"] = stats.target_calls_per_token
+    if hasattr(stats, "draft_calls_per_token"):
+        record["draft_calls_per_token"] = stats.draft_calls_per_token
+    if hasattr(stats, "branch_prune_rate"):
+        record["branch_prune_rate"] = stats.branch_prune_rate
+    if hasattr(stats, "effective_parallelism"):
+        record["effective_parallelism"] = stats.effective_parallelism
     for key in [
         "judge_total",
         "judge_accepted",
@@ -236,6 +281,11 @@ def _stats_record_fields(stats) -> dict:
         "target_fallbacks",
         "draft_calls",
         "draft_prefills",
+        "target_prefills",
+        "branches_total",
+        "branches_kept",
+        "branches_pruned",
+        "max_active_branches",
         "train_samples",
         "train_loss",
         "audit_samples",
@@ -258,7 +308,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--method",
         type=str,
         default="both",
-        choices=["baseline", "speculative", "autojudge", "both", "all"],
+        choices=["baseline", "speculative", "autojudge", "specexec", "both", "all"],
     )
     parser.add_argument("--vocab-size", type=int, default=2048)
     parser.add_argument("--draft-noise", type=float, default=0.2, help="Noise for draft model.")
@@ -286,13 +336,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--autojudge-train-lr", type=float, default=1e-3, help="Judge training learning rate.")
     parser.add_argument("--autojudge-audit-ratio", type=float, default=0.0, help="Fraction of accepted tokens to audit with target model.")
     parser.add_argument("--autojudge-checkpoint", type=str, default=None, help="Path to save/load judge checkpoint (.pt).")
+    parser.add_argument("--parallel-branches", type=int, default=8, help="Number of draft branches for SpecExec.")
+    parser.add_argument("--branch-prune-threshold", type=float, default=0.0, help="Draft-probability pruning threshold in [0,1] for SpecExec.")
     parser.add_argument("--out", type=str, default=None, help="Path to JSONL metrics file.")
     return parser
 
 
 def run_with_args(args: argparse.Namespace) -> None:
     methods = _resolve_methods(args.method)
-    needs_draft = any(m in {"speculative", "autojudge"} for m in methods)
+    needs_draft = any(m in {"speculative", "autojudge", "specexec"} for m in methods)
     if "autojudge" in methods and not args.hf_model:
         raise SystemExit("AutoJudge requires HF models. Set --hf-model and --hf-draft-model.")
 
@@ -471,6 +523,8 @@ def run_with_args(args: argparse.Namespace) -> None:
                 autojudge_model=autojudge_model,
                 autojudge_threshold=args.autojudge_threshold,
                 autojudge_audit_ratio=args.autojudge_audit_ratio,
+                specexec_parallel_branches=args.parallel_branches,
+                specexec_branch_prune_threshold=args.branch_prune_threshold,
             )
             if hasattr(stats, "train_samples"):
                 stats.train_samples = autojudge_train_samples
@@ -514,6 +568,8 @@ def run_with_args(args: argparse.Namespace) -> None:
                 "autojudge_train_samples": autojudge_train_samples,
                 "autojudge_train_loss": autojudge_train_loss,
                 "autojudge_checkpoint": args.autojudge_checkpoint,
+                "parallel_branches": args.parallel_branches,
+                "branch_prune_threshold": args.branch_prune_threshold,
                 "run": run + 1,
             }
             record.update(_stats_record_fields(stats))
@@ -562,6 +618,8 @@ def run_with_args(args: argparse.Namespace) -> None:
             "autojudge_train_samples": autojudge_train_samples,
             "autojudge_train_loss": autojudge_train_loss,
             "autojudge_checkpoint": args.autojudge_checkpoint,
+            "parallel_branches": args.parallel_branches,
+            "branch_prune_threshold": args.branch_prune_threshold,
             "tokens_per_sec_median": median_tps,
             "acceptance_rate_median": median_accept,
             "avg_tokens_per_step_median": median_tps_step,

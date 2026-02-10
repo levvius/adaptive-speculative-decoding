@@ -18,8 +18,14 @@
       "draft_preset": "llama3_8b_instruct",
       "method_preset": "autojudge_k4"
     },
+    "llama3_target_llama3_specexec_k4": {
+      "description": "Llama-3 8B target with Llama-3 8B draft, SpecExec k=4.",
+      "target_preset": "llama3_8b_instruct",
+      "draft_preset": "llama3_8b_instruct",
+      "method_preset": "specexec_k4"
+    },
     "llama3_all_methods": {
-      "description": "Run baseline, speculative, and AutoJudge in one benchmark for Llama-3 8B.",
+      "description": "Run baseline, speculative, AutoJudge, and SpecExec in one benchmark for Llama-3 8B.",
       "target_preset": "llama3_8b_instruct",
       "draft_preset": "llama3_8b_instruct",
       "method_preset": "compare_all_k4"
@@ -36,8 +42,14 @@
       "draft_preset": "mistral_7b_instruct",
       "method_preset": "autojudge_k4"
     },
+    "mistral_target_mistral_specexec_k4": {
+      "description": "Mistral 7B target with Mistral 7B draft, SpecExec k=4.",
+      "target_preset": "mistral_7b_instruct",
+      "draft_preset": "mistral_7b_instruct",
+      "method_preset": "specexec_k4"
+    },
     "mistral_all_methods": {
-      "description": "Run baseline, speculative, and AutoJudge in one benchmark for Mistral 7B.",
+      "description": "Run baseline, speculative, AutoJudge, and SpecExec in one benchmark for Mistral 7B.",
       "target_preset": "mistral_7b_instruct",
       "draft_preset": "mistral_7b_instruct",
       "method_preset": "compare_all_k4"
@@ -54,8 +66,14 @@
       "draft_preset": "gpt_oss_20b_4bit",
       "method_preset": "autojudge_k4"
     },
+    "gptoss20b_target_gptoss20b_specexec_k4": {
+      "description": "GPT-OSS 20B target (4-bit) with GPT-OSS 20B draft, SpecExec k=4.",
+      "target_preset": "gpt_oss_20b_4bit",
+      "draft_preset": "gpt_oss_20b_4bit",
+      "method_preset": "specexec_k4"
+    },
     "gptoss20b_all_methods": {
-      "description": "Run baseline, speculative, and AutoJudge in one benchmark for GPT-OSS 20B (4-bit).",
+      "description": "Run baseline, speculative, AutoJudge, and SpecExec in one benchmark for GPT-OSS 20B (4-bit).",
       "target_preset": "gpt_oss_20b_4bit",
       "draft_preset": "gpt_oss_20b_4bit",
       "method_preset": "compare_all_k4"
