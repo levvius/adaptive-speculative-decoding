@@ -3,7 +3,7 @@
 This project provides:
 - Exact speculative sampling (SpS).
 - AutoJudge (lossy judge-decoding style method with synthetic labels, no manual annotation).
-- SpecExec (draft-branch execution with target validation and branch pruning).
+- SpecExec (exact target sampling with draft-branch cache prefill and pruning).
 - A Hugging Face adapter with KV cache and optional quantization.
 - A benchmark harness on MT-Bench with JSONL metrics.
 
@@ -214,6 +214,7 @@ The benchmark writes JSONL records with per-run metrics and a summary record per
 - `effective_parallelism` (SpecExec only)
 - `target_calls_per_token` (AutoJudge and SpecExec)
 - `draft_calls_per_token` (SpecExec only)
+- `cache_hit_rate` (SpecExec only)
 - `max_active_branches` (SpecExec only)
 
 **Project Layout**
@@ -224,7 +225,7 @@ The benchmark writes JSONL records with per-run metrics and a summary record per
 - `Dockerfile`, `Dockerfile.gpu`: containers.
 
 **Notes**
-- SpecExec is implemented as branch-execution decoding with configurable `parallel_branches` and `branch_prune_threshold`.
+- SpecExec is implemented as an exact (distribution-preserving) decoder with speculative cache prefill and configurable `parallel_branches` / `branch_prune_threshold`.
 - Draft and target models must share an identical tokenizer vocabulary mapping for speculative, AutoJudge, and SpecExec correctness.
 - `make validate-configs` checks config references and tokenizer compatibility in `configs/*.json`.
 - Current default experiments are correctness-safe (same tokenizer family) and may show limited speedup when target=draft.

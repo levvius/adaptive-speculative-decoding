@@ -3,10 +3,14 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from .models import BaseModel
 from .sampling import _weighted_choice
+
+
+class SpecExecError(RuntimeError):
+    """Raised when SpecExec cache construction/sampling encounters invalid state."""
 
 
 @dataclass
@@ -26,6 +30,9 @@ class SpecExecStats:
     target_prefills: int = 0
     draft_prefills: int = 0
     max_active_branches: int = 0
+
+    cache_hits: int = 0
+    cache_misses: int = 0
 
     @property
     def acceptance_rate(self) -> float:
@@ -52,117 +59,199 @@ class SpecExecStats:
     def draft_calls_per_token(self) -> float:
         return self.draft_calls / self.target_tokens if self.target_tokens else 0.0
 
-
-@dataclass
-class _Branch:
-    tokens: List[int]
-    draft_probs: List[List[float]]
-    score: float
+    @property
+    def cache_hit_rate(self) -> float:
+        total = self.cache_hits + self.cache_misses
+        return self.cache_hits / total if total else 0.0
 
 
-def _filter_candidates(
-    probs: Sequence[float], prune_threshold: float
-) -> Tuple[List[int], List[float], int]:
-    if not probs:
-        raise ValueError("Distribution is empty.")
+_Prefix = Tuple[int, ...]
+
+
+def _short_prefix(prefix: Sequence[int], tail: int = 8) -> str:
+    if len(prefix) <= tail:
+        return str(list(prefix))
+    return f"...{list(prefix[-tail:])}"
+
+
+def _validate_probs(
+    probs: Sequence[float],
+    vocab_size: int,
+    *,
+    stage: str,
+    prefix: Sequence[int],
+    normalize: bool = True,
+) -> List[float]:
+    if len(probs) != vocab_size:
+        raise SpecExecError(
+            f"{stage}: expected distribution length={vocab_size}, got {len(probs)} "
+            f"(prefix_len={len(prefix)}, prefix_tail={_short_prefix(prefix)})"
+        )
+    normalized: List[float] = []
+    total = 0.0
+    for idx, value in enumerate(probs):
+        p = float(value)
+        if not math.isfinite(p):
+            raise SpecExecError(
+                f"{stage}: non-finite probability at token={idx}: {p} "
+                f"(prefix_len={len(prefix)}, prefix_tail={_short_prefix(prefix)})"
+            )
+        if p < 0.0:
+            raise SpecExecError(
+                f"{stage}: negative probability at token={idx}: {p} "
+                f"(prefix_len={len(prefix)}, prefix_tail={_short_prefix(prefix)})"
+            )
+        normalized.append(p)
+        total += p
+    if total <= 0.0:
+        raise SpecExecError(
+            f"{stage}: probability sum must be positive, got {total} "
+            f"(prefix_len={len(prefix)}, prefix_tail={_short_prefix(prefix)})"
+        )
+    if normalize:
+        return [p / total for p in normalized]
+    return normalized
+
+
+def _select_candidate_tokens(
+    probs: Sequence[float],
+    prune_threshold: float,
+    max_tokens: int,
+) -> Tuple[List[int], int]:
     max_prob = max(float(p) for p in probs)
     if prune_threshold <= 0.0:
-        indices = list(range(len(probs)))
+        candidates = list(range(len(probs)))
     else:
         cutoff = max_prob * prune_threshold
-        indices = [i for i, p in enumerate(probs) if float(p) >= cutoff]
-        if not indices:
+        candidates = [idx for idx, p in enumerate(probs) if float(p) >= cutoff]
+        if not candidates:
             best = max(range(len(probs)), key=lambda idx: float(probs[idx]))
-            indices = [best]
-    weights = [float(probs[idx]) for idx in indices]
-    return indices, weights, len(probs) - len(indices)
+            candidates = [best]
+
+    candidates.sort(key=lambda idx: (-float(probs[idx]), idx))
+    if len(candidates) > max_tokens:
+        candidates = candidates[:max_tokens]
+
+    pruned = len(probs) - len(candidates)
+    return candidates, pruned
 
 
-def _sample_from_candidates(
-    rng: random.Random,
-    indices: Sequence[int],
-    weights: Sequence[float],
-) -> int:
-    total = float(sum(weights))
-    chosen = _weighted_choice(rng, weights, total=total)
-    return int(indices[chosen])
-
-
-def _build_branches(
+def _build_draft_tree(
     draft_model: BaseModel,
-    prompt_tokens: Sequence[int],
-    generated: Sequence[int],
-    block_size: int,
+    root_prefix: _Prefix,
+    *,
+    max_depth: int,
     parallel_branches: int,
-    prune_threshold: float,
-    rng: random.Random,
-    stats: SpecExecStats,
+    branch_prune_threshold: float,
     eos_id: Optional[int],
     eps: float,
-) -> List[_Branch]:
-    prefix = list(prompt_tokens) + list(generated)
-    root_q = draft_model.next_token_probs(prefix)
-    stats.draft_calls += 1
-    root_indices, _, pruned = _filter_candidates(root_q, prune_threshold)
-    stats.branches_kept += len(root_indices)
-    stats.branches_pruned += pruned
-
-    first_tokens = sorted(root_indices, key=lambda idx: root_q[idx], reverse=True)[
-        :parallel_branches
-    ]
-    if not first_tokens:
-        first_tokens = [max(range(len(root_q)), key=lambda idx: root_q[idx])]
-
-    branches: List[_Branch] = []
-    for first in first_tokens:
-        tokens = [int(first)]
-        draft_probs: List[List[float]] = [list(root_q)]
-        score = math.log(max(float(root_q[first]), eps))
-        if eos_id is not None and first == eos_id:
-            branches.append(_Branch(tokens=tokens, draft_probs=draft_probs, score=score))
-            continue
-
-        for _ in range(1, block_size):
-            context = prefix + tokens
-            q = draft_model.next_token_probs(context)
-            stats.draft_calls += 1
-            indices, weights, pruned = _filter_candidates(q, prune_threshold)
-            stats.branches_kept += len(indices)
-            stats.branches_pruned += pruned
-            token = _sample_from_candidates(rng, indices, weights)
-            tokens.append(token)
-            draft_probs.append(list(q))
-            score += math.log(max(float(q[token]), eps))
-            if eos_id is not None and token == eos_id:
-                break
-        branches.append(_Branch(tokens=tokens, draft_probs=draft_probs, score=score))
-
-    stats.branches_total += len(branches)
-    stats.max_active_branches = max(stats.max_active_branches, len(branches))
-    return branches
-
-
-def _evaluate_branch(
-    target_model: BaseModel,
-    prompt_tokens: Sequence[int],
-    generated: Sequence[int],
-    branch: _Branch,
-    rng: random.Random,
     stats: SpecExecStats,
-    eps: float,
-) -> int:
-    accepted = 0
-    for i, token in enumerate(branch.tokens):
-        context = list(prompt_tokens) + list(generated) + branch.tokens[:i]
-        p = target_model.next_token_probs(context)
+) -> Set[_Prefix]:
+    tree_nodes: Set[_Prefix] = {root_prefix}
+    frontier: List[Tuple[_Prefix, float]] = [(root_prefix, 0.0)]
+    stats.max_active_branches = max(stats.max_active_branches, len(frontier))
+
+    for depth in range(max_depth):
+        children: List[Tuple[_Prefix, float]] = []
+        for prefix, score in frontier:
+            if eos_id is not None and prefix and prefix[-1] == eos_id:
+                continue
+            q_raw = draft_model.next_token_probs(prefix)
+            stats.draft_calls += 1
+            q = _validate_probs(
+                q_raw,
+                draft_model.vocab_size,
+                stage=f"draft_tree_depth_{depth}",
+                prefix=prefix,
+            )
+            token_ids, pruned = _select_candidate_tokens(
+                q,
+                prune_threshold=branch_prune_threshold,
+                max_tokens=parallel_branches,
+            )
+            stats.branches_kept += len(token_ids)
+            stats.branches_pruned += pruned
+            for token_id in token_ids:
+                child_prefix = prefix + (int(token_id),)
+                child_score = score + math.log(max(float(q[token_id]), eps))
+                children.append((child_prefix, child_score))
+
+        if not children:
+            break
+
+        children.sort(key=lambda item: (-item[1], item[0]))
+        next_frontier: List[Tuple[_Prefix, float]] = []
+        seen: Set[_Prefix] = set()
+        for candidate in children:
+            prefix, _ = candidate
+            if prefix in seen:
+                continue
+            next_frontier.append(candidate)
+            seen.add(prefix)
+            if len(next_frontier) >= parallel_branches:
+                break
+
+        if not next_frontier:
+            break
+
+        frontier = next_frontier
+        stats.max_active_branches = max(stats.max_active_branches, len(frontier))
+        stats.branches_total += len(frontier)
+        for prefix, _ in frontier:
+            tree_nodes.add(prefix)
+
+    return tree_nodes
+
+
+def _fill_target_cache(
+    target_model: BaseModel,
+    node_prefixes: Set[_Prefix],
+    *,
+    stats: SpecExecStats,
+) -> Dict[_Prefix, List[float]]:
+    cache: Dict[_Prefix, List[float]] = {}
+    ordered = sorted(node_prefixes, key=lambda prefix: (len(prefix), prefix))
+    for prefix in ordered:
+        p_raw = target_model.next_token_probs(prefix)
         stats.target_calls += 1
-        q = branch.draft_probs[i]
-        alpha = min(1.0, float(p[token]) / max(float(q[token]), eps))
-        if rng.random() <= alpha:
-            accepted += 1
-            continue
-        break
-    return accepted
+        cache[prefix] = _validate_probs(
+            p_raw,
+            target_model.vocab_size,
+            stage="target_cache_fill",
+            prefix=prefix,
+        )
+    return cache
+
+
+def _prefill_cache(
+    target_model: BaseModel,
+    draft_model: BaseModel,
+    current_prefix: _Prefix,
+    *,
+    k: int,
+    parallel_branches: int,
+    branch_prune_threshold: float,
+    eos_id: Optional[int],
+    eps: float,
+    stats: SpecExecStats,
+) -> Dict[_Prefix, List[float]]:
+    stats.steps += 1
+    stats.target_prefills += 1
+    stats.draft_prefills += 1
+
+    tree_nodes = _build_draft_tree(
+        draft_model=draft_model,
+        root_prefix=current_prefix,
+        max_depth=k,
+        parallel_branches=parallel_branches,
+        branch_prune_threshold=branch_prune_threshold,
+        eos_id=eos_id,
+        eps=eps,
+        stats=stats,
+    )
+    if current_prefix not in tree_nodes:
+        tree_nodes.add(current_prefix)
+    return _fill_target_cache(target_model, tree_nodes, stats=stats)
 
 
 def specexec_sample(
@@ -178,7 +267,7 @@ def specexec_sample(
     eps: float = 1e-12,
     return_stats: bool = False,
 ) -> Union[List[int], Tuple[List[int], SpecExecStats]]:
-    """Simplified SpecExec-style decoding with draft branch execution."""
+    """SpecExec decoding with exact target sampling and speculative cache prefill."""
     if max_new_tokens < 0:
         raise ValueError("max_new_tokens must be non-negative.")
     if k <= 0:
@@ -193,85 +282,53 @@ def specexec_sample(
         rng = random.Random()
 
     generated: List[int] = []
+    cache: Dict[_Prefix, List[float]] = {}
     stats = SpecExecStats()
+    prompt_prefix = tuple(int(t) for t in prompt_tokens)
 
     while len(generated) < max_new_tokens:
-        stats.steps += 1
-        remaining = max_new_tokens - len(generated)
-        block_size = min(k, remaining)
-
-        branches = _build_branches(
-            draft_model=draft_model,
-            prompt_tokens=prompt_tokens,
-            generated=generated,
-            block_size=block_size,
-            parallel_branches=parallel_branches,
-            prune_threshold=branch_prune_threshold,
-            rng=rng,
-            stats=stats,
-            eos_id=eos_id,
-            eps=eps,
-        )
-        if not branches:
-            raise RuntimeError("SpecExec failed to build candidate branches.")
-
-        accepted_by_branch = [
-            _evaluate_branch(
-                target_model=target_model,
-                prompt_tokens=prompt_tokens,
-                generated=generated,
-                branch=branch,
-                rng=rng,
-                stats=stats,
-                eps=eps,
-            )
-            for branch in branches
-        ]
-        best_idx = max(
-            range(len(branches)),
-            key=lambda idx: (accepted_by_branch[idx], branches[idx].score),
-        )
-        best_branch = branches[best_idx]
-        best_accepted = accepted_by_branch[best_idx]
-
-        stats.proposed += len(best_branch.tokens)
-        stats.accepted += best_accepted
-
-        for token in best_branch.tokens[:best_accepted]:
-            generated.append(token)
-            stats.target_tokens += 1
-            if eos_id is not None and token == eos_id:
-                if return_stats:
-                    return generated, stats
-                return generated
-            if len(generated) >= max_new_tokens:
-                if return_stats:
-                    return generated, stats
-                return generated
-
-        context = list(prompt_tokens) + generated
-        p = target_model.next_token_probs(context)
-        stats.target_calls += 1
-
-        if best_accepted < len(best_branch.tokens):
-            stats.rejections += 1
-            q_rejected = best_branch.draft_probs[best_accepted]
-            residual = [max(float(pi) - float(qi), 0.0) for pi, qi in zip(p, q_rejected)]
-            residual_total = float(sum(residual))
-            if residual_total <= 0.0:
-                residual = list(p)
-                residual_total = float(sum(residual))
-            token = _weighted_choice(rng, residual, total=residual_total)
+        current_prefix = prompt_prefix + tuple(generated)
+        if current_prefix not in cache:
+            stats.cache_misses += 1
+            try:
+                cache = _prefill_cache(
+                    target_model=target_model,
+                    draft_model=draft_model,
+                    current_prefix=current_prefix,
+                    k=k,
+                    parallel_branches=parallel_branches,
+                    branch_prune_threshold=branch_prune_threshold,
+                    eos_id=eos_id,
+                    eps=eps,
+                    stats=stats,
+                )
+            except SpecExecError:
+                raise
+            except Exception as exc:  # pragma: no cover
+                raise SpecExecError(
+                    f"spec_exec_prefill_failed: {exc} "
+                    f"(generated={len(generated)}, prefix_len={len(current_prefix)}, "
+                    f"prefix_tail={_short_prefix(current_prefix)})"
+                ) from exc
+            if current_prefix not in cache:
+                raise SpecExecError(
+                    "spec_exec_prefill_missing_current_prefix "
+                    f"(prefix_len={len(current_prefix)}, prefix_tail={_short_prefix(current_prefix)})"
+                )
         else:
-            token = _weighted_choice(rng, p)
+            stats.cache_hits += 1
 
+        probs = cache[current_prefix]
+        token = _weighted_choice(rng, probs)
         generated.append(token)
         stats.target_tokens += 1
+        stats.proposed += 1
+        stats.accepted += 1
+
         if eos_id is not None and token == eos_id:
-            if return_stats:
-                return generated, stats
-            return generated
+            break
 
     if return_stats:
         return generated, stats
     return generated
+

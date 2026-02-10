@@ -1,145 +1,203 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import torch
 
 from .hf_adapter import HFModel
-from .specexec import SpecExecStats
+from .specexec import SpecExecError, SpecExecStats
+
+_Prefix = Tuple[int, ...]
 
 
-def _softmax(logits: torch.Tensor) -> torch.Tensor:
-    return torch.softmax(logits, dim=-1)
+def _short_prefix(prefix: Sequence[int], tail: int = 8) -> str:
+    if len(prefix) <= tail:
+        return str(list(prefix))
+    return f"...{list(prefix[-tail:])}"
 
 
-def _sample_from_probs(probs: torch.Tensor) -> int:
-    token = torch.multinomial(probs, num_samples=1)
-    return int(token.item())
+def _validate_probs(
+    probs: Sequence[float],
+    vocab_size: int,
+    *,
+    stage: str,
+    prefix: Sequence[int],
+) -> List[float]:
+    if len(probs) != vocab_size:
+        raise SpecExecError(
+            f"{stage}: expected distribution length={vocab_size}, got {len(probs)} "
+            f"(prefix_len={len(prefix)}, prefix_tail={_short_prefix(prefix)})"
+        )
+    normalized: List[float] = []
+    total = 0.0
+    for idx, value in enumerate(probs):
+        p = float(value)
+        if not math.isfinite(p):
+            raise SpecExecError(
+                f"{stage}: non-finite probability at token={idx}: {p} "
+                f"(prefix_len={len(prefix)}, prefix_tail={_short_prefix(prefix)})"
+            )
+        if p < 0.0:
+            raise SpecExecError(
+                f"{stage}: negative probability at token={idx}: {p} "
+                f"(prefix_len={len(prefix)}, prefix_tail={_short_prefix(prefix)})"
+            )
+        normalized.append(p)
+        total += p
+    if total <= 0.0:
+        raise SpecExecError(
+            f"{stage}: probability sum must be positive, got {total} "
+            f"(prefix_len={len(prefix)}, prefix_tail={_short_prefix(prefix)})"
+        )
+    return [p / total for p in normalized]
 
 
-def _filter_indices(probs: torch.Tensor, prune_threshold: float) -> Tuple[torch.Tensor, int]:
-    if probs.numel() == 0:
-        raise ValueError("Distribution is empty.")
-    max_prob = float(torch.max(probs).item())
+def _select_candidate_tokens(
+    probs: Sequence[float],
+    prune_threshold: float,
+    max_tokens: int,
+) -> Tuple[List[int], int]:
+    max_prob = max(float(p) for p in probs)
     if prune_threshold <= 0.0:
-        indices = torch.arange(probs.shape[0], device=probs.device)
+        candidates = list(range(len(probs)))
     else:
         cutoff = max_prob * prune_threshold
-        indices = torch.nonzero(probs >= cutoff, as_tuple=False).squeeze(-1)
-        if indices.numel() == 0:
-            indices = torch.argmax(probs).reshape(1)
-    pruned = int(probs.shape[0] - indices.shape[0])
-    return indices, pruned
+        candidates = [idx for idx, p in enumerate(probs) if float(p) >= cutoff]
+        if not candidates:
+            best = max(range(len(probs)), key=lambda idx: float(probs[idx]))
+            candidates = [best]
+
+    candidates.sort(key=lambda idx: (-float(probs[idx]), idx))
+    if len(candidates) > max_tokens:
+        candidates = candidates[:max_tokens]
+
+    pruned = len(probs) - len(candidates)
+    return candidates, pruned
 
 
-def _sample_from_candidates(probs: torch.Tensor, indices: torch.Tensor) -> int:
-    candidate_probs = probs.index_select(0, indices)
-    total = float(candidate_probs.sum().item())
-    if total <= 0.0:
-        candidate_probs = torch.ones_like(candidate_probs) / float(candidate_probs.numel())
-    else:
-        candidate_probs = candidate_probs / total
-    sampled_pos = _sample_from_probs(candidate_probs)
-    return int(indices[sampled_pos].item())
-
-
-@dataclass
-class _HFBranch:
-    tokens: List[int]
-    draft_probs: List[torch.Tensor]
-    score: float
-
-
-def _build_branches_hf(
+def _build_draft_tree(
     draft_model: HFModel,
-    prompt_tokens: Sequence[int],
-    generated: Sequence[int],
-    block_size: int,
+    root_prefix: _Prefix,
+    *,
+    max_depth: int,
     parallel_branches: int,
-    prune_threshold: float,
-    stats: SpecExecStats,
+    branch_prune_threshold: float,
     eos_id: Optional[int],
     eps: float,
-) -> List[_HFBranch]:
-    prefix = list(prompt_tokens) + list(generated)
-    root_state = draft_model.prefill(prefix)
-    stats.draft_prefills += 1
-    stats.draft_calls += 1
-    root_q = _softmax(root_state.logits).squeeze(0)
-    root_indices, pruned = _filter_indices(root_q, prune_threshold)
-    stats.branches_kept += int(root_indices.shape[0])
-    stats.branches_pruned += pruned
-
-    scores = root_q.index_select(0, root_indices)
-    sorted_pos = torch.argsort(scores, descending=True)
-    ordered = root_indices.index_select(0, sorted_pos)
-    first_tokens = ordered[:parallel_branches].tolist()
-    if not first_tokens:
-        first_tokens = [int(torch.argmax(root_q).item())]
-
-    branches: List[_HFBranch] = []
-    for first in first_tokens:
-        tokens = [int(first)]
-        draft_probs = [root_q]
-        score = math.log(max(float(root_q[first].item()), eps))
-        if eos_id is not None and first == eos_id:
-            branches.append(_HFBranch(tokens=tokens, draft_probs=draft_probs, score=score))
-            continue
-
-        if block_size <= 1:
-            branches.append(_HFBranch(tokens=tokens, draft_probs=draft_probs, score=score))
-            continue
-
-        branch_state = draft_model.step([first], root_state)
-        stats.draft_calls += 1
-        for _ in range(1, block_size):
-            q = _softmax(branch_state.logits).squeeze(0)
-            indices, pruned = _filter_indices(q, prune_threshold)
-            stats.branches_kept += int(indices.shape[0])
-            stats.branches_pruned += pruned
-            token = _sample_from_candidates(q, indices)
-            tokens.append(token)
-            draft_probs.append(q)
-            score += math.log(max(float(q[token].item()), eps))
-            if eos_id is not None and token == eos_id:
-                break
-            branch_state = draft_model.step([token], branch_state)
-            stats.draft_calls += 1
-        branches.append(_HFBranch(tokens=tokens, draft_probs=draft_probs, score=score))
-
-    stats.branches_total += len(branches)
-    stats.max_active_branches = max(stats.max_active_branches, len(branches))
-    return branches
-
-
-def _evaluate_branch_hf(
-    target_model: HFModel,
-    prompt_tokens: Sequence[int],
-    generated: Sequence[int],
-    branch: _HFBranch,
     stats: SpecExecStats,
-    eps: float,
-) -> int:
-    prefix = list(prompt_tokens) + list(generated)
-    target_state = target_model.prefill(prefix)
-    stats.target_prefills += 1
-    stats.target_calls += 1
-    accepted = 0
-    for i, token in enumerate(branch.tokens):
-        p = _softmax(target_state.logits).squeeze(0)
-        q = branch.draft_probs[i]
-        alpha = min(1.0, float(p[token].item()) / max(float(q[token].item()), eps))
-        if torch.rand(1).item() <= alpha:
-            accepted += 1
-            if i + 1 >= len(branch.tokens):
+) -> Set[_Prefix]:
+    tree_nodes: Set[_Prefix] = {root_prefix}
+    frontier: List[Tuple[_Prefix, float]] = [(root_prefix, 0.0)]
+    stats.max_active_branches = max(stats.max_active_branches, len(frontier))
+
+    for depth in range(max_depth):
+        children: List[Tuple[_Prefix, float]] = []
+        for prefix, score in frontier:
+            if eos_id is not None and prefix and prefix[-1] == eos_id:
+                continue
+            q_raw = draft_model.next_token_probs(prefix)
+            stats.draft_calls += 1
+            q = _validate_probs(
+                q_raw,
+                draft_model.vocab_size,
+                stage=f"draft_tree_depth_{depth}",
+                prefix=prefix,
+            )
+            token_ids, pruned = _select_candidate_tokens(
+                q,
+                prune_threshold=branch_prune_threshold,
+                max_tokens=parallel_branches,
+            )
+            stats.branches_kept += len(token_ids)
+            stats.branches_pruned += pruned
+            for token_id in token_ids:
+                child_prefix = prefix + (int(token_id),)
+                child_score = score + math.log(max(float(q[token_id]), eps))
+                children.append((child_prefix, child_score))
+
+        if not children:
+            break
+
+        children.sort(key=lambda item: (-item[1], item[0]))
+        next_frontier: List[Tuple[_Prefix, float]] = []
+        seen: Set[_Prefix] = set()
+        for candidate in children:
+            prefix, _ = candidate
+            if prefix in seen:
+                continue
+            next_frontier.append(candidate)
+            seen.add(prefix)
+            if len(next_frontier) >= parallel_branches:
                 break
-            target_state = target_model.step([token], target_state)
-            stats.target_calls += 1
-            continue
-        break
-    return accepted
+
+        if not next_frontier:
+            break
+
+        frontier = next_frontier
+        stats.max_active_branches = max(stats.max_active_branches, len(frontier))
+        stats.branches_total += len(frontier)
+        for prefix, _ in frontier:
+            tree_nodes.add(prefix)
+
+    return tree_nodes
+
+
+def _fill_target_cache(
+    target_model: HFModel,
+    node_prefixes: Set[_Prefix],
+    *,
+    stats: SpecExecStats,
+) -> Dict[_Prefix, List[float]]:
+    cache: Dict[_Prefix, List[float]] = {}
+    ordered = sorted(node_prefixes, key=lambda prefix: (len(prefix), prefix))
+    for prefix in ordered:
+        p_raw = target_model.next_token_probs(prefix)
+        stats.target_calls += 1
+        cache[prefix] = _validate_probs(
+            p_raw,
+            target_model.vocab_size,
+            stage="target_cache_fill",
+            prefix=prefix,
+        )
+    return cache
+
+
+def _prefill_cache(
+    target_model: HFModel,
+    draft_model: HFModel,
+    current_prefix: _Prefix,
+    *,
+    k: int,
+    parallel_branches: int,
+    branch_prune_threshold: float,
+    eos_id: Optional[int],
+    eps: float,
+    stats: SpecExecStats,
+) -> Dict[_Prefix, List[float]]:
+    stats.steps += 1
+    stats.target_prefills += 1
+    stats.draft_prefills += 1
+
+    tree_nodes = _build_draft_tree(
+        draft_model=draft_model,
+        root_prefix=current_prefix,
+        max_depth=k,
+        parallel_branches=parallel_branches,
+        branch_prune_threshold=branch_prune_threshold,
+        eos_id=eos_id,
+        eps=eps,
+        stats=stats,
+    )
+    if current_prefix not in tree_nodes:
+        tree_nodes.add(current_prefix)
+    return _fill_target_cache(target_model, tree_nodes, stats=stats)
+
+
+def _sample_token(probs: Sequence[float], device: str) -> int:
+    probs_t = torch.tensor(probs, dtype=torch.float32, device=device)
+    token = torch.multinomial(probs_t, num_samples=1)
+    return int(token.item())
 
 
 def specexec_sample_hf(
@@ -169,87 +227,51 @@ def specexec_sample_hf(
         torch.manual_seed(seed)
 
     generated: List[int] = []
+    cache: Dict[_Prefix, List[float]] = {}
     stats = SpecExecStats()
+    prompt_prefix = tuple(int(t) for t in prompt_tokens)
 
-    with torch.no_grad():
-        while len(generated) < max_new_tokens:
-            stats.steps += 1
-            remaining = max_new_tokens - len(generated)
-            block_size = min(k, remaining)
-
-            branches = _build_branches_hf(
-                draft_model=draft_model,
-                prompt_tokens=prompt_tokens,
-                generated=generated,
-                block_size=block_size,
-                parallel_branches=parallel_branches,
-                prune_threshold=branch_prune_threshold,
-                stats=stats,
-                eos_id=eos_id,
-                eps=eps,
-            )
-            if not branches:
-                raise RuntimeError("SpecExec failed to build candidate branches.")
-
-            accepted_by_branch = [
-                _evaluate_branch_hf(
+    while len(generated) < max_new_tokens:
+        current_prefix = prompt_prefix + tuple(generated)
+        if current_prefix not in cache:
+            stats.cache_misses += 1
+            try:
+                cache = _prefill_cache(
                     target_model=target_model,
-                    prompt_tokens=prompt_tokens,
-                    generated=generated,
-                    branch=branch,
-                    stats=stats,
+                    draft_model=draft_model,
+                    current_prefix=current_prefix,
+                    k=k,
+                    parallel_branches=parallel_branches,
+                    branch_prune_threshold=branch_prune_threshold,
+                    eos_id=eos_id,
                     eps=eps,
+                    stats=stats,
                 )
-                for branch in branches
-            ]
-            best_idx = max(
-                range(len(branches)),
-                key=lambda idx: (accepted_by_branch[idx], branches[idx].score),
-            )
-            best_branch = branches[best_idx]
-            best_accepted = accepted_by_branch[best_idx]
+            except SpecExecError:
+                raise
+            except Exception as exc:  # pragma: no cover
+                raise SpecExecError(
+                    f"spec_exec_prefill_failed: {exc} "
+                    f"(generated={len(generated)}, prefix_len={len(current_prefix)}, "
+                    f"prefix_tail={_short_prefix(current_prefix)})"
+                ) from exc
+            if current_prefix not in cache:
+                raise SpecExecError(
+                    "spec_exec_prefill_missing_current_prefix "
+                    f"(prefix_len={len(current_prefix)}, prefix_tail={_short_prefix(current_prefix)})"
+                )
+        else:
+            stats.cache_hits += 1
 
-            stats.proposed += len(best_branch.tokens)
-            stats.accepted += best_accepted
-
-            for token in best_branch.tokens[:best_accepted]:
-                generated.append(token)
-                stats.target_tokens += 1
-                if eos_id is not None and token == eos_id:
-                    if return_stats:
-                        return generated, stats
-                    return generated
-                if len(generated) >= max_new_tokens:
-                    if return_stats:
-                        return generated, stats
-                    return generated
-
-            prefix = list(prompt_tokens) + generated
-            target_state = target_model.prefill(prefix)
-            stats.target_prefills += 1
-            stats.target_calls += 1
-            p = _softmax(target_state.logits).squeeze(0)
-
-            if best_accepted < len(best_branch.tokens):
-                stats.rejections += 1
-                q_rejected = best_branch.draft_probs[best_accepted].to(p.device)
-                residual = torch.clamp(p - q_rejected, min=0.0)
-                total = float(residual.sum().item())
-                if total <= 0.0:
-                    residual = p
-                    total = float(residual.sum().item())
-                residual = residual / total
-                token = _sample_from_probs(residual)
-            else:
-                token = _sample_from_probs(p)
-
-            generated.append(token)
-            stats.target_tokens += 1
-            if eos_id is not None and token == eos_id:
-                if return_stats:
-                    return generated, stats
-                return generated
+        token = _sample_token(cache[current_prefix], target_model.device)
+        generated.append(token)
+        stats.target_tokens += 1
+        stats.proposed += 1
+        stats.accepted += 1
+        if eos_id is not None and token == eos_id:
+            break
 
     if return_stats:
         return generated, stats
     return generated
+

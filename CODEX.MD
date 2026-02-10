@@ -17,7 +17,7 @@ features, or behaviors are added.
 - `scripts/validate_configs.py`: Static validator for configs (cross-file references, method constraints, tokenizer compatibility for target/draft pair methods).
 - `README.MD`: Project overview, usage, and examples.
 - `sp_samp/autojudge.py`: AutoJudge implementation (synthetic label collection, judge training, and decoding).
-- `sp_samp/specexec.py`: CPU SpecExec implementation (draft branch execution, pruning, residual fallback).
+- `sp_samp/specexec.py`: CPU SpecExec implementation (exact target sampling with draft-tree cache prefill and pruning).
 - `sp_samp/hf_specexec.py`: HF SpecExec implementation.
 - `sp_samp/cli.py`: Unified CLI runner (`bench`, `autojudge`, `specexec`, preset application).
 - `sp_samp/__init__.py`: Public exports with optional lazy behavior for torch-dependent modules.
@@ -33,6 +33,12 @@ features, or behaviors are added.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
 
 ## Recent Changes (2026-02-10)
+- Reworked SpecExec to paper-aligned exact behavior:
+- SpecExec now samples exactly from target distribution while using draft-tree cache prefill (no branch-selection sampling bias).
+- Added stronger SpecExec diagnostics (`SpecExecError`) with stage/prefix context for faster failure triage.
+- Added SpecExec distribution and exactness tests in `tests/test_specexec.py`:
+- empirical distribution match to target;
+- sequence equivalence to baseline for equal seeds.
 - Implemented SpecExec as a first-class method:
 - added `sp_samp/specexec.py` (toy/CPU) and `sp_samp/hf_specexec.py` (HF);
 - added `SpecExecStats` with branch metrics (`branch_prune_rate`, `effective_parallelism`, `max_active_branches`, call rates).

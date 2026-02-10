@@ -84,6 +84,8 @@ def _accumulate_stats(total, stats) -> None:
         "branches_kept",
         "branches_pruned",
         "max_active_branches",
+        "cache_hits",
+        "cache_misses",
         "audit_samples",
         "audit_expected_accept",
     ]
@@ -121,95 +123,102 @@ def _run_once(
     else:
         total_stats = SamplingStats()
     start = time.perf_counter()
-    for prompt in prompts:
+    for prompt_idx, prompt in enumerate(prompts):
         prompt_tokens = encode_fn(prompt)
         total_prompt_tokens += len(prompt_tokens)
-        if HFModel is not None and isinstance(target_model, HFModel):
-            if method == "baseline":
-                generated, stats = sample_baseline_hf(
-                    target_model,
-                    prompt_tokens,
-                    max_new_tokens,
-                    eos_id=target_model.eos_token_id,
-                    return_stats=True,
-                )
-            elif method == "speculative":
-                generated, stats = speculative_sample_hf(
-                    target_model,
-                    draft_model,
-                    prompt_tokens,
-                    max_new_tokens,
-                    k=k,
-                    eos_id=target_model.eos_token_id,
-                    return_stats=True,
-                )
-            elif method == "autojudge":
-                if autojudge_model is None:
-                    raise ValueError("AutoJudge model is required for autojudge method.")
-                generated, stats = autojudge_sample_hf(
-                    target_model=target_model,
-                    draft_model=draft_model,
-                    judge_model=autojudge_model,
-                    prompt_tokens=prompt_tokens,
-                    max_new_tokens=max_new_tokens,
-                    k=k,
-                    threshold=autojudge_threshold,
-                    eos_id=target_model.eos_token_id,
-                    seed=seed,
-                    audit_ratio=autojudge_audit_ratio,
-                )
-            elif method == "specexec":
-                if specexec_sample_hf is None:
-                    raise RuntimeError("SpecExec HF implementation is unavailable.")
-                generated, stats = specexec_sample_hf(
-                    target_model=target_model,
-                    draft_model=draft_model,
-                    prompt_tokens=prompt_tokens,
-                    max_new_tokens=max_new_tokens,
-                    k=k,
-                    parallel_branches=specexec_parallel_branches,
-                    branch_prune_threshold=specexec_branch_prune_threshold,
-                    eos_id=target_model.eos_token_id,
-                    seed=seed,
-                    return_stats=True,
-                )
+        try:
+            if HFModel is not None and isinstance(target_model, HFModel):
+                if method == "baseline":
+                    generated, stats = sample_baseline_hf(
+                        target_model,
+                        prompt_tokens,
+                        max_new_tokens,
+                        eos_id=target_model.eos_token_id,
+                        return_stats=True,
+                    )
+                elif method == "speculative":
+                    generated, stats = speculative_sample_hf(
+                        target_model,
+                        draft_model,
+                        prompt_tokens,
+                        max_new_tokens,
+                        k=k,
+                        eos_id=target_model.eos_token_id,
+                        return_stats=True,
+                    )
+                elif method == "autojudge":
+                    if autojudge_model is None:
+                        raise ValueError("AutoJudge model is required for autojudge method.")
+                    generated, stats = autojudge_sample_hf(
+                        target_model=target_model,
+                        draft_model=draft_model,
+                        judge_model=autojudge_model,
+                        prompt_tokens=prompt_tokens,
+                        max_new_tokens=max_new_tokens,
+                        k=k,
+                        threshold=autojudge_threshold,
+                        eos_id=target_model.eos_token_id,
+                        seed=seed,
+                        audit_ratio=autojudge_audit_ratio,
+                    )
+                elif method == "specexec":
+                    if specexec_sample_hf is None:
+                        raise RuntimeError("SpecExec HF implementation is unavailable.")
+                    generated, stats = specexec_sample_hf(
+                        target_model=target_model,
+                        draft_model=draft_model,
+                        prompt_tokens=prompt_tokens,
+                        max_new_tokens=max_new_tokens,
+                        k=k,
+                        parallel_branches=specexec_parallel_branches,
+                        branch_prune_threshold=specexec_branch_prune_threshold,
+                        eos_id=target_model.eos_token_id,
+                        seed=seed,
+                        return_stats=True,
+                    )
+                else:
+                    raise ValueError(f"Unknown method: {method}")
             else:
-                raise ValueError(f"Unknown method: {method}")
-        else:
-            if method == "baseline":
-                generated, stats = sample_baseline(
-                    target_model,
-                    prompt_tokens,
-                    max_new_tokens,
-                    rng=rng,
-                    return_stats=True,
-                )
-            elif method == "speculative":
-                generated, stats = speculative_sample(
-                    target_model,
-                    draft_model,
-                    prompt_tokens,
-                    max_new_tokens,
-                    k=k,
-                    rng=rng,
-                    return_stats=True,
-                )
-            elif method == "autojudge":
-                raise ValueError("AutoJudge is currently supported only for HF models.")
-            elif method == "specexec":
-                generated, stats = specexec_sample(
-                    target_model,
-                    draft_model,
-                    prompt_tokens,
-                    max_new_tokens,
-                    k=k,
-                    parallel_branches=specexec_parallel_branches,
-                    branch_prune_threshold=specexec_branch_prune_threshold,
-                    rng=rng,
-                    return_stats=True,
-                )
-            else:
-                raise ValueError(f"Unknown method: {method}")
+                if method == "baseline":
+                    generated, stats = sample_baseline(
+                        target_model,
+                        prompt_tokens,
+                        max_new_tokens,
+                        rng=rng,
+                        return_stats=True,
+                    )
+                elif method == "speculative":
+                    generated, stats = speculative_sample(
+                        target_model,
+                        draft_model,
+                        prompt_tokens,
+                        max_new_tokens,
+                        k=k,
+                        rng=rng,
+                        return_stats=True,
+                    )
+                elif method == "autojudge":
+                    raise ValueError("AutoJudge is currently supported only for HF models.")
+                elif method == "specexec":
+                    generated, stats = specexec_sample(
+                        target_model,
+                        draft_model,
+                        prompt_tokens,
+                        max_new_tokens,
+                        k=k,
+                        parallel_branches=specexec_parallel_branches,
+                        branch_prune_threshold=specexec_branch_prune_threshold,
+                        rng=rng,
+                        return_stats=True,
+                    )
+                else:
+                    raise ValueError(f"Unknown method: {method}")
+        except Exception as exc:
+            raise RuntimeError(
+                f"method={method} failed on prompt_index={prompt_idx} "
+                f"(prompt_tokens={len(prompt_tokens)}, max_new_tokens={max_new_tokens}, "
+                f"k={k}, seed={seed}): {exc}"
+            ) from exc
         total_tokens += len(generated)
         _accumulate_stats(total_stats, stats)
     duration = time.perf_counter() - start
@@ -273,6 +282,8 @@ def _stats_record_fields(stats) -> dict:
         record["branch_prune_rate"] = stats.branch_prune_rate
     if hasattr(stats, "effective_parallelism"):
         record["effective_parallelism"] = stats.effective_parallelism
+    if hasattr(stats, "cache_hit_rate"):
+        record["cache_hit_rate"] = stats.cache_hit_rate
     for key in [
         "judge_total",
         "judge_accepted",
@@ -286,6 +297,8 @@ def _stats_record_fields(stats) -> dict:
         "branches_kept",
         "branches_pruned",
         "max_active_branches",
+        "cache_hits",
+        "cache_misses",
         "train_samples",
         "train_loss",
         "audit_samples",
@@ -346,6 +359,11 @@ def run_with_args(args: argparse.Namespace) -> None:
     methods = _resolve_methods(args.method)
     needs_draft = any(m in {"speculative", "autojudge", "specexec"} for m in methods)
     if "autojudge" in methods and not args.hf_model:
+        if args.method == "all":
+            raise SystemExit(
+                "Method 'all' includes AutoJudge, which requires HF models. "
+                "Set --hf-model/--hf-draft-model or choose a method without AutoJudge."
+            )
         raise SystemExit("AutoJudge requires HF models. Set --hf-model and --hf-draft-model.")
 
     if args.dataset:
@@ -510,6 +528,7 @@ def run_with_args(args: argparse.Namespace) -> None:
         avg_tokens_per_step = []
         judge_accept_rates = []
         fallback_rates = []
+        cache_hit_rates = []
         for run in range(args.runs):
             tps, duration, total_tokens, stats, prompt_tokens = _run_once(
                 prompts=prompts,
@@ -537,6 +556,8 @@ def run_with_args(args: argparse.Namespace) -> None:
                 judge_accept_rates.append(stats.judge_accept_rate)
             if hasattr(stats, "target_fallback_rate"):
                 fallback_rates.append(stats.target_fallback_rate)
+            if hasattr(stats, "cache_hit_rate"):
+                cache_hit_rates.append(stats.cache_hit_rate)
             record = {
                 "timestamp": datetime.now().isoformat(),
                 "method": method,
@@ -585,12 +606,18 @@ def run_with_args(args: argparse.Namespace) -> None:
                     f", judge_accept={stats.judge_accept_rate:.3f}, "
                     f"fallback={stats.target_fallback_rate:.3f}"
                 )
+            if hasattr(stats, "cache_hit_rate"):
+                msg += (
+                    f", cache_hit={stats.cache_hit_rate:.3f}, "
+                    f"target_calls/token={stats.target_calls_per_token:.3f}"
+                )
             print(msg)
         median_tps = statistics.median(results)
         median_accept = statistics.median(acceptance_rates)
         median_tps_step = statistics.median(avg_tokens_per_step)
         median_judge_accept = statistics.median(judge_accept_rates) if judge_accept_rates else None
         median_fallback = statistics.median(fallback_rates) if fallback_rates else None
+        median_cache_hit = statistics.median(cache_hit_rates) if cache_hit_rates else None
         summary_record = {
             "timestamp": datetime.now().isoformat(),
             "method": method,
@@ -630,6 +657,8 @@ def run_with_args(args: argparse.Namespace) -> None:
             summary_record["judge_accept_rate_median"] = median_judge_accept
         if median_fallback is not None:
             summary_record["target_fallback_rate_median"] = median_fallback
+        if median_cache_hit is not None:
+            summary_record["cache_hit_rate_median"] = median_cache_hit
         _append_result(out_path, summary_record)
         msg = (
             f"{method} median: {median_tps:.2f} tok/s, "
@@ -638,6 +667,8 @@ def run_with_args(args: argparse.Namespace) -> None:
         )
         if median_judge_accept is not None and median_fallback is not None:
             msg += f", judge_accept={median_judge_accept:.3f}, fallback={median_fallback:.3f}"
+        if median_cache_hit is not None:
+            msg += f", cache_hit={median_cache_hit:.3f}"
         print(msg)
 
 
