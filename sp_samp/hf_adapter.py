@@ -66,13 +66,14 @@ class HFModel(BaseModel):
             device_map = "auto"
 
         def _load_model(q_config, d_map):
-            return AutoModelForCausalLM.from_pretrained(
-                model_name,
-                torch_dtype=torch_dtype,
-                trust_remote_code=trust_remote_code,
-                quantization_config=q_config,
-                device_map=d_map,
-            )
+            kwargs = {
+                "torch_dtype": torch_dtype,
+                "trust_remote_code": trust_remote_code,
+                "device_map": d_map,
+            }
+            if q_config is not None:
+                kwargs["quantization_config"] = q_config
+            return AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
 
         try:
             self.model = _load_model(quantization_config, device_map)

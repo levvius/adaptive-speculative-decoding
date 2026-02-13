@@ -70,6 +70,8 @@ features, or behaviors are added.
 - Added early quantization-override guard in `benchmarks/bench_speculative.py`:
 - for native-quantized checkpoints (for example GPT-OSS), `--quant`/`--draft-quant` overrides are ignored with explicit warnings;
 - prevents `Mxfp4Config` vs `BitsAndBytesConfig` conflicts before model load.
+- Fixed HF model-loading edge case for native quantized checkpoints:
+- `sp_samp/hf_adapter.py` no longer forwards `quantization_config=None` to `from_pretrained`, avoiding `AttributeError: 'NoneType' object has no attribute 'to_dict'` in recent `transformers`.
 - Improved local tooling reliability:
 - `Makefile` now prefers `.venv/bin/python` when present and falls back to `python3`.
 - `make test` now validates `pytest` availability first and emits a clear recovery message (`make setup`).
