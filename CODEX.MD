@@ -62,6 +62,9 @@ features, or behaviors are added.
 - `Makefile` now exposes `TORCH_INDEX_URL` and `TORCH_VERSION` variables;
 - default `TORCH_VERSION` aligned to `2.5.1` (same baseline as `requirements.txt`);
 - README GPU build example updated accordingly.
+- Hardened `Dockerfile.gpu` for CUDA runtime base images:
+- if Python/pip are missing, image now installs `python3`, `python3-pip`, and `python3-venv`;
+- switched pip invocations to `python3 -m pip` to avoid missing `pip` binary issues.
 - Improved local tooling reliability:
 - `Makefile` now prefers `.venv/bin/python` when present and falls back to `python3`.
 - `make test` now validates `pytest` availability first and emits a clear recovery message (`make setup`).

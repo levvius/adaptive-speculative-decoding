@@ -7,17 +7,30 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     HF_HOME=/data/hf_cache
 
+# CUDA runtime images may not include Python/pip by default.
+RUN if ! command -v python3 >/dev/null 2>&1 || ! command -v pip >/dev/null 2>&1; then \
+      apt-get update && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-venv \
+        ca-certificates \
+      && ln -sf /usr/bin/python3 /usr/bin/python \
+      && ln -sf /usr/bin/pip3 /usr/bin/pip \
+      && apt-get clean \
+      && rm -rf /var/lib/apt/lists/* ; \
+    fi
+
 # Optionally install a CUDA-enabled torch before requirements.
 # Provide TORCH_INDEX_URL and TORCH_VERSION at build time if needed.
 ARG TORCH_INDEX_URL=
 ARG TORCH_VERSION=
 RUN if [ -n "$TORCH_INDEX_URL" ] && [ -n "$TORCH_VERSION" ]; then \
-      pip install --no-cache-dir torch=="$TORCH_VERSION" --index-url "$TORCH_INDEX_URL" ; \
+      python3 -m pip install --no-cache-dir torch=="$TORCH_VERSION" --index-url "$TORCH_INDEX_URL" ; \
     fi
 
 COPY requirements.txt /app/requirements.txt
 COPY requirements-gpu.txt /app/requirements-gpu.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt -r /app/requirements-gpu.txt
+RUN python3 -m pip install --no-cache-dir -r /app/requirements.txt -r /app/requirements-gpu.txt
 
 COPY . /app
 
