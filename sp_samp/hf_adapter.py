@@ -75,6 +75,32 @@ class HFModel(BaseModel):
                 kwargs["quantization_config"] = q_config
             return AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
 
+        def _raise_cuda_arch_hint(exc: RuntimeError) -> None:
+            msg = str(exc).lower()
+            if "no kernel image is available for execution on the device" not in msg:
+                raise exc
+            arch = "unknown"
+            supported_arches: List[str] = []
+            if torch.cuda.is_available():
+                try:
+                    major, minor = torch.cuda.get_device_capability()
+                    arch = f"sm_{major}{minor}"
+                except Exception:
+                    pass
+                get_arch_list = getattr(torch.cuda, "get_arch_list", None)
+                if get_arch_list is not None:
+                    try:
+                        supported_arches = [a for a in get_arch_list() if isinstance(a, str)]
+                    except Exception:
+                        supported_arches = []
+            supported = ", ".join(supported_arches) if supported_arches else "unknown"
+            raise RuntimeError(
+                "Current torch build is incompatible with this GPU architecture "
+                f"(device arch: {arch}, torch supports: {supported}). "
+                "Use a torch build with native support for your GPU (for RTX 50xx: "
+                "recommended torch>=2.7 with cu128+)."
+            ) from exc
+
         try:
             self.model = _load_model(quantization_config, device_map)
         except ValueError as exc:
@@ -101,8 +127,13 @@ class HFModel(BaseModel):
                 self.model = _load_model(quantization_config, device_map)
             else:
                 raise
+        except RuntimeError as exc:
+            _raise_cuda_arch_hint(exc)
         if device_map is None:
-            self.model.to(device)
+            try:
+                self.model.to(device)
+            except RuntimeError as exc:
+                _raise_cuda_arch_hint(exc)
         self.device = str(next(self.model.parameters()).device)
         self.model.eval()
         super().__init__(int(self.model.config.vocab_size))

@@ -484,6 +484,53 @@ def _is_cuda_device(device: Optional[str]) -> bool:
     return bool(device) and str(device).startswith("cuda")
 
 
+def _current_cuda_arch_tag() -> Optional[str]:
+    if torch is None or not torch.cuda.is_available():
+        return None
+    try:
+        major, minor = torch.cuda.get_device_capability()
+    except Exception:
+        return None
+    return f"sm_{major}{minor}"
+
+
+def _torch_cuda_arch_list() -> List[str]:
+    if torch is None:
+        return []
+    get_arch_list = getattr(torch.cuda, "get_arch_list", None)
+    if get_arch_list is None:
+        return []
+    try:
+        arch_list = get_arch_list()
+    except Exception:
+        return []
+    return [arch for arch in arch_list if isinstance(arch, str)]
+
+
+def _validate_torch_cuda_arch_support(device: Optional[str]) -> None:
+    if torch is None or not _is_cuda_device(device) or not torch.cuda.is_available():
+        return
+    current_arch = _current_cuda_arch_tag()
+    supported_arches = _torch_cuda_arch_list()
+    if not current_arch or not supported_arches:
+        return
+    if current_arch in supported_arches:
+        return
+    gpu_name = "unknown"
+    try:
+        gpu_name = torch.cuda.get_device_name(0)
+    except Exception:
+        pass
+    raise SystemExit(
+        f"Installed torch build does not support this GPU architecture: {gpu_name} ({current_arch}). "
+        f"Supported arches in current torch: {', '.join(supported_arches)}. "
+        "For RTX 50xx / Blackwell use torch with sm_120 support (recommended torch>=2.7 with cu128+). "
+        "Docker example: "
+        "`make docker-build-gpu-safe CUDA_BASE_IMAGE=nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04 "
+        "TORCH_INDEX_URL=https://download.pytorch.org/whl/cu128 TORCH_VERSION=2.9.1`."
+    )
+
+
 def _stats_record_fields(stats) -> dict:
     record = {
         "acceptance_rate": stats.acceptance_rate,
@@ -647,15 +694,16 @@ def run_with_args(args: argparse.Namespace) -> None:
         if _is_cuda_device(args.device) and not torch.cuda.is_available():
             raise SystemExit(
                 "CUDA device requested but unavailable in this runtime. "
-                "For Docker, verify GPU passthrough first: "
-                "`docker run --rm --gpus all nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 nvidia-smi`. "
-                "If it fails, configure nvidia-container-toolkit and restart Docker."
+                "For Docker, run `make docker-gpu-check` and `make docker-gpu-check-image`. "
+                "If checks fail, configure nvidia-container-toolkit and restart Docker."
             )
         if _is_cuda_device(args.draft_device) and not torch.cuda.is_available():
             raise SystemExit(
                 "Draft CUDA device requested but unavailable in this runtime. "
                 "Check Docker GPU runtime and nvidia-container-toolkit setup."
             )
+        _validate_torch_cuda_arch_support(args.device)
+        _validate_torch_cuda_arch_support(args.draft_device)
         target_tokenizer_name = args.tokenizer or args.hf_model
         resolved_target_tokenizer = target_tokenizer_name
         target_model = HFModel(

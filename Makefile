@@ -16,8 +16,9 @@ SMOKE_HF_TOKENIZER ?= sshleifer/tiny-gpt2
 IMAGE_CPU ?= sp-samp
 IMAGE_GPU ?= sp-samp-gpu
 DOCKER_GPU_ARGS ?= --gpus all
-TORCH_INDEX_URL ?= https://download.pytorch.org/whl/cu124
-TORCH_VERSION ?= 2.5.1
+CUDA_BASE_IMAGE ?= nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04
+TORCH_INDEX_URL ?= https://download.pytorch.org/whl/cu128
+TORCH_VERSION ?= 2.9.1
 DOCKER_CMD ?= docker
 HEADLESS ?= 0
 HEADLESS_ARG := $(if $(filter 1 true yes,$(HEADLESS)),--require-headless,)
@@ -135,22 +136,22 @@ bench-all: ## Run baseline+speculative+autojudge+specexec in one call (requires 
 docker-build: ## Build CPU Docker image
 	$(DOCKER_CMD) build -t $(IMAGE_CPU) .
 
-docker-build-gpu: ## Build GPU Docker image (CUDA 12.4 example)
+docker-build-gpu: ## Build GPU Docker image (default: CUDA 12.8 + torch cu128)
 	$(DOCKER_CMD) build -f Dockerfile.gpu \
-		--build-arg BASE_IMAGE=nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 \
+		--build-arg BASE_IMAGE=$(CUDA_BASE_IMAGE) \
 		--build-arg TORCH_INDEX_URL=$(TORCH_INDEX_URL) \
 		--build-arg TORCH_VERSION=$(TORCH_VERSION) \
 		-t $(IMAGE_GPU) .
 
 docker-build-gpu-safe: ## Build GPU image with fallback to legacy builder if BuildKit snapshot export fails
 	$(DOCKER_CMD) build -f Dockerfile.gpu \
-		--build-arg BASE_IMAGE=nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 \
+		--build-arg BASE_IMAGE=$(CUDA_BASE_IMAGE) \
 		--build-arg TORCH_INDEX_URL=$(TORCH_INDEX_URL) \
 		--build-arg TORCH_VERSION=$(TORCH_VERSION) \
 		-t $(IMAGE_GPU) . || \
 	(echo "[WARN] BuildKit build failed; retrying with legacy builder (DOCKER_BUILDKIT=0)."; \
 	DOCKER_BUILDKIT=0 $(DOCKER_CMD) build -f Dockerfile.gpu \
-		--build-arg BASE_IMAGE=nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 \
+		--build-arg BASE_IMAGE=$(CUDA_BASE_IMAGE) \
 		--build-arg TORCH_INDEX_URL=$(TORCH_INDEX_URL) \
 		--build-arg TORCH_VERSION=$(TORCH_VERSION) \
 		-t $(IMAGE_GPU) .)
@@ -159,7 +160,17 @@ docker-prune-builder: ## Cleanup Docker builder cache (use when snapshot/export 
 	$(DOCKER_CMD) builder prune -af
 
 docker-gpu-check: ## Verify GPU passthrough in a clean NVIDIA CUDA container
-	$(DOCKER_CMD) run --rm --gpus all nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 nvidia-smi
+	@set -e; \
+	if $(DOCKER_CMD) run --rm --gpus all $(CUDA_BASE_IMAGE) nvidia-smi; then \
+		echo "[OK] nvidia-smi check passed in $(CUDA_BASE_IMAGE)."; \
+	else \
+		echo "[WARN] nvidia-smi check failed (NVML path). Falling back to torch CUDA check in $(IMAGE_GPU)."; \
+		if ! $(DOCKER_CMD) image inspect $(IMAGE_GPU) >/dev/null 2>&1; then \
+			echo "[ERROR] Fallback image '$(IMAGE_GPU)' not found. Build it first: make docker-build-gpu-safe"; \
+			exit 2; \
+		fi; \
+		$(DOCKER_CMD) run --rm --gpus all --entrypoint python $(IMAGE_GPU) -c "import sys, torch; ok=torch.cuda.is_available() and torch.cuda.device_count()>0; print('torch', torch.__version__, 'cuda', torch.version.cuda, 'available', torch.cuda.is_available(), 'count', torch.cuda.device_count()); sys.exit(0 if ok else 1)"; \
+	fi
 
 docker-gpu-check-image: ## Verify torch CUDA visibility inside the built GPU image
 	$(DOCKER_CMD) run --rm --gpus all --entrypoint python $(IMAGE_GPU) -c "import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda, 'available', torch.cuda.is_available(), 'count', torch.cuda.device_count())"

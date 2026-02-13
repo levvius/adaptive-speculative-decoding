@@ -59,8 +59,9 @@ features, or behaviors are added.
 - new `make validate-results` target with strict mode.
 - Removed `autojudge_placeholder` from `configs/methods.json` and simplified `scripts/validate_configs.py` logic accordingly.
 - Fixed Docker/Torch version consistency for GPU builds:
-- `Makefile` now exposes `TORCH_INDEX_URL` and `TORCH_VERSION` variables;
-- default `TORCH_VERSION` aligned to `2.5.1` (same baseline as `requirements.txt`);
+- `Makefile` exposes `CUDA_BASE_IMAGE`, `TORCH_INDEX_URL`, and `TORCH_VERSION` variables;
+- defaults updated for Blackwell-safe stack (`nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04`, `cu128`, `torch==2.9.1`);
+- `requirements.txt` torch pin updated to `2.9.1`;
 - README GPU build example updated accordingly.
 - Hardened `Dockerfile.gpu` for CUDA runtime base images:
 - if Python/pip are missing, image now installs `python3`, `python3-pip`, and `python3-venv`;
@@ -79,8 +80,18 @@ features, or behaviors are added.
 - Added Docker GPU diagnostics helpers:
 - `make docker-gpu-check` validates NVIDIA runtime passthrough using a clean CUDA image;
 - `make docker-gpu-check-image` validates `torch.cuda.is_available()` inside project GPU image.
+- Updated `make docker-gpu-check` behavior:
+- first attempts `nvidia-smi` in CUDA base image;
+- if NVML path fails, falls back to torch CUDA runtime check in the built project image.
 - Added explicit CUDA preflight checks for HF benchmark path in `benchmarks/bench_speculative.py`:
 - when `--device cuda` is requested but CUDA is unavailable, benchmark now exits early with actionable setup guidance.
+- Added explicit CUDA architecture compatibility checks for HF benchmark path:
+- fail-fast on unsupported torch GPU arch (for example `sm_120` on old torch builds) with rebuild guidance.
+- Improved HF loader runtime error clarity in `sp_samp/hf_adapter.py`:
+- maps `no kernel image is available for execution on the device` to a concise torch/GPU arch compatibility hint.
+- Updated `Dockerfile.gpu` install order:
+- requirements are installed first;
+- optional torch CUDA wheel override is installed after requirements so build args remain authoritative.
 - Improved local tooling reliability:
 - `Makefile` now prefers `.venv/bin/python` when present and falls back to `python3`.
 - `make test` now validates `pytest` availability first and emits a clear recovery message (`make setup`).

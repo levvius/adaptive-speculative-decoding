@@ -53,9 +53,9 @@ docker run --rm sp-samp \
 7. Build a GPU image (CUDA example):
 ```bash
 docker build -f Dockerfile.gpu \
-  --build-arg BASE_IMAGE=nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 \
-  --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 \
-  --build-arg TORCH_VERSION=2.5.1 \
+  --build-arg BASE_IMAGE=nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04 \
+  --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu128 \
+  --build-arg TORCH_VERSION=2.9.1 \
   -t sp-samp-gpu .
 ```
 8. Run a GPU benchmark (HF model, results saved to JSONL):
@@ -185,9 +185,22 @@ Check GPU passthrough before long runs:
 make docker-gpu-check
 make docker-gpu-check-image
 ```
+`docker-gpu-check` first tries `nvidia-smi` in a clean CUDA container. If NVML fails there, it falls back to a `torch.cuda` check in your built image.
+If fallback says image missing, build it first with `make docker-build-gpu-safe`.
 14. Enforce headless GPU mode for long runs:
 ```bash
 make bench DATASET=datasets/mt_bench.jsonl OUT=datasets/results.jsonl HEADLESS=1
+```
+
+**Troubleshooting (RTX 50xx / Blackwell)**
+- Symptom: `sm_120 is not compatible with the current PyTorch installation` or `no kernel image is available for execution on the device`.
+- Cause: torch build without native Blackwell kernels.
+- Fix: rebuild with cu128+ torch:
+```bash
+make docker-build-gpu-safe \
+  CUDA_BASE_IMAGE=nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04 \
+  TORCH_INDEX_URL=https://download.pytorch.org/whl/cu128 \
+  TORCH_VERSION=2.9.1
 ```
 
 **Presets**
