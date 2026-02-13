@@ -473,6 +473,13 @@ def _tokenizers_compatible(target_tokenizer, draft_tokenizer) -> bool:
     return target_vocab == draft_vocab
 
 
+def _uses_native_quantized_checkpoint(model_name: Optional[str]) -> bool:
+    if not model_name:
+        return False
+    name = model_name.lower()
+    return "gpt-oss" in name or "gpt_oss" in name
+
+
 def _stats_record_fields(stats) -> dict:
     record = {
         "acceptance_rate": stats.acceptance_rate,
@@ -588,13 +595,40 @@ def run_with_args(args: argparse.Namespace) -> None:
     else:
         prompts = _default_prompts()[: args.max_samples]
 
+    target_has_native_quant = _uses_native_quantized_checkpoint(args.hf_model)
+    draft_has_native_quant = _uses_native_quantized_checkpoint(args.hf_draft_model)
+    draft_disable_inherited_quant = False
+
+    if target_has_native_quant and args.quant in {"4bit", "8bit"}:
+        print(
+            "[WARN] Target model provides native quantization config. "
+            "Ignoring --quant override to avoid config conflicts."
+        )
+        args.quant = None
+
+    if draft_has_native_quant and args.draft_quant in {"4bit", "8bit"}:
+        print(
+            "[WARN] Draft model provides native quantization config. "
+            "Ignoring --draft-quant override to avoid config conflicts."
+        )
+        args.draft_quant = None
+    if draft_has_native_quant and args.draft_quant is None and args.quant in {"4bit", "8bit"}:
+        print(
+            "[WARN] Draft model provides native quantization config. "
+            "Draft will not inherit --quant override."
+        )
+        draft_disable_inherited_quant = True
+
     resolved_target_tokenizer = args.tokenizer
     resolved_draft_tokenizer = args.draft_tokenizer
     resolved_target_model = args.hf_model or "toy_random"
     resolved_draft_model = args.hf_draft_model or args.hf_model or "toy_noisy"
     resolved_draft_device = args.draft_device or args.device
     resolved_draft_dtype = args.draft_dtype or args.dtype
-    resolved_draft_quant = args.draft_quant if args.draft_quant is not None else args.quant
+    if draft_disable_inherited_quant:
+        resolved_draft_quant = args.draft_quant
+    else:
+        resolved_draft_quant = args.draft_quant if args.draft_quant is not None else args.quant
     resolved_draft_bnb_compute_dtype = (
         args.draft_bnb_compute_dtype
         if args.draft_bnb_compute_dtype is not None

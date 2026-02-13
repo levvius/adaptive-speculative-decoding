@@ -67,6 +67,9 @@ features, or behaviors are added.
 - switched pip invocations to `python3 -m pip` to avoid missing `pip` binary issues.
 - Improved HF quantization compatibility in `sp_samp/hf_adapter.py`:
 - when a checkpoint already has its own quantization class (for example MXFP4), the loader now falls back by dropping conflicting BitsAndBytes override and retries with checkpoint defaults.
+- Added early quantization-override guard in `benchmarks/bench_speculative.py`:
+- for native-quantized checkpoints (for example GPT-OSS), `--quant`/`--draft-quant` overrides are ignored with explicit warnings;
+- prevents `Mxfp4Config` vs `BitsAndBytesConfig` conflicts before model load.
 - Improved local tooling reliability:
 - `Makefile` now prefers `.venv/bin/python` when present and falls back to `python3`.
 - `make test` now validates `pytest` availability first and emits a clear recovery message (`make setup`).

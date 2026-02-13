@@ -64,8 +64,6 @@ docker run --rm --gpus all -v "$(pwd)/datasets:/data" sp-samp-gpu \
   python -m benchmarks.bench_speculative \
   --dataset /data/mt_bench.jsonl \
   --hf-model RedHatAI/gpt-oss-20b \
-  --quant 4bit \
-  --bnb-compute-dtype bfloat16 \
   --device cuda \
   --use-chat-template \
   --max-samples 50 \
