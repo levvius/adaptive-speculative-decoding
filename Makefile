@@ -20,12 +20,20 @@ HEADLESS_ARG := $(if $(filter 1 true yes,$(HEADLESS)),--require-headless,)
 DATA_DIR ?= $(if $(DATASET),$(shell dirname "$(DATASET)"),/tmp)
 DATASET_IN_CONTAINER ?= $(if $(DATASET),/data/$(notdir $(DATASET)),)
 OUT_IN_CONTAINER ?= /data/$(notdir $(OUT))
+ALLOW_EOL_UBUNTU ?= 0
+ALLOW_EOL_ARG := $(if $(filter 1 true yes,$(ALLOW_EOL_UBUNTU)),--allow-eol-ubuntu,)
 
-.PHONY: help check validate-configs list-presets test bench-toy smoke-hf bench bench-method autojudge specexec bench-all \
+.PHONY: help setup setup-gpu check validate-configs list-presets test bench-toy smoke-hf bench bench-method autojudge specexec bench-all \
 	docker-build docker-build-gpu docker-test docker-bench docker-autojudge docker-specexec docker-bench-all
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+setup: ## Install/upgrade required system + Python deps (safe: does not touch NVIDIA driver)
+	bash scripts/install_dependencies.sh $(ALLOW_EOL_ARG)
+
+setup-gpu: ## Install/upgrade required deps including GPU Python extras (bitsandbytes/accelerate)
+	bash scripts/install_dependencies.sh --gpu $(ALLOW_EOL_ARG)
 
 check: ## Run syntax checks (compileall)
 	$(PYTHON) -m compileall sp_samp benchmarks tests

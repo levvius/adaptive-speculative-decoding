@@ -16,17 +16,29 @@ This project provides:
 6. Docker support for CPU and GPU.
 
 **Getting Started (From Zero)**
-1. Install Docker. For GPU runs, install NVIDIA drivers and the NVIDIA Container Toolkit.
-2. Get the MT‑Bench dataset file (JSON/JSONL) and place it on disk, for example `/data/mt_bench.jsonl`.
-3. Build a CPU image:
+1. Bootstrap dependencies on a clean Ubuntu host (safe mode, does not touch NVIDIA driver):
+```bash
+bash scripts/install_dependencies.sh
+```
+For GPU Python extras (`bitsandbytes`, `accelerate`):
+```bash
+bash scripts/install_dependencies.sh --gpu
+```
+For EOL Ubuntu (for example Ubuntu 17), script stops by default. Continue only if you explicitly accept risks:
+```bash
+bash scripts/install_dependencies.sh --allow-eol-ubuntu
+```
+2. Install Docker. For GPU runs, keep your existing NVIDIA driver and install the NVIDIA Container Toolkit only.
+3. Get the MT‑Bench dataset file (JSON/JSONL) and place it on disk, for example `/data/mt_bench.jsonl`.
+4. Build a CPU image:
 ```bash
 docker build -t sp-samp .
 ```
-4. Run tests (CPU):
+5. Run tests (CPU):
 ```bash
 docker run --rm sp-samp
 ```
-5. Run a CPU benchmark (toy models):
+6. Run a CPU benchmark (toy models):
 ```bash
 docker run --rm sp-samp \
   python -m benchmarks.bench_speculative \
@@ -36,7 +48,7 @@ docker run --rm sp-samp \
   --max-new-tokens 32 \
   --vocab-size 2048
 ```
-6. Build a GPU image (CUDA example):
+7. Build a GPU image (CUDA example):
 ```bash
 docker build -f Dockerfile.gpu \
   --build-arg BASE_IMAGE=nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 \
@@ -44,7 +56,7 @@ docker build -f Dockerfile.gpu \
   --build-arg TORCH_VERSION=2.3.1 \
   -t sp-samp-gpu .
 ```
-7. Run a GPU benchmark (HF model, results saved to JSONL):
+8. Run a GPU benchmark (HF model, results saved to JSONL):
 ```bash
 docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
   python -m benchmarks.bench_speculative \
@@ -60,7 +72,7 @@ docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
   --runs 5 \
   --out /data/results.jsonl
 ```
-8. Run all methods in one launch (baseline + speculative + autojudge + specexec):
+9. Run all methods in one launch (baseline + speculative + autojudge + specexec):
 ```bash
 docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
   python -m benchmarks.bench_speculative \
@@ -74,7 +86,7 @@ docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
   --runs 5 \
   --out /data/results_all.jsonl
 ```
-9. Run SpecExec only (branch execution parameters included):
+10. Run SpecExec only (branch execution parameters included):
 ```bash
 docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
   python -m sp_samp.cli specexec \
@@ -85,7 +97,7 @@ docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
   --branch-prune-threshold 0.0 \
   --out /data/results_specexec.jsonl
 ```
-10. Run AutoJudge only with checkpoint reuse:
+11. Run AutoJudge only with checkpoint reuse:
 ```bash
 docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
   python -m benchmarks.bench_speculative \
@@ -107,45 +119,53 @@ docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
 ```bash
 make help
 ```
-2. Syntax check:
+2. Install/upgrade dependencies in safe mode:
+```bash
+make setup
+```
+3. Install/upgrade including GPU Python extras:
+```bash
+make setup-gpu
+```
+4. Syntax check:
 ```bash
 make check
 ```
-3. List presets:
+5. List presets:
 ```bash
 make list-presets
 ```
-4. Validate config logic:
+6. Validate config logic:
 ```bash
 make validate-configs
 ```
-5. Quick toy benchmark (no HF models):
+7. Quick toy benchmark (no HF models):
 ```bash
 make bench-toy OUT=/tmp/bench_toy.jsonl
 ```
-6. Quick HF smoke run (needs `torch` + `transformers`, downloads tiny model):
+8. Quick HF smoke run (needs `torch` + `transformers`, downloads tiny model):
 ```bash
 make smoke-hf OUT=/tmp/smoke_hf.jsonl
 ```
-7. Run experiment on MT-Bench:
+9. Run experiment on MT-Bench:
 ```bash
 make bench DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results.jsonl
 ```
-8. Run AutoJudge preset:
+10. Run AutoJudge preset:
 ```bash
 make autojudge DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results_autojudge.jsonl
 ```
-9. Run SpecExec preset:
+11. Run SpecExec preset:
 ```bash
 make specexec DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results_specexec.jsonl
 ```
-10. Build and run GPU Docker flow:
+12. Build and run GPU Docker flow:
 ```bash
 make docker-build-gpu
 make docker-bench DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results.jsonl
 make docker-specexec DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results_specexec.jsonl
 ```
-11. Enforce headless GPU mode for long runs:
+13. Enforce headless GPU mode for long runs:
 ```bash
 make bench DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results.jsonl HEADLESS=1
 ```
@@ -245,6 +265,8 @@ The benchmark writes JSONL records with per-run metrics and a summary record per
 - SpecExec is implemented as an exact (distribution-preserving) decoder with speculative cache prefill and configurable `parallel_branches` / `branch_prune_threshold`.
 - HF SpecExec uses KV-cache reuse and depth-wise tree passes for faster cache construction.
 - Draft and target models must share an identical tokenizer vocabulary mapping for speculative, AutoJudge, and SpecExec correctness.
+- `scripts/install_dependencies.sh` is idempotent for apt/pip dependencies and never modifies NVIDIA driver packages.
+- Ubuntu 17 is EOL. Script blocks by default on EOL Ubuntu unless `--allow-eol-ubuntu` is set explicitly.
 - Re-running a benchmark with the same `OUT` file automatically skips completed runs (resume mode).
 - Failed runs are written to JSONL and do not stop the whole benchmark method loop.
 - `make validate-configs` checks config references and tokenizer compatibility in `configs/*.json`.

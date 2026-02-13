@@ -15,6 +15,7 @@ features, or behaviors are added.
 - `configs/experiments.json`: Target/draft pairing presets for common comparisons.
 - `configs/method_templates.json`: Templates for AutoJudge and SpecExec configs with parameters/metrics.
 - `scripts/validate_configs.py`: Static validator for configs (cross-file references, method constraints, tokenizer compatibility for target/draft pair methods).
+- `scripts/install_dependencies.sh`: Safe host bootstrap script (idempotent apt/pip install, optional GPU extras, EOL Ubuntu guard, never touches NVIDIA driver packages).
 - `README.MD`: Project overview, usage, and examples.
 - `sp_samp/autojudge.py`: AutoJudge implementation (synthetic label collection, judge training, and decoding).
 - `sp_samp/specexec.py`: CPU SpecExec implementation (exact target sampling with draft-tree cache prefill and pruning).
@@ -33,6 +34,16 @@ features, or behaviors are added.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
 
 ## Recent Changes (2026-02-10)
+- Added safe host bootstrap flow:
+- new script `scripts/install_dependencies.sh` installs missing Ubuntu packages and updates Python deps in `.venv`;
+- supports optional GPU extras via `--gpu`;
+- blocks on EOL Ubuntu by default (can be overridden with `--allow-eol-ubuntu`);
+- explicitly avoids NVIDIA driver/CUDA driver package changes.
+- Added Make targets for bootstrap:
+- `make setup`, `make setup-gpu`;
+- `ALLOW_EOL_UBUNTU=1` passthrough support.
+- Updated dependency baselines in `requirements.txt` and `requirements-gpu.txt` to newer minimum versions.
+- Updated `README.MD` with safe installation workflow and Ubuntu EOL caveats.
 - Added benchmark reliability/runtime instrumentation in `benchmarks/bench_speculative.py`:
 - system metadata is written to each JSONL record (`git_sha`, host, GPU/driver, torch/transformers versions);
 - resume mode skips already completed runs via `resume_key`;
