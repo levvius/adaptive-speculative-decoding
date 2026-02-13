@@ -76,6 +76,11 @@ features, or behaviors are added.
 - `Makefile` now supports `DOCKER_CMD` override and `docker-build-gpu-safe` fallback target (automatic retry with `DOCKER_BUILDKIT=0`);
 - added `docker-prune-builder` target to clean Docker builder cache;
 - updated README with snapshot/export troubleshooting flow.
+- Added Docker GPU diagnostics helpers:
+- `make docker-gpu-check` validates NVIDIA runtime passthrough using a clean CUDA image;
+- `make docker-gpu-check-image` validates `torch.cuda.is_available()` inside project GPU image.
+- Added explicit CUDA preflight checks for HF benchmark path in `benchmarks/bench_speculative.py`:
+- when `--device cuda` is requested but CUDA is unavailable, benchmark now exits early with actionable setup guidance.
 - Improved local tooling reliability:
 - `Makefile` now prefers `.venv/bin/python` when present and falls back to `python3`.
 - `make test` now validates `pytest` availability first and emits a clear recovery message (`make setup`).

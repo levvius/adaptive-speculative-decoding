@@ -29,7 +29,7 @@ ALLOW_EOL_UBUNTU ?= 0
 ALLOW_EOL_ARG := $(if $(filter 1 true yes,$(ALLOW_EOL_UBUNTU)),--allow-eol-ubuntu,)
 
 .PHONY: help setup setup-gpu check validate-configs validate-results list-presets test bench-toy smoke-hf bench bench-method autojudge specexec bench-all \
-		docker-build docker-build-gpu docker-build-gpu-safe docker-prune-builder docker-test docker-bench docker-autojudge docker-specexec docker-bench-all
+		docker-build docker-build-gpu docker-build-gpu-safe docker-prune-builder docker-gpu-check docker-gpu-check-image docker-test docker-bench docker-autojudge docker-specexec docker-bench-all
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -157,6 +157,12 @@ docker-build-gpu-safe: ## Build GPU image with fallback to legacy builder if Bui
 
 docker-prune-builder: ## Cleanup Docker builder cache (use when snapshot/export errors occur)
 	$(DOCKER_CMD) builder prune -af
+
+docker-gpu-check: ## Verify GPU passthrough in a clean NVIDIA CUDA container
+	$(DOCKER_CMD) run --rm --gpus all nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 nvidia-smi
+
+docker-gpu-check-image: ## Verify torch CUDA visibility inside the built GPU image
+	$(DOCKER_CMD) run --rm --gpus all --entrypoint python $(IMAGE_GPU) -c "import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda, 'available', torch.cuda.is_available(), 'count', torch.cuda.device_count())"
 
 docker-test: ## Run tests in CPU Docker image
 	$(DOCKER_CMD) run --rm $(IMAGE_CPU)

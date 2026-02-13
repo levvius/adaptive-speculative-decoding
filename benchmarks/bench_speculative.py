@@ -480,6 +480,10 @@ def _uses_native_quantized_checkpoint(model_name: Optional[str]) -> bool:
     return "gpt-oss" in name or "gpt_oss" in name
 
 
+def _is_cuda_device(device: Optional[str]) -> bool:
+    return bool(device) and str(device).startswith("cuda")
+
+
 def _stats_record_fields(stats) -> dict:
     record = {
         "acceptance_rate": stats.acceptance_rate,
@@ -639,6 +643,18 @@ def run_with_args(args: argparse.Namespace) -> None:
         if torch is None or HFModel is None:
             raise SystemExit(
                 "HF benchmark requested but torch/transformers dependencies are missing."
+            )
+        if _is_cuda_device(args.device) and not torch.cuda.is_available():
+            raise SystemExit(
+                "CUDA device requested but unavailable in this runtime. "
+                "For Docker, verify GPU passthrough first: "
+                "`docker run --rm --gpus all nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 nvidia-smi`. "
+                "If it fails, configure nvidia-container-toolkit and restart Docker."
+            )
+        if _is_cuda_device(args.draft_device) and not torch.cuda.is_available():
+            raise SystemExit(
+                "Draft CUDA device requested but unavailable in this runtime. "
+                "Check Docker GPU runtime and nvidia-container-toolkit setup."
             )
         target_tokenizer_name = args.tokenizer or args.hf_model
         resolved_target_tokenizer = target_tokenizer_name

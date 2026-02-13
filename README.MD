@@ -180,6 +180,11 @@ or clean builder cache:
 ```bash
 make docker-prune-builder
 ```
+Check GPU passthrough before long runs:
+```bash
+make docker-gpu-check
+make docker-gpu-check-image
+```
 14. Enforce headless GPU mode for long runs:
 ```bash
 make bench DATASET=datasets/mt_bench.jsonl OUT=datasets/results.jsonl HEADLESS=1
@@ -301,3 +306,10 @@ make docker-prune-builder
 make docker-build-gpu-safe
 ```
 - `docker-build-gpu-safe` first tries BuildKit and then automatically retries with legacy builder (`DOCKER_BUILDKIT=0`) if BuildKit fails.
+- Error `RuntimeError: No CUDA GPUs are available` inside container means GPU runtime passthrough is not working (host-side setup), not model code.
+- Quick diagnostics:
+```bash
+make docker-gpu-check
+make docker-gpu-check-image
+```
+- If `docker-gpu-check` fails, (re)configure `nvidia-container-toolkit` and restart Docker daemon.
