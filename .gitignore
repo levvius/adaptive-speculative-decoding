@@ -42,3 +42,7 @@ pip-wheel-metadata/
 # Local environment files
 .env
 .env.*
+
+# Local datasets and generated benchmark outputs
+datasets/*
+!datasets/.gitkeep

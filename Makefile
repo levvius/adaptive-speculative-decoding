@@ -1,8 +1,9 @@
 VENV_PYTHON ?= .venv/bin/python
 PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
 CONFIG_DIR ?= configs
-DATASET ?=
-OUT ?= benchmarks/results.jsonl
+DATASET ?= datasets/mt_bench.jsonl
+OUT ?= datasets/results.jsonl
+RESULTS ?= $(OUT)
 METHOD ?= all
 EXPERIMENT ?= llama3_all_methods
 AUTOJUDGE_EXPERIMENT ?= llama3_target_llama3_autojudge_k4
@@ -20,14 +21,14 @@ TORCH_VERSION ?= 2.5.1
 HEADLESS ?= 0
 HEADLESS_ARG := $(if $(filter 1 true yes,$(HEADLESS)),--require-headless,)
 
-DATA_DIR ?= $(if $(DATASET),$(shell dirname "$(DATASET)"),/tmp)
-DATASET_IN_CONTAINER ?= $(if $(DATASET),/data/$(notdir $(DATASET)),)
+DATA_DIR ?= $(abspath $(dir $(DATASET)))
+DATASET_IN_CONTAINER ?= /data/$(notdir $(DATASET))
 OUT_IN_CONTAINER ?= /data/$(notdir $(OUT))
 ALLOW_EOL_UBUNTU ?= 0
 ALLOW_EOL_ARG := $(if $(filter 1 true yes,$(ALLOW_EOL_UBUNTU)),--allow-eol-ubuntu,)
 
-.PHONY: help setup setup-gpu check validate-configs list-presets test bench-toy smoke-hf bench bench-method autojudge specexec bench-all \
-	docker-build docker-build-gpu docker-test docker-bench docker-autojudge docker-specexec docker-bench-all
+.PHONY: help setup setup-gpu check validate-configs validate-results list-presets test bench-toy smoke-hf bench bench-method autojudge specexec bench-all \
+		docker-build docker-build-gpu docker-test docker-bench docker-autojudge docker-specexec docker-bench-all
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -44,6 +45,10 @@ check: ## Run syntax checks (compileall)
 
 validate-configs: ## Validate model/method/experiment preset consistency
 	$(PYTHON) scripts/validate_configs.py --config-dir $(CONFIG_DIR)
+
+validate-results: ## Validate benchmark JSONL schema (default: RESULTS=$(OUT))
+	@if [ ! -f "$(RESULTS)" ]; then echo "Results file not found: $(RESULTS). Default is RESULTS=datasets/results.jsonl."; exit 2; fi
+	$(PYTHON) scripts/validate_results_jsonl.py --path $(RESULTS) --strict
 
 list-presets: ## List models/methods/experiments presets
 	$(PYTHON) -m sp_samp.cli list-presets --config-dir $(CONFIG_DIR)
@@ -79,7 +84,7 @@ smoke-hf: ## Quick HF smoke run (requires torch+transformers and internet)
 		--out $(OUT)
 
 bench: ## Run benchmark using EXPERIMENT preset (requires DATASET)
-	@if [ -z "$(DATASET)" ]; then echo "Set DATASET=/path/to/mt_bench.jsonl"; exit 2; fi
+	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
 	$(PYTHON) -m sp_samp.cli bench \
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(EXPERIMENT) \
@@ -88,7 +93,7 @@ bench: ## Run benchmark using EXPERIMENT preset (requires DATASET)
 		--out $(OUT)
 
 bench-method: ## Run benchmark with explicit METHOD using model presets (requires DATASET)
-	@if [ -z "$(DATASET)" ]; then echo "Set DATASET=/path/to/mt_bench.jsonl"; exit 2; fi
+	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
 	$(PYTHON) -m sp_samp.cli bench \
 		--config-dir $(CONFIG_DIR) \
 		--model-preset $(TARGET_PRESET) \
@@ -99,7 +104,7 @@ bench-method: ## Run benchmark with explicit METHOD using model presets (require
 		--out $(OUT)
 
 autojudge: ## Run AutoJudge preset (requires DATASET)
-	@if [ -z "$(DATASET)" ]; then echo "Set DATASET=/path/to/mt_bench.jsonl"; exit 2; fi
+	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
 	$(PYTHON) -m sp_samp.cli autojudge \
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(AUTOJUDGE_EXPERIMENT) \
@@ -108,7 +113,7 @@ autojudge: ## Run AutoJudge preset (requires DATASET)
 		--out $(OUT)
 
 specexec: ## Run SpecExec preset (requires DATASET)
-	@if [ -z "$(DATASET)" ]; then echo "Set DATASET=/path/to/mt_bench.jsonl"; exit 2; fi
+	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
 	$(PYTHON) -m sp_samp.cli specexec \
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(SPECEXEC_EXPERIMENT) \
@@ -117,7 +122,7 @@ specexec: ## Run SpecExec preset (requires DATASET)
 		--out $(OUT)
 
 bench-all: ## Run baseline+speculative+autojudge+specexec in one call (requires DATASET)
-	@if [ -z "$(DATASET)" ]; then echo "Set DATASET=/path/to/mt_bench.jsonl"; exit 2; fi
+	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
 	$(PYTHON) -m sp_samp.cli bench \
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(EXPERIMENT) \
@@ -140,7 +145,7 @@ docker-test: ## Run tests in CPU Docker image
 	docker run --rm $(IMAGE_CPU)
 
 docker-bench: ## Run benchmark in GPU Docker using EXPERIMENT preset (requires DATASET)
-	@if [ -z "$(DATASET)" ]; then echo "Set DATASET=/path/to/mt_bench.jsonl"; exit 2; fi
+	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
 	docker run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
 		python -m sp_samp.cli bench \
 		--config-dir $(CONFIG_DIR) \
@@ -150,7 +155,7 @@ docker-bench: ## Run benchmark in GPU Docker using EXPERIMENT preset (requires D
 		--out $(OUT_IN_CONTAINER)
 
 docker-autojudge: ## Run AutoJudge in GPU Docker (requires DATASET)
-	@if [ -z "$(DATASET)" ]; then echo "Set DATASET=/path/to/mt_bench.jsonl"; exit 2; fi
+	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
 	docker run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
 		python -m sp_samp.cli autojudge \
 		--config-dir $(CONFIG_DIR) \
@@ -160,7 +165,7 @@ docker-autojudge: ## Run AutoJudge in GPU Docker (requires DATASET)
 		--out $(OUT_IN_CONTAINER)
 
 docker-specexec: ## Run SpecExec in GPU Docker (requires DATASET)
-	@if [ -z "$(DATASET)" ]; then echo "Set DATASET=/path/to/mt_bench.jsonl"; exit 2; fi
+	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
 	docker run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
 		python -m sp_samp.cli specexec \
 		--config-dir $(CONFIG_DIR) \
@@ -170,7 +175,7 @@ docker-specexec: ## Run SpecExec in GPU Docker (requires DATASET)
 		--out $(OUT_IN_CONTAINER)
 
 docker-bench-all: ## Run all methods (baseline+speculative+autojudge+specexec) in GPU Docker (requires DATASET)
-	@if [ -z "$(DATASET)" ]; then echo "Set DATASET=/path/to/mt_bench.jsonl"; exit 2; fi
+	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
 	docker run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
 		python -m sp_samp.cli bench \
 		--config-dir $(CONFIG_DIR) \

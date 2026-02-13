@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Static checks
+        run: make check
+
+      - name: Unit tests
+        run: make test
+
+      - name: Toy benchmark smoke (SpecExec)
+        run: |
+          python -m benchmarks.bench_speculative \
+            --method specexec \
+            --runs 1 \
+            --max-samples 2 \
+            --max-new-tokens 8 \
+            --vocab-size 256 \
+            --k 3 \
+            --parallel-branches 4 \
+            --out /tmp/bench_results.jsonl
+
+      - name: Validate benchmark JSONL schema
+        run: make validate-results RESULTS=/tmp/bench_results.jsonl

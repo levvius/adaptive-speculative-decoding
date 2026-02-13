@@ -14,12 +14,14 @@ This project provides:
 4. Preset configs for models, methods, and paired experiments.
 5. Makefile shortcuts for local and Docker workflows.
 6. Docker support for CPU and GPU.
+7. CI pipeline (GitHub Actions) for checks/tests + benchmark JSONL schema validation.
 
 **Getting Started (From Zero)**
 1. Bootstrap dependencies on a clean Ubuntu host (safe mode, does not touch NVIDIA driver):
 ```bash
 bash scripts/install_dependencies.sh
 ```
+Recommended Python version is `3.11` (`.python-version` in repo). Dependencies are pinned in `requirements*.txt` for reproducible runs.
 For GPU Python extras (`bitsandbytes`, `accelerate`):
 ```bash
 bash scripts/install_dependencies.sh --gpu
@@ -29,7 +31,7 @@ For EOL Ubuntu (for example Ubuntu 17), script stops by default. Continue only i
 bash scripts/install_dependencies.sh --allow-eol-ubuntu
 ```
 2. Install Docker. For GPU runs, keep your existing NVIDIA driver and install the NVIDIA Container Toolkit only.
-3. Get the MT‑Bench dataset file (JSON/JSONL) and place it on disk, for example `/data/mt_bench.jsonl`.
+3. Put MT‑Bench dataset file (JSON/JSONL) into project folder `datasets/`, for example `datasets/mt_bench.jsonl`.
 4. Build a CPU image:
 ```bash
 docker build -t sp-samp .
@@ -58,7 +60,7 @@ docker build -f Dockerfile.gpu \
 ```
 8. Run a GPU benchmark (HF model, results saved to JSONL):
 ```bash
-docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
+docker run --rm --gpus all -v "$(pwd)/datasets:/data" sp-samp-gpu \
   python -m benchmarks.bench_speculative \
   --dataset /data/mt_bench.jsonl \
   --hf-model RedHatAI/gpt-oss-20b \
@@ -74,7 +76,7 @@ docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
 ```
 9. Run all methods in one launch (baseline + speculative + autojudge + specexec):
 ```bash
-docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
+docker run --rm --gpus all -v "$(pwd)/datasets:/data" sp-samp-gpu \
   python -m benchmarks.bench_speculative \
   --dataset /data/mt_bench.jsonl \
   --hf-model meta-llama/Meta-Llama-3-8B-Instruct \
@@ -88,7 +90,7 @@ docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
 ```
 10. Run SpecExec only (branch execution parameters included):
 ```bash
-docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
+docker run --rm --gpus all -v "$(pwd)/datasets:/data" sp-samp-gpu \
   python -m sp_samp.cli specexec \
   --config-dir configs \
   --experiment llama3_target_llama3_specexec_k4 \
@@ -99,7 +101,7 @@ docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
 ```
 11. Run AutoJudge only with checkpoint reuse:
 ```bash
-docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
+docker run --rm --gpus all -v "$(pwd)/datasets:/data" sp-samp-gpu \
   python -m benchmarks.bench_speculative \
   --dataset /data/mt_bench.jsonl \
   --hf-model meta-llama/Meta-Llama-3-8B-Instruct \
@@ -115,6 +117,9 @@ docker run --rm --gpus all -v /path/to/mtbench:/data sp-samp-gpu \
 ```
 
 **Make Targets**
+Defaults for benchmark paths:
+- `DATASET=datasets/mt_bench.jsonl`
+- `OUT=datasets/results.jsonl`
 1. Show all commands:
 ```bash
 make help
@@ -131,43 +136,47 @@ make setup-gpu
 ```bash
 make check
 ```
-5. List presets:
+5. Validate benchmark JSONL schema:
+```bash
+make validate-results RESULTS=datasets/results.jsonl
+```
+6. List presets:
 ```bash
 make list-presets
 ```
-6. Validate config logic:
+7. Validate config logic:
 ```bash
 make validate-configs
 ```
-7. Quick toy benchmark (no HF models):
+8. Quick toy benchmark (no HF models):
 ```bash
 make bench-toy OUT=/tmp/bench_toy.jsonl
 ```
-8. Quick HF smoke run (needs `torch` + `transformers`, downloads tiny model):
+9. Quick HF smoke run (needs `torch` + `transformers`, downloads tiny model):
 ```bash
 make smoke-hf OUT=/tmp/smoke_hf.jsonl
 ```
-9. Run experiment on MT-Bench:
+10. Run experiment on MT-Bench:
 ```bash
-make bench DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results.jsonl
+make bench DATASET=datasets/mt_bench.jsonl OUT=datasets/results.jsonl
 ```
-10. Run AutoJudge preset:
+11. Run AutoJudge preset:
 ```bash
-make autojudge DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results_autojudge.jsonl
+make autojudge DATASET=datasets/mt_bench.jsonl OUT=datasets/results_autojudge.jsonl
 ```
-11. Run SpecExec preset:
+12. Run SpecExec preset:
 ```bash
-make specexec DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results_specexec.jsonl
+make specexec DATASET=datasets/mt_bench.jsonl OUT=datasets/results_specexec.jsonl
 ```
-12. Build and run GPU Docker flow:
+13. Build and run GPU Docker flow:
 ```bash
 make docker-build-gpu
-make docker-bench DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results.jsonl
-make docker-specexec DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results_specexec.jsonl
+make docker-bench DATASET=datasets/mt_bench.jsonl OUT=datasets/results.jsonl
+make docker-specexec DATASET=datasets/mt_bench.jsonl OUT=datasets/results_specexec.jsonl
 ```
-13. Enforce headless GPU mode for long runs:
+14. Enforce headless GPU mode for long runs:
 ```bash
-make bench DATASET=/path/to/mt_bench.jsonl OUT=/path/to/results.jsonl HEADLESS=1
+make bench DATASET=datasets/mt_bench.jsonl OUT=datasets/results.jsonl HEADLESS=1
 ```
 
 **Presets**
@@ -185,7 +194,7 @@ python -m sp_samp.cli list-presets --config-dir configs
 ```bash
 python -m benchmarks.bench_speculative \
   --method specexec \
-  --dataset /path/to/mt_bench.jsonl \
+  --dataset datasets/mt_bench.jsonl \
   --hf-model meta-llama/Meta-Llama-3-8B-Instruct \
   --hf-draft-model meta-llama/Meta-Llama-3-8B-Instruct \
   --parallel-branches 8 \
@@ -197,41 +206,41 @@ python -m sp_samp.cli bench \
   --config-dir configs \
   --model-preset gpt_oss_20b_4bit \
   --method-preset speculative_k4 \
-  --dataset /path/to/mt_bench.jsonl \
-  --out results.jsonl
+  --dataset datasets/mt_bench.jsonl \
+  --out datasets/results.jsonl
 ```
 4. Run benchmark using an experiment preset:
 ```bash
 python -m sp_samp.cli bench \
   --config-dir configs \
   --experiment llama3_all_methods \
-  --dataset /path/to/mt_bench.jsonl \
-  --out results.jsonl
+  --dataset datasets/mt_bench.jsonl \
+  --out datasets/results.jsonl
 ```
 5. Run AutoJudge shortcut command:
 ```bash
 python -m sp_samp.cli autojudge \
   --config-dir configs \
   --experiment llama3_target_llama3_autojudge_k4 \
-  --dataset /path/to/mt_bench.jsonl \
-  --out results_autojudge.jsonl
+  --dataset datasets/mt_bench.jsonl \
+  --out datasets/results_autojudge.jsonl
 ```
 6. Run SpecExec shortcut command:
 ```bash
 python -m sp_samp.cli specexec \
   --config-dir configs \
   --experiment llama3_target_llama3_specexec_k4 \
-  --dataset /path/to/mt_bench.jsonl \
-  --out results_specexec.jsonl
+  --dataset datasets/mt_bench.jsonl \
+  --out datasets/results_specexec.jsonl
 ```
 7. Require headless GPU mode (fail-fast when display is active):
 ```bash
 python -m sp_samp.cli bench \
   --config-dir configs \
   --experiment llama3_all_methods \
-  --dataset /path/to/mt_bench.jsonl \
+  --dataset datasets/mt_bench.jsonl \
   --require-headless \
-  --out results.jsonl
+  --out datasets/results.jsonl
 ```
 
 **Metrics Output**
@@ -253,6 +262,10 @@ The benchmark writes JSONL records with per-run metrics and a summary record per
 - `max_active_branches` (SpecExec only)
 - `error_type`, `error_message`, `traceback` (for failed runs)
 - System metadata: `git_sha`, `hostname`, `gpu_name`, `gpu_driver`, `cuda_runtime`, `torch_version`, `transformers_version`, `display_active`
+- Validate output schema with:
+```bash
+python scripts/validate_results_jsonl.py --path datasets/results.jsonl --strict
+```
 
 **Project Layout**
 - `sp_samp/`: core library, AutoJudge, SpecExec, HF adapter.
@@ -266,8 +279,10 @@ The benchmark writes JSONL records with per-run metrics and a summary record per
 - HF SpecExec uses KV-cache reuse and depth-wise tree passes for faster cache construction.
 - Draft and target models must share an identical tokenizer vocabulary mapping for speculative, AutoJudge, and SpecExec correctness.
 - `scripts/install_dependencies.sh` is idempotent for apt/pip dependencies and never modifies NVIDIA driver packages.
+- `scripts/install_dependencies.sh` prefers `python3.11` when available and warns when running with lower versions.
 - Ubuntu 17 is EOL. Script blocks by default on EOL Ubuntu unless `--allow-eol-ubuntu` is set explicitly.
 - Re-running a benchmark with the same `OUT` file automatically skips completed runs (resume mode).
 - Failed runs are written to JSONL and do not stop the whole benchmark method loop.
 - `make validate-configs` checks config references and tokenizer compatibility in `configs/*.json`.
+- `make validate-results` enforces JSONL schema compatibility for downstream analysis.
 - Current default experiments are correctness-safe (same tokenizer family) and may show limited speedup when target=draft.

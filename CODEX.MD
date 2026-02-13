@@ -15,7 +15,11 @@ features, or behaviors are added.
 - `configs/experiments.json`: Target/draft pairing presets for common comparisons.
 - `configs/method_templates.json`: Templates for AutoJudge and SpecExec configs with parameters/metrics.
 - `scripts/validate_configs.py`: Static validator for configs (cross-file references, method constraints, tokenizer compatibility for target/draft pair methods).
+- `scripts/validate_results_jsonl.py`: JSONL schema/type validator for benchmark outputs (strict mode supported).
 - `scripts/install_dependencies.sh`: Safe host bootstrap script (idempotent apt/pip install, optional GPU extras, EOL Ubuntu guard, never touches NVIDIA driver packages).
+- `.github/workflows/ci.yml`: GitHub Actions CI pipeline (checks, tests, toy SpecExec smoke run, result-schema validation).
+- `.python-version`: Recommended local Python runtime version.
+- `datasets/.gitkeep`: Repository placeholder for local dataset directory (`datasets/`).
 - `README.MD`: Project overview, usage, and examples.
 - `sp_samp/autojudge.py`: AutoJudge implementation (synthetic label collection, judge training, and decoding).
 - `sp_samp/specexec.py`: CPU SpecExec implementation (exact target sampling with draft-tree cache prefill and pruning).
@@ -34,6 +38,26 @@ features, or behaviors are added.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
 
 ## Recent Changes (2026-02-13)
+- Standardized local dataset layout to `datasets/`:
+- added tracked directory placeholder `datasets/.gitkeep`;
+- Makefile defaults now use `DATASET=datasets/mt_bench.jsonl` and `OUT=datasets/results.jsonl`;
+- benchmark runner default output path now resolves to `datasets/results.jsonl`;
+- benchmark targets now fail fast if dataset file does not exist (clear recovery message);
+- Docker dataset mount now resolves from absolute host path derived from `DATASET`;
+- README examples updated to use `datasets/` paths.
+- Updated ignore rules for local data:
+- `.gitignore` now ignores `datasets/*` while keeping `datasets/.gitkeep`;
+- `.dockerignore` now excludes `datasets/` from image build context.
+- Added CI pipeline (`.github/workflows/ci.yml`) on Python 3.11:
+- runs `make check`, `make test`, toy SpecExec smoke benchmark, and JSONL schema validation.
+- Pinned dependency versions in `requirements.txt` and `requirements-gpu.txt` for reproducible installs.
+- Added `.python-version` with recommended runtime `3.11`.
+- Improved bootstrap interpreter selection:
+- `scripts/install_dependencies.sh` now prefers `python3.11` when available, enforces minimum Python 3.10, and warns when below 3.11.
+- Added benchmark result schema validation:
+- new script `scripts/validate_results_jsonl.py`;
+- new `make validate-results` target with strict mode.
+- Removed `autojudge_placeholder` from `configs/methods.json` and simplified `scripts/validate_configs.py` logic accordingly.
 - Fixed Docker/Torch version consistency for GPU builds:
 - `Makefile` now exposes `TORCH_INDEX_URL` and `TORCH_VERSION` variables;
 - default `TORCH_VERSION` aligned to `2.5.1` (same baseline as `requirements.txt`);

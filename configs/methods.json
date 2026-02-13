@@ -66,14 +66,6 @@
       "autojudge_train_batch_size": 128,
       "autojudge_train_lr": 0.001,
       "autojudge_audit_ratio": 0.0
-    },
-    "autojudge_placeholder": {
-      "method": "autojudge",
-      "status": "placeholder",
-      "max_new_tokens": 128,
-      "runs": 5,
-      "max_samples": 50,
-      "turn_index": 0
     }
   }
 }

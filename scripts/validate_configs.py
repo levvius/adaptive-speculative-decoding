@@ -53,7 +53,7 @@ def validate_config_dir(config_dir: Path) -> Tuple[List[str], List[str], Dict[st
                 f"Allowed: {sorted(BENCH_METHODS)}."
             )
             continue
-        if method in DRAFT_REQUIRED_METHODS and method_preset.get("status") != "placeholder":
+        if method in DRAFT_REQUIRED_METHODS:
             k = method_preset.get("k", None)
             if not isinstance(k, int) or k <= 0:
                 errors.append(
@@ -129,11 +129,6 @@ def validate_config_dir(config_dir: Path) -> Tuple[List[str], List[str], Dict[st
                 warnings.append(
                     f"experiments.{exp_name}: target and draft use the same preset "
                     f"('{target_preset}'); speedup may be limited."
-                )
-
-            if methods[method_preset].get("status") == "placeholder":
-                warnings.append(
-                    f"experiments.{exp_name}: uses placeholder method preset '{method_preset}'."
                 )
 
     stats = {

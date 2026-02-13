@@ -136,9 +136,35 @@ else
   echo "[OK] All required apt packages are already installed."
 fi
 
+resolve_python_bin() {
+  if command -v python3.11 >/dev/null 2>&1; then
+    echo "python3.11"
+    return
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    echo "python3"
+    return
+  fi
+  echo "[ERROR] Python 3 is required but was not found." >&2
+  exit 1
+}
+
+PYTHON_BIN="$(resolve_python_bin)"
+PYTHON_VERSION="$(${PYTHON_BIN} -c 'import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")')"
+echo "[INFO] Using Python interpreter: ${PYTHON_BIN} (version ${PYTHON_VERSION})"
+
+if ! ${PYTHON_BIN} -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' >/dev/null 2>&1; then
+  echo "[ERROR] Python >= 3.10 is required for this project."
+  exit 1
+fi
+
+if ! ${PYTHON_BIN} -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1; then
+  echo "[WARN] Python 3.11 is recommended (detected ${PYTHON_VERSION})."
+fi
+
 if [[ ! -d "${VENV_PATH}" ]]; then
   echo "[INFO] Creating virtual environment: ${VENV_PATH}"
-  python3 -m venv "${VENV_PATH}"
+  ${PYTHON_BIN} -m venv "${VENV_PATH}"
 else
   echo "[OK] Virtual environment already exists: ${VENV_PATH}"
 fi

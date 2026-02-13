@@ -233,7 +233,7 @@ def _run_once(
 
 def _resolve_out_path(path: Optional[str]) -> Path:
     if path is None:
-        return Path("benchmarks") / "results.jsonl"
+        return Path("datasets") / "results.jsonl"
     out_path = Path(path)
     if out_path.is_dir():
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
