@@ -33,6 +33,21 @@ features, or behaviors are added.
 - `Dockerfile`, `Dockerfile.gpu`: CPU/GPU containers.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
 
+## Recent Changes (2026-02-13)
+- Fixed Docker/Torch version consistency for GPU builds:
+- `Makefile` now exposes `TORCH_INDEX_URL` and `TORCH_VERSION` variables;
+- default `TORCH_VERSION` aligned to `2.5.1` (same baseline as `requirements.txt`);
+- README GPU build example updated accordingly.
+- Improved local tooling reliability:
+- `Makefile` now prefers `.venv/bin/python` when present and falls back to `python3`.
+- `make test` now validates `pytest` availability first and emits a clear recovery message (`make setup`).
+- Fixed SpecExec summary metric correctness:
+- in benchmark stat aggregation, `max_active_branches` is now aggregated as `max(...)` instead of sum.
+- Replaced stale AutoJudge placeholder module export:
+- `sp_samp/methods/autojudge/__init__.py` now exports actual AutoJudge APIs when dependencies are installed;
+- when torch/transformers are missing, module now raises a clear dependency error on attribute access.
+- Expanded `.dockerignore` to reduce Docker context size and avoid shipping local artifacts (`.venv`, caches, build outputs, logs, `papers/`).
+
 ## Recent Changes (2026-02-10)
 - Added safe host bootstrap flow:
 - new script `scripts/install_dependencies.sh` installs missing Ubuntu packages and updates Python deps in `.venv`;

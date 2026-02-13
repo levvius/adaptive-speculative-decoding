@@ -1,4 +1,5 @@
-PYTHON ?= python
+VENV_PYTHON ?= .venv/bin/python
+PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
 CONFIG_DIR ?= configs
 DATASET ?=
 OUT ?= benchmarks/results.jsonl
@@ -14,6 +15,8 @@ SMOKE_HF_TOKENIZER ?= sshleifer/tiny-gpt2
 IMAGE_CPU ?= sp-samp
 IMAGE_GPU ?= sp-samp-gpu
 DOCKER_GPU_ARGS ?= --gpus all
+TORCH_INDEX_URL ?= https://download.pytorch.org/whl/cu124
+TORCH_VERSION ?= 2.5.1
 HEADLESS ?= 0
 HEADLESS_ARG := $(if $(filter 1 true yes,$(HEADLESS)),--require-headless,)
 
@@ -46,6 +49,10 @@ list-presets: ## List models/methods/experiments presets
 	$(PYTHON) -m sp_samp.cli list-presets --config-dir $(CONFIG_DIR)
 
 test: ## Run pytest locally
+	@$(PYTHON) -c "import pytest" >/dev/null 2>&1 || { \
+		echo "pytest is not installed for $(PYTHON). Run 'make setup' first."; \
+		exit 2; \
+	}
 	$(PYTHON) -m pytest -q
 
 bench-toy: ## Run toy benchmark without HF models
@@ -125,8 +132,8 @@ docker-build: ## Build CPU Docker image
 docker-build-gpu: ## Build GPU Docker image (CUDA 12.4 example)
 	docker build -f Dockerfile.gpu \
 		--build-arg BASE_IMAGE=nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 \
-		--build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 \
-		--build-arg TORCH_VERSION=2.3.1 \
+		--build-arg TORCH_INDEX_URL=$(TORCH_INDEX_URL) \
+		--build-arg TORCH_VERSION=$(TORCH_VERSION) \
 		-t $(IMAGE_GPU) .
 
 docker-test: ## Run tests in CPU Docker image

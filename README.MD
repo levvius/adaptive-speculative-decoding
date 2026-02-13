@@ -53,7 +53,7 @@ docker run --rm sp-samp \
 docker build -f Dockerfile.gpu \
   --build-arg BASE_IMAGE=nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 \
   --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 \
-  --build-arg TORCH_VERSION=2.3.1 \
+  --build-arg TORCH_VERSION=2.5.1 \
   -t sp-samp-gpu .
 ```
 8. Run a GPU benchmark (HF model, results saved to JSONL):

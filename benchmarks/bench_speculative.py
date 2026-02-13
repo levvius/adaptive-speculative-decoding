@@ -74,6 +74,9 @@ def _accumulate_stats(total, stats) -> None:
     for field in base_fields:
         if hasattr(total, field) and hasattr(stats, field):
             setattr(total, field, getattr(total, field) + getattr(stats, field))
+    # This metric represents a peak and must be aggregated with max, not sum.
+    if hasattr(total, "max_active_branches") and hasattr(stats, "max_active_branches"):
+        total.max_active_branches = max(total.max_active_branches, stats.max_active_branches)
     extra_fields = [
         "judge_total",
         "judge_accepted",
@@ -86,7 +89,6 @@ def _accumulate_stats(total, stats) -> None:
         "branches_total",
         "branches_kept",
         "branches_pruned",
-        "max_active_branches",
         "cache_hits",
         "cache_misses",
         "audit_samples",
