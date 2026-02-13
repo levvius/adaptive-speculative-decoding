@@ -150,7 +150,7 @@ resolve_python_bin() {
 }
 
 PYTHON_BIN="$(resolve_python_bin)"
-PYTHON_VERSION="$(${PYTHON_BIN} -c 'import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")')"
+PYTHON_VERSION="$(${PYTHON_BIN} -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 echo "[INFO] Using Python interpreter: ${PYTHON_BIN} (version ${PYTHON_VERSION})"
 
 if ! ${PYTHON_BIN} -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' >/dev/null 2>&1; then
