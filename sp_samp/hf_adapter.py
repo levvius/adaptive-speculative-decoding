@@ -33,7 +33,9 @@ class HFModel(BaseModel):
     ) -> None:
         self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(
-            tokenizer_name or model_name, use_fast=use_fast_tokenizer
+            tokenizer_name or model_name,
+            use_fast=use_fast_tokenizer,
+            trust_remote_code=trust_remote_code,
         )
         if dtype == "auto":
             torch_dtype = None
@@ -62,13 +64,23 @@ class HFModel(BaseModel):
             )
             device_map = "auto"
 
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch_dtype,
-            trust_remote_code=trust_remote_code,
-            quantization_config=quantization_config,
-            device_map=device_map,
-        )
+        try:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch_dtype,
+                trust_remote_code=trust_remote_code,
+                quantization_config=quantization_config,
+                device_map=device_map,
+            )
+        except ValueError as exc:
+            msg = str(exc)
+            if "does not recognize this architecture" in msg:
+                raise RuntimeError(
+                    "Transformers build is too old for this model architecture. "
+                    "Upgrade transformers (for gpt_oss use >=4.55), rebuild image, "
+                    "and retry."
+                ) from exc
+            raise
         if device_map is None:
             self.model.to(device)
         self.device = str(next(self.model.parameters()).device)
