@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List, Optional, Sequence
+import warnings
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -64,14 +65,17 @@ class HFModel(BaseModel):
             )
             device_map = "auto"
 
-        try:
-            self.model = AutoModelForCausalLM.from_pretrained(
+        def _load_model(q_config, d_map):
+            return AutoModelForCausalLM.from_pretrained(
                 model_name,
                 torch_dtype=torch_dtype,
                 trust_remote_code=trust_remote_code,
-                quantization_config=quantization_config,
-                device_map=device_map,
+                quantization_config=q_config,
+                device_map=d_map,
             )
+
+        try:
+            self.model = _load_model(quantization_config, device_map)
         except ValueError as exc:
             msg = str(exc)
             if "does not recognize this architecture" in msg:
@@ -80,7 +84,22 @@ class HFModel(BaseModel):
                     "Upgrade transformers (for gpt_oss use >=4.55), rebuild image, "
                     "and retry."
                 ) from exc
-            raise
+            incompatible_quant = (
+                quantization_config is not None
+                and "quantized with" in msg
+                and "but you are passing a" in msg
+            )
+            if incompatible_quant:
+                warnings.warn(
+                    "Model ships with its own quantization config; "
+                    "ignoring --quant override and retrying with checkpoint defaults.",
+                    RuntimeWarning,
+                )
+                quantization_config = None
+                device_map = "auto"
+                self.model = _load_model(quantization_config, device_map)
+            else:
+                raise
         if device_map is None:
             self.model.to(device)
         self.device = str(next(self.model.parameters()).device)

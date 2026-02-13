@@ -65,6 +65,8 @@ features, or behaviors are added.
 - Hardened `Dockerfile.gpu` for CUDA runtime base images:
 - if Python/pip are missing, image now installs `python3`, `python3-pip`, and `python3-venv`;
 - switched pip invocations to `python3 -m pip` to avoid missing `pip` binary issues.
+- Improved HF quantization compatibility in `sp_samp/hf_adapter.py`:
+- when a checkpoint already has its own quantization class (for example MXFP4), the loader now falls back by dropping conflicting BitsAndBytes override and retries with checkpoint defaults.
 - Improved local tooling reliability:
 - `Makefile` now prefers `.venv/bin/python` when present and falls back to `python3`.
 - `make test` now validates `pytest` availability first and emits a clear recovery message (`make setup`).
