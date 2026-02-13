@@ -172,6 +172,14 @@ make docker-build-gpu
 make docker-bench DATASET=datasets/mt_bench.jsonl OUT=datasets/results.jsonl
 make docker-specexec DATASET=datasets/mt_bench.jsonl OUT=datasets/results_specexec.jsonl
 ```
+If your Docker host hits BuildKit snapshot/export errors, use:
+```bash
+make docker-build-gpu-safe
+```
+or clean builder cache:
+```bash
+make docker-prune-builder
+```
 14. Enforce headless GPU mode for long runs:
 ```bash
 make bench DATASET=datasets/mt_bench.jsonl OUT=datasets/results.jsonl HEADLESS=1
@@ -284,3 +292,12 @@ python scripts/validate_results_jsonl.py --path datasets/results.jsonl --strict
 - `make validate-configs` checks config references and tokenizer compatibility in `configs/*.json`.
 - `make validate-results` enforces JSONL schema compatibility for downstream analysis.
 - Current default experiments are correctness-safe (same tokenizer family) and may show limited speedup when target=draft.
+
+**Docker Troubleshooting**
+- Error `parent snapshot ... does not exist` during `docker build` is typically a Docker BuildKit cache/snapshot issue on host.
+- Recovery sequence:
+```bash
+make docker-prune-builder
+make docker-build-gpu-safe
+```
+- `docker-build-gpu-safe` first tries BuildKit and then automatically retries with legacy builder (`DOCKER_BUILDKIT=0`) if BuildKit fails.

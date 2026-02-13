@@ -18,6 +18,7 @@ IMAGE_GPU ?= sp-samp-gpu
 DOCKER_GPU_ARGS ?= --gpus all
 TORCH_INDEX_URL ?= https://download.pytorch.org/whl/cu124
 TORCH_VERSION ?= 2.5.1
+DOCKER_CMD ?= docker
 HEADLESS ?= 0
 HEADLESS_ARG := $(if $(filter 1 true yes,$(HEADLESS)),--require-headless,)
 
@@ -28,7 +29,7 @@ ALLOW_EOL_UBUNTU ?= 0
 ALLOW_EOL_ARG := $(if $(filter 1 true yes,$(ALLOW_EOL_UBUNTU)),--allow-eol-ubuntu,)
 
 .PHONY: help setup setup-gpu check validate-configs validate-results list-presets test bench-toy smoke-hf bench bench-method autojudge specexec bench-all \
-		docker-build docker-build-gpu docker-test docker-bench docker-autojudge docker-specexec docker-bench-all
+		docker-build docker-build-gpu docker-build-gpu-safe docker-prune-builder docker-test docker-bench docker-autojudge docker-specexec docker-bench-all
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -132,21 +133,37 @@ bench-all: ## Run baseline+speculative+autojudge+specexec in one call (requires 
 		--out $(OUT)
 
 docker-build: ## Build CPU Docker image
-	docker build -t $(IMAGE_CPU) .
+	$(DOCKER_CMD) build -t $(IMAGE_CPU) .
 
 docker-build-gpu: ## Build GPU Docker image (CUDA 12.4 example)
-	docker build -f Dockerfile.gpu \
+	$(DOCKER_CMD) build -f Dockerfile.gpu \
 		--build-arg BASE_IMAGE=nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 \
 		--build-arg TORCH_INDEX_URL=$(TORCH_INDEX_URL) \
 		--build-arg TORCH_VERSION=$(TORCH_VERSION) \
 		-t $(IMAGE_GPU) .
 
+docker-build-gpu-safe: ## Build GPU image with fallback to legacy builder if BuildKit snapshot export fails
+	$(DOCKER_CMD) build -f Dockerfile.gpu \
+		--build-arg BASE_IMAGE=nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 \
+		--build-arg TORCH_INDEX_URL=$(TORCH_INDEX_URL) \
+		--build-arg TORCH_VERSION=$(TORCH_VERSION) \
+		-t $(IMAGE_GPU) . || \
+	(echo "[WARN] BuildKit build failed; retrying with legacy builder (DOCKER_BUILDKIT=0)."; \
+	DOCKER_BUILDKIT=0 $(DOCKER_CMD) build -f Dockerfile.gpu \
+		--build-arg BASE_IMAGE=nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 \
+		--build-arg TORCH_INDEX_URL=$(TORCH_INDEX_URL) \
+		--build-arg TORCH_VERSION=$(TORCH_VERSION) \
+		-t $(IMAGE_GPU) .)
+
+docker-prune-builder: ## Cleanup Docker builder cache (use when snapshot/export errors occur)
+	$(DOCKER_CMD) builder prune -af
+
 docker-test: ## Run tests in CPU Docker image
-	docker run --rm $(IMAGE_CPU)
+	$(DOCKER_CMD) run --rm $(IMAGE_CPU)
 
 docker-bench: ## Run benchmark in GPU Docker using EXPERIMENT preset (requires DATASET)
 	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
-	docker run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
+	$(DOCKER_CMD) run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
 		python -m sp_samp.cli bench \
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(EXPERIMENT) \
@@ -156,7 +173,7 @@ docker-bench: ## Run benchmark in GPU Docker using EXPERIMENT preset (requires D
 
 docker-autojudge: ## Run AutoJudge in GPU Docker (requires DATASET)
 	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
-	docker run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
+	$(DOCKER_CMD) run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
 		python -m sp_samp.cli autojudge \
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(AUTOJUDGE_EXPERIMENT) \
@@ -166,7 +183,7 @@ docker-autojudge: ## Run AutoJudge in GPU Docker (requires DATASET)
 
 docker-specexec: ## Run SpecExec in GPU Docker (requires DATASET)
 	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
-	docker run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
+	$(DOCKER_CMD) run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
 		python -m sp_samp.cli specexec \
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(SPECEXEC_EXPERIMENT) \
@@ -176,7 +193,7 @@ docker-specexec: ## Run SpecExec in GPU Docker (requires DATASET)
 
 docker-bench-all: ## Run all methods (baseline+speculative+autojudge+specexec) in GPU Docker (requires DATASET)
 	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
-	docker run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
+	$(DOCKER_CMD) run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
 		python -m sp_samp.cli bench \
 		--config-dir $(CONFIG_DIR) \
 		--experiment $(EXPERIMENT) \

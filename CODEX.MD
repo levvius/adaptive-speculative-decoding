@@ -72,6 +72,10 @@ features, or behaviors are added.
 - prevents `Mxfp4Config` vs `BitsAndBytesConfig` conflicts before model load.
 - Fixed HF model-loading edge case for native quantized checkpoints:
 - `sp_samp/hf_adapter.py` no longer forwards `quantization_config=None` to `from_pretrained`, avoiding `AttributeError: 'NoneType' object has no attribute 'to_dict'` in recent `transformers`.
+- Added Docker build recovery helpers for host-side BuildKit snapshot issues:
+- `Makefile` now supports `DOCKER_CMD` override and `docker-build-gpu-safe` fallback target (automatic retry with `DOCKER_BUILDKIT=0`);
+- added `docker-prune-builder` target to clean Docker builder cache;
+- updated README with snapshot/export troubleshooting flow.
 - Improved local tooling reliability:
 - `Makefile` now prefers `.venv/bin/python` when present and falls back to `python3`.
 - `make test` now validates `pytest` availability first and emits a clear recovery message (`make setup`).
