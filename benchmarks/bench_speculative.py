@@ -9,6 +9,7 @@ import statistics
 import subprocess
 import time
 import traceback
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
@@ -19,7 +20,12 @@ except ModuleNotFoundError:
     torch = None
 
 from sp_samp.models import NoisyModel, RandomModel
-from sp_samp.gsm8k import load_gsm8k
+from sp_samp.gsm8k import (
+    answers_equivalent,
+    extract_final_answer,
+    extract_reference_answer,
+    load_gsm8k,
+)
 from sp_samp.mtbench import load_mtbench
 from sp_samp.sampling import SamplingStats, sample_baseline, speculative_sample
 from sp_samp.specexec import SpecExecStats, specexec_sample
@@ -35,6 +41,8 @@ autojudge_sample_hf = None
 sample_baseline_hf = None
 speculative_sample_hf = None
 specexec_sample_hf = None
+topk_sample_hf = None
+TopKStats = None
 
 if torch is not None:
     from sp_samp.autojudge import (
@@ -49,6 +57,13 @@ if torch is not None:
     from sp_samp.hf_adapter import HFModel
     from sp_samp.hf_sampling import sample_baseline_hf, speculative_sample_hf
     from sp_samp.hf_specexec import specexec_sample_hf
+    from sp_samp.hf_topk import TopKStats, topk_sample_hf
+
+
+@dataclass
+class EvalSample:
+    prompt: str
+    reference_answer: Optional[str] = None
 
 
 class HashTokenizer:
@@ -74,6 +89,27 @@ def _default_prompts() -> List[str]:
     ]
 
 
+def _build_gsm8k_prompt(question: str, mode: str) -> str:
+    q = question.strip()
+    if mode == "plain":
+        return f"Question: {q}\nAnswer:"
+    return (
+        "Solve the following grade school math problem. "
+        "Show your reasoning, then end with: The final answer is <number>.\n\n"
+        f"Question: {q}\nAnswer:"
+    )
+
+
+def _parse_topk_rank(spec: str) -> Optional[int]:
+    raw = str(spec).strip().lower()
+    if raw == "all":
+        return None
+    value = int(raw)
+    if value <= 0:
+        raise ValueError("topk_rank must be a positive integer or 'all'.")
+    return value
+
+
 def _accumulate_stats(total, stats) -> None:
     base_fields = ["proposed", "accepted", "steps", "target_tokens", "rejections"]
     for field in base_fields:
@@ -86,6 +122,8 @@ def _accumulate_stats(total, stats) -> None:
         "judge_total",
         "judge_accepted",
         "judge_rejected",
+        "topk_mismatches",
+        "topk_accepted_mismatches",
         "target_calls",
         "target_fallbacks",
         "draft_calls",
@@ -103,34 +141,45 @@ def _accumulate_stats(total, stats) -> None:
 
 
 def _run_once(
-    prompts: Iterable[str],
+    prompts: Iterable[EvalSample],
     encode_fn: Callable[[str], List[int]],
+    decode_fn: Optional[Callable[[List[int]], str]],
     target_model,
     draft_model,
     method: str,
+    eval_task: str,
     max_new_tokens: int,
     k: int,
     seed: int,
     autojudge_model=None,
     autojudge_threshold: Optional[float] = None,
+    topk_rank: Optional[int] = 4,
     specexec_parallel_branches: int = 8,
     specexec_branch_prune_threshold: float = 0.0,
-) -> Tuple[float, float, int, object, int]:
+) -> Tuple[float, float, int, object, int, int, int]:
     rng = random.Random(seed)
     if torch is not None:
         torch.manual_seed(seed)
     total_tokens = 0
     total_prompt_tokens = 0
+    gsm8k_correct = 0
+    gsm8k_total = 0
     if method == "autojudge":
         if AutoJudgeStats is None:
             raise RuntimeError("AutoJudge requires torch dependencies.")
         total_stats = AutoJudgeStats()
+    elif method == "topk":
+        if TopKStats is None:
+            raise RuntimeError("Top-k HF method requires torch dependencies.")
+        total_stats = TopKStats()
     elif method == "specexec":
         total_stats = SpecExecStats()
     else:
         total_stats = SamplingStats()
     start = time.perf_counter()
-    for prompt_idx, prompt in enumerate(prompts):
+    for prompt_idx, sample in enumerate(prompts):
+        prompt = sample.prompt
+        reference_answer = sample.reference_answer
         prompt_tokens = encode_fn(prompt)
         total_prompt_tokens += len(prompt_tokens)
         try:
@@ -164,6 +213,19 @@ def _run_once(
                         max_new_tokens=max_new_tokens,
                         k=k,
                         threshold=autojudge_threshold,
+                        eos_id=target_model.eos_token_id,
+                        seed=seed,
+                    )
+                elif method == "topk":
+                    if topk_sample_hf is None:
+                        raise RuntimeError("Top-k HF implementation is unavailable.")
+                    generated, stats = topk_sample_hf(
+                        target_model=target_model,
+                        draft_model=draft_model,
+                        prompt_tokens=prompt_tokens,
+                        max_new_tokens=max_new_tokens,
+                        k=k,
+                        topk_rank=topk_rank,
                         eos_id=target_model.eos_token_id,
                         seed=seed,
                     )
@@ -205,6 +267,8 @@ def _run_once(
                     )
                 elif method == "autojudge":
                     raise ValueError("AutoJudge is currently supported only for HF models.")
+                elif method == "topk":
+                    raise ValueError("Top-k is currently supported only for HF models.")
                 elif method == "specexec":
                     generated, stats = specexec_sample(
                         target_model,
@@ -226,10 +290,26 @@ def _run_once(
                 f"k={k}, seed={seed}): {exc}"
             ) from exc
         total_tokens += len(generated)
+        if eval_task == "gsm8k" and reference_answer is not None:
+            if decode_fn is None:
+                raise RuntimeError("decode_fn is required for GSM8K quality evaluation.")
+            generated_text = decode_fn(generated)
+            predicted_answer = extract_final_answer(generated_text)
+            if answers_equivalent(predicted_answer, reference_answer):
+                gsm8k_correct += 1
+            gsm8k_total += 1
         _accumulate_stats(total_stats, stats)
     duration = time.perf_counter() - start
     tokens_per_sec = total_tokens / duration if duration > 0 else 0.0
-    return tokens_per_sec, duration, total_tokens, total_stats, total_prompt_tokens
+    return (
+        tokens_per_sec,
+        duration,
+        total_tokens,
+        total_stats,
+        total_prompt_tokens,
+        gsm8k_correct,
+        gsm8k_total,
+    )
 
 
 def _resolve_out_path(path: Optional[str]) -> Path:
@@ -374,6 +454,10 @@ def _base_record_fields(
         "max_samples": args.max_samples,
         "turn_index": args.turn_index,
         "dataset": args.dataset,
+        "eval_task": args.eval_task,
+        "gsm8k_eval_mode": args.gsm8k_eval_mode,
+        "topk_rank": args.topk_rank,
+        "topk_grid": args.topk_grid,
         "autojudge_threshold": resolved_autojudge_threshold_used,
         "autojudge_threshold_used": resolved_autojudge_threshold_used,
         "autojudge_threshold_calibrated": resolved_autojudge_threshold_calibrated,
@@ -440,6 +524,10 @@ def _record_resume_key(record: Dict[str, object]) -> Optional[str]:
         "max_samples",
         "turn_index",
         "dataset",
+        "eval_task",
+        "gsm8k_eval_mode",
+        "topk_rank",
+        "topk_grid",
         "autojudge_threshold",
         "autojudge_threshold_used",
         "autojudge_threshold_calibrated",
@@ -492,7 +580,9 @@ def _resolve_methods(method: str) -> List[str]:
     if method == "both":
         return ["baseline", "speculative"]
     if method == "all":
-        return ["baseline", "speculative", "autojudge", "specexec"]
+        return ["baseline", "speculative", "autojudge", "topk", "specexec"]
+    if method == "all_paper":
+        return ["baseline", "speculative", "autojudge", "topk"]
     return [method]
 
 
@@ -576,6 +666,8 @@ def _stats_record_fields(stats) -> dict:
     }
     if hasattr(stats, "judge_accept_rate"):
         record["judge_accept_rate"] = stats.judge_accept_rate
+    if hasattr(stats, "topk_accept_rate"):
+        record["topk_accept_rate"] = stats.topk_accept_rate
     if hasattr(stats, "target_fallback_rate"):
         record["target_fallback_rate"] = stats.target_fallback_rate
     if hasattr(stats, "target_calls_per_token"):
@@ -608,6 +700,9 @@ def _stats_record_fields(stats) -> dict:
         "val_auc",
         "val_recall",
         "threshold_selected",
+        "topk_rank_effective",
+        "topk_mismatches",
+        "topk_accepted_mismatches",
     ]:
         if hasattr(stats, key):
             record[key] = getattr(stats, key)
@@ -626,7 +721,30 @@ def build_parser() -> argparse.ArgumentParser:
         "--method",
         type=str,
         default="both",
-        choices=["baseline", "speculative", "autojudge", "specexec", "both", "all"],
+        choices=[
+            "baseline",
+            "speculative",
+            "autojudge",
+            "topk",
+            "specexec",
+            "both",
+            "all",
+            "all_paper",
+        ],
+    )
+    parser.add_argument(
+        "--eval-task",
+        type=str,
+        default="mtbench",
+        choices=["mtbench", "gsm8k"],
+        help="Evaluation task dataset mode.",
+    )
+    parser.add_argument(
+        "--gsm8k-eval-mode",
+        type=str,
+        default="zero_shot_cot",
+        choices=["zero_shot_cot", "plain"],
+        help="Prompt style for GSM8K evaluation.",
     )
     parser.add_argument("--vocab-size", type=int, default=2048)
     parser.add_argument("--draft-noise", type=float, default=0.2, help="Noise for draft model.")
@@ -659,6 +777,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--autojudge-train-lr", type=float, default=None, help="Deprecated and ignored.")
     parser.add_argument("--autojudge-audit-ratio", type=float, default=None, help="Deprecated and ignored.")
     parser.add_argument("--autojudge-checkpoint", type=str, default=None, help="Path to save/load judge checkpoint (.pt).")
+    parser.add_argument(
+        "--topk-rank",
+        type=str,
+        default="4",
+        help="Top-k rank for topk method. Use integer or 'all'.",
+    )
+    parser.add_argument(
+        "--topk-grid",
+        type=str,
+        default="2,4,8,16,32,all",
+        help="Comma-separated top-k sweep values used by orchestration scripts.",
+    )
     parser.add_argument("--parallel-branches", type=int, default=8, help="Number of draft branches for SpecExec.")
     parser.add_argument("--branch-prune-threshold", type=float, default=0.0, help="Draft-probability pruning threshold in [0,1] for SpecExec.")
     parser.add_argument("--require-headless", action="store_true", help="Fail fast if GPU is display-active (recommended for long runs).")
@@ -668,7 +798,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run_with_args(args: argparse.Namespace) -> None:
     methods = _resolve_methods(args.method)
-    needs_draft = any(m in {"speculative", "autojudge", "specexec"} for m in methods)
+    needs_draft = any(m in {"speculative", "autojudge", "topk", "specexec"} for m in methods)
+    try:
+        resolved_topk_rank = _parse_topk_rank(args.topk_rank)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     if "autojudge" in methods and not args.hf_model:
         if args.method == "all":
             raise SystemExit(
@@ -677,14 +811,34 @@ def run_with_args(args: argparse.Namespace) -> None:
             )
         raise SystemExit("AutoJudge requires HF models. Set --hf-model and --hf-draft-model.")
 
-    if args.dataset:
-        prompts = load_mtbench(
-            args.dataset, turn_index=args.turn_index, max_samples=args.max_samples
-        )
-        if not prompts:
-            raise SystemExit("No prompts loaded from dataset.")
+    if "topk" in methods and not args.hf_model:
+        raise SystemExit("Top-k method currently requires HF models.")
+
+    if args.eval_task == "gsm8k":
+        if not args.hf_model:
+            raise SystemExit("--eval-task gsm8k currently requires HF models.")
+        if not args.dataset:
+            raise SystemExit("--eval-task gsm8k requires --dataset path.")
+        gsm_samples = load_gsm8k(path=args.dataset, max_samples=args.max_samples)
+        if not gsm_samples:
+            raise SystemExit("No GSM8K samples loaded from dataset.")
+        prompts: List[EvalSample] = [
+            EvalSample(
+                prompt=_build_gsm8k_prompt(sample.question, mode=args.gsm8k_eval_mode),
+                reference_answer=extract_reference_answer(sample.answer),
+            )
+            for sample in gsm_samples
+        ]
     else:
-        prompts = _default_prompts()[: args.max_samples]
+        if args.dataset:
+            mt_prompts = load_mtbench(
+                args.dataset, turn_index=args.turn_index, max_samples=args.max_samples
+            )
+            if not mt_prompts:
+                raise SystemExit("No prompts loaded from dataset.")
+            prompts = [EvalSample(prompt=p) for p in mt_prompts]
+        else:
+            prompts = [EvalSample(prompt=p) for p in _default_prompts()[: args.max_samples]]
 
     target_has_native_quant = _uses_native_quantized_checkpoint(args.hf_model)
     draft_has_native_quant = _uses_native_quantized_checkpoint(args.hf_draft_model)
@@ -716,6 +870,7 @@ def run_with_args(args: argparse.Namespace) -> None:
     resolved_draft_model = args.hf_draft_model or args.hf_model or "toy_noisy"
     resolved_draft_device = args.draft_device or args.device
     resolved_draft_dtype = args.draft_dtype or args.dtype
+    decode_fn: Optional[Callable[[List[int]], str]] = None
     if draft_disable_inherited_quant:
         resolved_draft_quant = args.draft_quant
     else:
@@ -798,6 +953,9 @@ def run_with_args(args: argparse.Namespace) -> None:
                     add_generation_prompt=True,
                 )
             return hf_tokenizer.encode(text, add_special_tokens=args.add_special_tokens)
+
+        def decode_fn(token_ids: List[int]) -> str:
+            return hf_tokenizer.decode(token_ids, skip_special_tokens=True)
 
     else:
         tokenizer = HashTokenizer(args.vocab_size)
@@ -988,8 +1146,12 @@ def run_with_args(args: argparse.Namespace) -> None:
         acceptance_rates = []
         avg_tokens_per_step = []
         judge_accept_rates = []
+        topk_accept_rates = []
         fallback_rates = []
         cache_hit_rates = []
+        gsm8k_exact_match_rates = []
+        gsm8k_correct_counts = []
+        gsm8k_total_counts = []
         successful_runs = 0
         failed_runs = 0
         skipped_runs = 0
@@ -1004,17 +1166,28 @@ def run_with_args(args: argparse.Namespace) -> None:
                 continue
 
             try:
-                tps, duration, total_tokens, stats, prompt_tokens = _run_once(
+                (
+                    tps,
+                    duration,
+                    total_tokens,
+                    stats,
+                    prompt_tokens,
+                    gsm8k_correct,
+                    gsm8k_total,
+                ) = _run_once(
                     prompts=prompts,
                     encode_fn=encode_fn,
+                    decode_fn=decode_fn,
                     target_model=target_model,
                     draft_model=draft_model,
                     method=method,
+                    eval_task=args.eval_task,
                     max_new_tokens=args.max_new_tokens,
                     k=args.k,
                     seed=args.seed + run,
                     autojudge_model=autojudge_model,
                     autojudge_threshold=resolved_autojudge_threshold_used,
+                    topk_rank=resolved_topk_rank,
                     specexec_parallel_branches=args.parallel_branches,
                     specexec_branch_prune_threshold=args.branch_prune_threshold,
                 )
@@ -1053,10 +1226,19 @@ def run_with_args(args: argparse.Namespace) -> None:
             avg_tokens_per_step.append(stats.avg_tokens_per_step)
             if hasattr(stats, "judge_accept_rate"):
                 judge_accept_rates.append(stats.judge_accept_rate)
+            if hasattr(stats, "topk_accept_rate"):
+                topk_accept_rates.append(stats.topk_accept_rate)
             if hasattr(stats, "target_fallback_rate"):
                 fallback_rates.append(stats.target_fallback_rate)
             if hasattr(stats, "cache_hit_rate"):
                 cache_hit_rates.append(stats.cache_hit_rate)
+            gsm8k_exact_match = (
+                float(gsm8k_correct) / float(gsm8k_total) if gsm8k_total > 0 else 0.0
+            )
+            if args.eval_task == "gsm8k":
+                gsm8k_exact_match_rates.append(gsm8k_exact_match)
+                gsm8k_correct_counts.append(gsm8k_correct)
+                gsm8k_total_counts.append(gsm8k_total)
 
             record = {
                 "timestamp": datetime.now().isoformat(),
@@ -1069,6 +1251,10 @@ def run_with_args(args: argparse.Namespace) -> None:
                 "duration_sec": duration,
                 "tokens_per_sec": tps,
             }
+            if args.eval_task == "gsm8k":
+                record["gsm8k_exact_match"] = gsm8k_exact_match
+                record["gsm8k_correct"] = gsm8k_correct
+                record["gsm8k_total"] = gsm8k_total
             record.update(base_fields)
             record.update(system_metadata)
             record.update(_stats_record_fields(stats))
@@ -1091,6 +1277,10 @@ def run_with_args(args: argparse.Namespace) -> None:
                     f", cache_hit={stats.cache_hit_rate:.3f}, "
                     f"target_calls/token={stats.target_calls_per_token:.3f}"
                 )
+            if hasattr(stats, "topk_accept_rate"):
+                msg += f", topk_accept={stats.topk_accept_rate:.3f}"
+            if args.eval_task == "gsm8k":
+                msg += f", gsm8k_em={gsm8k_exact_match:.3f}"
             print(msg)
 
         summary_record = {
@@ -1112,6 +1302,9 @@ def run_with_args(args: argparse.Namespace) -> None:
             median_judge_accept = (
                 statistics.median(judge_accept_rates) if judge_accept_rates else None
             )
+            median_topk_accept = (
+                statistics.median(topk_accept_rates) if topk_accept_rates else None
+            )
             median_fallback = statistics.median(fallback_rates) if fallback_rates else None
             median_cache_hit = statistics.median(cache_hit_rates) if cache_hit_rates else None
             summary_record["tokens_per_sec_median"] = median_tps
@@ -1119,10 +1312,22 @@ def run_with_args(args: argparse.Namespace) -> None:
             summary_record["avg_tokens_per_step_median"] = median_tps_step
             if median_judge_accept is not None:
                 summary_record["judge_accept_rate_median"] = median_judge_accept
+            if median_topk_accept is not None:
+                summary_record["topk_accept_rate_median"] = median_topk_accept
             if median_fallback is not None:
                 summary_record["target_fallback_rate_median"] = median_fallback
             if median_cache_hit is not None:
                 summary_record["cache_hit_rate_median"] = median_cache_hit
+            if args.eval_task == "gsm8k":
+                gsm8k_correct_total = int(sum(gsm8k_correct_counts))
+                gsm8k_total_total = int(sum(gsm8k_total_counts))
+                summary_record["gsm8k_correct"] = gsm8k_correct_total
+                summary_record["gsm8k_total"] = gsm8k_total_total
+                summary_record["gsm8k_exact_match"] = (
+                    float(gsm8k_correct_total) / float(gsm8k_total_total)
+                    if gsm8k_total_total > 0
+                    else 0.0
+                )
             _append_result(out_path, summary_record)
 
             msg = (
@@ -1135,8 +1340,12 @@ def run_with_args(args: argparse.Namespace) -> None:
                     f", judge_accept={median_judge_accept:.3f}, "
                     f"fallback={median_fallback:.3f}"
                 )
+            if median_topk_accept is not None:
+                msg += f", topk_accept={median_topk_accept:.3f}"
             if median_cache_hit is not None:
                 msg += f", cache_hit={median_cache_hit:.3f}"
+            if args.eval_task == "gsm8k":
+                msg += f", gsm8k_em={summary_record['gsm8k_exact_match']:.3f}"
             print(msg)
         elif failed_runs > 0:
             summary_record["error_message"] = "No successful runs for this method."

@@ -69,7 +69,23 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
         "--method",
         type=str,
         default=None,
-        choices=["baseline", "speculative", "autojudge", "specexec", "both", "all"],
+        choices=[
+            "baseline",
+            "speculative",
+            "autojudge",
+            "topk",
+            "specexec",
+            "both",
+            "all",
+            "all_paper",
+        ],
+    )
+    parser.add_argument("--eval-task", type=str, default=None, choices=["mtbench", "gsm8k"])
+    parser.add_argument(
+        "--gsm8k-eval-mode",
+        type=str,
+        default=None,
+        choices=["zero_shot_cot", "plain"],
     )
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--max-new-tokens", type=int, default=None)
@@ -105,6 +121,8 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--autojudge-train-lr", type=float, default=None)
     parser.add_argument("--autojudge-audit-ratio", type=float, default=None)
     parser.add_argument("--autojudge-checkpoint", type=str, default=None)
+    parser.add_argument("--topk-rank", type=str, default=None)
+    parser.add_argument("--topk-grid", type=str, default=None)
     parser.add_argument("--parallel-branches", type=int, default=None)
     parser.add_argument("--branch-prune-threshold", type=float, default=None)
     parser.add_argument("--require-headless", action="store_true")
@@ -201,9 +219,11 @@ def _handle_bench(args: argparse.Namespace) -> int:
                 "baseline",
                 "speculative",
                 "autojudge",
+                "topk",
                 "specexec",
                 "both",
                 "all",
+                "all_paper",
             }:
                 print(
                     f"Method preset '{method_preset}' is not supported by bench.",
@@ -234,9 +254,11 @@ def _handle_bench(args: argparse.Namespace) -> int:
             "baseline",
             "speculative",
             "autojudge",
+            "topk",
             "specexec",
             "both",
             "all",
+            "all_paper",
         }:
             print(
                 f"Method preset '{args.method_preset}' is not supported by bench.",
@@ -251,6 +273,10 @@ def _handle_bench(args: argparse.Namespace) -> int:
         bench_args.out = args.out
     if args.method is not None:
         bench_args.method = args.method
+    if args.eval_task is not None:
+        bench_args.eval_task = args.eval_task
+    if args.gsm8k_eval_mode is not None:
+        bench_args.gsm8k_eval_mode = args.gsm8k_eval_mode
     if args.max_samples is not None:
         bench_args.max_samples = args.max_samples
     if args.max_new_tokens is not None:
@@ -319,6 +345,10 @@ def _handle_bench(args: argparse.Namespace) -> int:
         bench_args.autojudge_audit_ratio = args.autojudge_audit_ratio
     if args.autojudge_checkpoint is not None:
         bench_args.autojudge_checkpoint = args.autojudge_checkpoint
+    if args.topk_rank is not None:
+        bench_args.topk_rank = args.topk_rank
+    if args.topk_grid is not None:
+        bench_args.topk_grid = args.topk_grid
     if args.parallel_branches is not None:
         bench_args.parallel_branches = args.parallel_branches
     if args.branch_prune_threshold is not None:

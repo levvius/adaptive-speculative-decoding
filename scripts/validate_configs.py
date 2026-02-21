@@ -7,8 +7,25 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 
-BENCH_METHODS = {"baseline", "speculative", "autojudge", "both", "all", "specexec"}
-DRAFT_REQUIRED_METHODS = {"speculative", "autojudge", "both", "all", "specexec"}
+BENCH_METHODS = {
+    "baseline",
+    "speculative",
+    "autojudge",
+    "topk",
+    "both",
+    "all",
+    "all_paper",
+    "specexec",
+}
+DRAFT_REQUIRED_METHODS = {
+    "speculative",
+    "autojudge",
+    "topk",
+    "both",
+    "all",
+    "all_paper",
+    "specexec",
+}
 
 
 def _load_json(path: Path) -> Dict[str, Any]:
@@ -59,6 +76,21 @@ def validate_config_dir(config_dir: Path) -> Tuple[List[str], List[str], Dict[st
                 errors.append(
                     f"methods.{method_name}: method '{method}' requires positive integer k."
                 )
+        if method in {"topk", "all", "all_paper"} and "topk_rank" in method_preset:
+            rank = method_preset.get("topk_rank")
+            rank_text = str(rank).strip().lower()
+            if rank_text != "all":
+                try:
+                    rank_value = int(rank_text)
+                except Exception:
+                    errors.append(
+                        f"methods.{method_name}: topk_rank must be a positive integer or 'all'."
+                    )
+                else:
+                    if rank_value <= 0:
+                        errors.append(
+                            f"methods.{method_name}: topk_rank must be a positive integer or 'all'."
+                        )
         if method == "baseline" and "k" in method_preset and method_preset.get("k") not in (0, None):
             warnings.append(
                 f"methods.{method_name}: baseline ignores k, current value={method_preset.get('k')}."

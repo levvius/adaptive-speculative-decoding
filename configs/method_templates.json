@@ -49,6 +49,27 @@
         "max_active_branches"
       ],
       "notes": "Template for SpecExec configuration and emitted metrics."
+    },
+    "topk": {
+      "method": "topk",
+      "parameters": {
+        "max_new_tokens": 128,
+        "k": 4,
+        "topk_rank": "4",
+        "use_chat_template": true,
+        "system_prompt": null
+      },
+      "metrics": [
+        "tokens_per_sec",
+        "acceptance_rate",
+        "avg_tokens_per_step",
+        "topk_accept_rate",
+        "topk_rank_effective",
+        "topk_mismatches",
+        "topk_accepted_mismatches",
+        "target_calls_per_token"
+      ],
+      "notes": "Template for Top-K lossy verification baseline (paper-style comparison)."
     }
   }
 }

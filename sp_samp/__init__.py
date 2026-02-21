@@ -22,12 +22,15 @@ try:
     from .hf_adapter import HFModel
     from .hf_sampling import sample_baseline_hf, speculative_sample_hf
     from .hf_specexec import specexec_sample_hf
+    from .hf_topk import TopKStats, topk_sample_hf
 
     __all__ += [
         "HFModel",
         "sample_baseline_hf",
         "speculative_sample_hf",
         "specexec_sample_hf",
+        "TopKStats",
+        "topk_sample_hf",
     ]
 except ModuleNotFoundError:
     pass

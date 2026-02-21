@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set
 
 
-METHODS = {"baseline", "speculative", "autojudge", "specexec"}
+METHODS = {"baseline", "speculative", "autojudge", "topk", "specexec"}
 STATUSES = {"ok", "error", "skipped"}
 
 BASE_FIELDS = {
@@ -41,6 +41,10 @@ BASE_FIELDS = {
 }
 
 OPTIONAL_BASE_FIELDS = {
+    "eval_task",
+    "gsm8k_eval_mode",
+    "topk_rank",
+    "topk_grid",
     "autojudge_threshold_used",
     "autojudge_threshold_calibrated",
     "autojudge_task",
@@ -112,6 +116,22 @@ SPECEXEC_OK_FIELDS = {
     "cache_misses",
 }
 
+TOPK_OK_FIELDS = {
+    "topk_accept_rate",
+    "topk_rank_effective",
+    "topk_mismatches",
+    "topk_accepted_mismatches",
+    "target_calls",
+    "target_calls_per_token",
+    "draft_prefills",
+}
+
+GSM8K_FIELDS = {
+    "gsm8k_exact_match",
+    "gsm8k_correct",
+    "gsm8k_total",
+}
+
 SUMMARY_FIELDS = {
     "runs",
     "runs_successful",
@@ -127,6 +147,7 @@ SUMMARY_MEDIAN_FIELDS = {
 
 SUMMARY_OPTIONAL_FIELDS = {
     "judge_accept_rate_median",
+    "topk_accept_rate_median",
     "target_fallback_rate_median",
     "cache_hit_rate_median",
     "error_message",
@@ -151,7 +172,9 @@ ALLOWED_FIELDS = (
     | SYSTEM_FIELDS
     | COMMON_OK_FIELDS
     | AUTOJUDGE_OK_FIELDS
+    | TOPK_OK_FIELDS
     | SPECEXEC_OK_FIELDS
+    | GSM8K_FIELDS
     | SUMMARY_FIELDS
     | SUMMARY_MEDIAN_FIELDS
     | SUMMARY_OPTIONAL_FIELDS
@@ -265,6 +288,13 @@ def _validate_record(
 
     for key in OPTIONAL_BASE_FIELDS:
         if key in {
+            "eval_task",
+            "gsm8k_eval_mode",
+            "topk_rank",
+            "topk_grid",
+        }:
+            _check_type(record, key, "string", errors, ctx, allow_none=True)
+        elif key in {
             "autojudge_threshold_used",
             "autojudge_threshold_calibrated",
             "autojudge_recall_target",
@@ -287,6 +317,16 @@ def _validate_record(
         for key in SUMMARY_MEDIAN_FIELDS | SUMMARY_OPTIONAL_FIELDS:
             if key in record:
                 _check_type(record, key, "number" if key.endswith("_median") else "string", errors, ctx)
+        for key in GSM8K_FIELDS:
+            if key in record:
+                _check_type(
+                    record,
+                    key,
+                    "number",
+                    errors,
+                    ctx,
+                    allow_none=(key == "gsm8k_exact_match"),
+                )
         return
 
     _require_keys(record, {"run"}, errors, ctx)
@@ -301,10 +341,24 @@ def _validate_record(
             _require_keys(record, AUTOJUDGE_OK_FIELDS, errors, ctx)
             for key in AUTOJUDGE_OK_FIELDS:
                 _check_type(record, key, "number", errors, ctx)
+        if method == "topk":
+            _require_keys(record, TOPK_OK_FIELDS, errors, ctx)
+            for key in TOPK_OK_FIELDS:
+                _check_type(record, key, "number", errors, ctx)
         if method == "specexec":
             _require_keys(record, SPECEXEC_OK_FIELDS, errors, ctx)
             for key in SPECEXEC_OK_FIELDS:
                 _check_type(record, key, "number", errors, ctx)
+        for key in GSM8K_FIELDS:
+            if key in record:
+                _check_type(
+                    record,
+                    key,
+                    "number",
+                    errors,
+                    ctx,
+                    allow_none=(key == "gsm8k_exact_match"),
+                )
     elif status == "error":
         _require_keys(record, {"resume_key", "error_type", "error_message", "traceback"}, errors, ctx)
         _check_type(record, "resume_key", "string", errors, ctx)

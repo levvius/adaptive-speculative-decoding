@@ -25,7 +25,7 @@
       "method_preset": "specexec_k4"
     },
     "llama3_all_methods": {
-      "description": "Run baseline, speculative, AutoJudge, and SpecExec in one benchmark for Llama-3 8B.",
+      "description": "Run baseline, speculative, AutoJudge, Top-K, and SpecExec in one benchmark for Llama-3 8B.",
       "target_preset": "llama3_8b_instruct",
       "draft_preset": "llama3_8b_instruct",
       "method_preset": "compare_all_k4"
@@ -49,7 +49,7 @@
       "method_preset": "specexec_k4"
     },
     "mistral_all_methods": {
-      "description": "Run baseline, speculative, AutoJudge, and SpecExec in one benchmark for Mistral 7B.",
+      "description": "Run baseline, speculative, AutoJudge, Top-K, and SpecExec in one benchmark for Mistral 7B.",
       "target_preset": "mistral_7b_instruct",
       "draft_preset": "mistral_7b_instruct",
       "method_preset": "compare_all_k4"
@@ -73,7 +73,7 @@
       "method_preset": "specexec_k4"
     },
     "gptoss20b_all_methods": {
-      "description": "Run baseline, speculative, AutoJudge, and SpecExec in one benchmark for GPT-OSS 20B (4-bit).",
+      "description": "Run baseline, speculative, AutoJudge, Top-K, and SpecExec in one benchmark for GPT-OSS 20B (4-bit).",
       "target_preset": "gpt_oss_20b_4bit",
       "draft_preset": "gpt_oss_20b_4bit",
       "method_preset": "compare_all_k4"
@@ -90,6 +90,12 @@
       "draft_preset": "qwen25_0p5b_instruct",
       "method_preset": "autojudge_k4"
     },
+    "qwen25_7b_target_qwen25_0p5b_topk_k4": {
+      "description": "Qwen2.5 7B target with Qwen2.5 0.5B draft, Top-K lossy baseline k=4.",
+      "target_preset": "qwen25_7b_instruct",
+      "draft_preset": "qwen25_0p5b_instruct",
+      "method_preset": "topk_k4"
+    },
     "qwen25_7b_target_qwen25_0p5b_specexec_k4": {
       "description": "Qwen2.5 7B target with Qwen2.5 0.5B draft, SpecExec k=4.",
       "target_preset": "qwen25_7b_instruct",
@@ -97,10 +103,16 @@
       "method_preset": "specexec_k4"
     },
     "qwen25_7b_target_qwen25_0p5b_all_methods": {
-      "description": "Run baseline, speculative, AutoJudge, and SpecExec in one benchmark for Qwen2.5 7B target / 0.5B draft.",
+      "description": "Run baseline, speculative, AutoJudge, Top-K, and SpecExec in one benchmark for Qwen2.5 7B target / 0.5B draft.",
       "target_preset": "qwen25_7b_instruct",
       "draft_preset": "qwen25_0p5b_instruct",
       "method_preset": "compare_all_k4"
+    },
+    "qwen25_7b_target_qwen25_0p5b_all_paper": {
+      "description": "Run baseline, speculative, AutoJudge, and Top-K in one benchmark for Qwen2.5 7B target / 0.5B draft.",
+      "target_preset": "qwen25_7b_instruct",
+      "draft_preset": "qwen25_0p5b_instruct",
+      "method_preset": "compare_all_paper_k4"
     },
     "llama3_baseline": {
       "description": "Llama-3 8B baseline.",
