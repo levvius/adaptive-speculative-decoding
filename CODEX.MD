@@ -18,6 +18,7 @@ features, or behaviors are added.
 - `scripts/validate_configs.py`: Static validator for configs (cross-file references, method constraints, tokenizer compatibility for target/draft pair methods).
 - `scripts/validate_results_jsonl.py`: JSONL schema/type validator for benchmark outputs (strict mode supported).
 - `scripts/run_autojudge_paper_eval.sh`: Orchestrates paper-style GSM8K sweeps (AutoJudge thresholds + Top-K grid) for Qwen2.5.
+- `scripts/write_run_manifest.py`: Writes environment manifest JSON for run reproducibility (used by paper-eval runner).
 - `scripts/report_autojudge_paper.py`: Aggregates raw JSONL into `.md/.csv/.json` report artifacts with derived speed/accuracy deltas.
 - `scripts/install_dependencies.sh`: Safe host bootstrap script (idempotent apt/pip install, optional GPU extras, EOL Ubuntu guard, never touches NVIDIA driver packages).
 - `.github/workflows/ci.yml`: GitHub Actions CI pipeline (checks, tests, toy SpecExec smoke run, result-schema validation).
@@ -43,7 +44,17 @@ features, or behaviors are added.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
 
 ## Recent Changes (2026-02-21)
-- Added paper-style benchmark extensions for Qwen2.5 (`0.5B -> 7B`):
+- Switched paper-style default compute pair to vocabulary-compatible Qwen2.5 (`0.5B -> 3B`):
+- added model presets `qwen25_0p5b_instruct_compat`, `qwen25_3b_instruct`;
+- added experiment presets `qwen25_3b_target_qwen25_0p5b_{speculative,autojudge,topk,specexec,all_methods,all_paper}_k4`;
+- Make defaults now point to `qwen25_3b_target_qwen25_0p5b_all_methods` and related AutoJudge/SpecExec experiments;
+- paper runner defaults (`scripts/run_autojudge_paper_eval.sh`) now target the 0.5B->3B pair and checkpoint `autojudge_qwen25_0p5b_to_3b.pt`.
+- Added paper-eval manifest reliability changes:
+- moved manifest generation to dedicated script `scripts/write_run_manifest.py`;
+- defaulted `HF_HUB_DISABLE_XET=1` in `scripts/run_autojudge_paper_eval.sh` to reduce hub backend instability in long runs.
+- Kept legacy `0.5B -> 7B` presets for reference, but this pair fails strict speculative methods due model vocab-size mismatch.
+
+- Added paper-style benchmark extensions for Qwen2.5 (`0.5B -> 7B` legacy set):
 - new method `topk` and bundle `all_paper` in `benchmarks/bench_speculative.py`;
 - `all` now runs baseline + speculative + autojudge + topk + specexec.
 - Added GSM8K evaluation path in benchmark:
@@ -67,7 +78,7 @@ features, or behaviors are added.
 - AutoJudge presets/defaults migrated to paper-aligned open-model pairing:
 - added model presets `qwen25_0p5b_instruct`, `qwen25_7b_instruct`, `qwen25_32b_instruct`;
 - added experiment presets `qwen25_7b_target_qwen25_0p5b_{speculative,autojudge,specexec,all_methods}_k4`;
-- Make defaults now point to `qwen25_7b_target_qwen25_0p5b_all_methods` and related AutoJudge/SpecExec experiments.
+- (legacy note) these 7B/0.5B presets remain available for reference; active defaults were later moved to 3B/0.5B due vocab compatibility.
 - Hardened AutoJudge training dataset gate in `benchmarks/bench_speculative.py`:
 - fail-fast with actionable command when no checkpoint and no GSM8K train dataset is provided;
 - explicit `path not found` error for missing train dataset path;

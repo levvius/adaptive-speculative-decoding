@@ -16,7 +16,10 @@ TEST_DATASET="${TEST_DATASET:-datasets/gsm8k_test.jsonl}"
 OUT_RAW="${OUT_RAW:-datasets/results_autojudge_qwen25_paper_${DATE_TAG}.jsonl}"
 REPORT_PREFIX="${REPORT_PREFIX:-reports/autojudge_qwen25_paper_${DATE_TAG}}"
 MANIFEST_PATH="${MANIFEST_PATH:-reports/autojudge_run_manifest_${DATE_TAG}.json}"
-CHECKPOINT_PATH="${CHECKPOINT_PATH:-datasets/autojudge_qwen25_0p5b_to_7b.pt}"
+CHECKPOINT_PATH="${CHECKPOINT_PATH:-datasets/autojudge_qwen25_0p5b_to_3b.pt}"
+SPEC_EXPERIMENT="${SPEC_EXPERIMENT:-qwen25_3b_target_qwen25_0p5b_speculative_k4}"
+AUTOJUDGE_EXPERIMENT="${AUTOJUDGE_EXPERIMENT:-qwen25_3b_target_qwen25_0p5b_autojudge_k4}"
+TOPK_EXPERIMENT="${TOPK_EXPERIMENT:-qwen25_3b_target_qwen25_0p5b_topk_k4}"
 
 MAX_SAMPLES="${MAX_SAMPLES:-300}"
 RUNS="${RUNS:-3}"
@@ -27,11 +30,14 @@ TOPK_GRID="${TOPK_GRID:-2,4,8,16,32,all}"
 EVAL_MODE="${EVAL_MODE:-zero_shot_cot}"
 RUN_CHECKS="${RUN_CHECKS:-1}"
 HF_HUB_DISABLE_XET="${HF_HUB_DISABLE_XET:-1}"
+RESET_OUT="${RESET_OUT:-0}"
 
 export HF_HUB_DISABLE_XET
 
 mkdir -p datasets reports
-rm -f "${OUT_RAW}"
+if [[ "${RESET_OUT}" == "1" ]]; then
+  rm -f "${OUT_RAW}"
+fi
 
 echo "[INFO] Writing manifest: ${MANIFEST_PATH}"
 "${PYTHON_BIN}" scripts/write_run_manifest.py --out "${MANIFEST_PATH}"
@@ -66,12 +72,12 @@ COMMON_ARGS=(
 
 echo "[INFO] Running baseline and speculative references"
 "${PYTHON_BIN}" -m sp_samp.cli bench \
-  --experiment qwen25_7b_target_qwen25_0p5b_speculative_k4 \
+  --experiment "${SPEC_EXPERIMENT}" \
   --method baseline \
   "${COMMON_ARGS[@]}"
 
 "${PYTHON_BIN}" -m sp_samp.cli bench \
-  --experiment qwen25_7b_target_qwen25_0p5b_speculative_k4 \
+  --experiment "${SPEC_EXPERIMENT}" \
   --method speculative \
   "${COMMON_ARGS[@]}"
 
@@ -79,7 +85,7 @@ IFS=',' read -r -a threshold_values <<< "${AUTOJUDGE_THRESHOLDS}"
 for threshold in "${threshold_values[@]}"; do
   echo "[INFO] Running AutoJudge threshold=${threshold}"
   "${PYTHON_BIN}" -m sp_samp.cli bench \
-    --experiment qwen25_7b_target_qwen25_0p5b_autojudge_k4 \
+    --experiment "${AUTOJUDGE_EXPERIMENT}" \
     --method autojudge \
     --autojudge-checkpoint "${CHECKPOINT_PATH}" \
     --autojudge-train-dataset "${TRAIN_DATASET}" \
@@ -91,7 +97,7 @@ IFS=',' read -r -a topk_values <<< "${TOPK_GRID}"
 for rank in "${topk_values[@]}"; do
   echo "[INFO] Running Top-K rank=${rank}"
   "${PYTHON_BIN}" -m sp_samp.cli bench \
-    --experiment qwen25_7b_target_qwen25_0p5b_topk_k4 \
+    --experiment "${TOPK_EXPERIMENT}" \
     --method topk \
     --topk-rank "${rank}" \
     "${COMMON_ARGS[@]}"

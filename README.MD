@@ -98,8 +98,10 @@ docker run --rm --gpus all -v "$(pwd)/datasets:/data" sp-samp-gpu \
 docker run --rm --gpus all -v "$(pwd)/datasets:/data" sp-samp-gpu \
   python -m benchmarks.bench_speculative \
   --dataset /data/mt_bench.jsonl \
-  --hf-model Qwen/Qwen2.5-7B-Instruct \
+  --hf-model Qwen/Qwen2.5-3B-Instruct \
   --hf-draft-model Qwen/Qwen2.5-0.5B-Instruct \
+  --tokenizer Qwen/Qwen2.5-0.5B-Instruct \
+  --draft-tokenizer Qwen/Qwen2.5-0.5B-Instruct \
   --device cuda \
   --use-chat-template \
   --method all \
@@ -112,7 +114,7 @@ docker run --rm --gpus all -v "$(pwd)/datasets:/data" sp-samp-gpu \
 docker run --rm --gpus all -v "$(pwd)/datasets:/data" sp-samp-gpu \
   python -m sp_samp.cli specexec \
   --config-dir configs \
-  --experiment qwen25_7b_target_qwen25_0p5b_specexec_k4 \
+  --experiment qwen25_3b_target_qwen25_0p5b_specexec_k4 \
   --dataset /data/mt_bench.jsonl \
   --parallel-branches 8 \
   --branch-prune-threshold 0.0 \
@@ -123,8 +125,10 @@ docker run --rm --gpus all -v "$(pwd)/datasets:/data" sp-samp-gpu \
 docker run --rm --gpus all -v "$(pwd)/datasets:/data" sp-samp-gpu \
   python -m benchmarks.bench_speculative \
   --dataset /data/gsm8k_train.jsonl \
-  --hf-model Qwen/Qwen2.5-7B-Instruct \
+  --hf-model Qwen/Qwen2.5-3B-Instruct \
   --hf-draft-model Qwen/Qwen2.5-0.5B-Instruct \
+  --tokenizer Qwen/Qwen2.5-0.5B-Instruct \
+  --draft-tokenizer Qwen/Qwen2.5-0.5B-Instruct \
   --device cuda \
   --use-chat-template \
   --method autojudge \
@@ -253,7 +257,7 @@ Validate the output:
 ```bash
 python scripts/validate_results_jsonl.py --path datasets/results_gptoss20b_load.jsonl --strict
 ```
-16. Paper-style GSM8K AutoJudge evaluation (Qwen2.5 0.5B -> 7B, medium sweep):
+16. Paper-style GSM8K AutoJudge evaluation (Qwen2.5 0.5B -> 3B, medium sweep):
 ```bash
 mkdir -p datasets
 curl -fsSL https://raw.githubusercontent.com/openai/grade-school-math/master/grade_school_math/data/train.jsonl -o datasets/gsm8k_train.jsonl
@@ -317,7 +321,7 @@ python -m sp_samp.cli bench \
 ```bash
 python -m sp_samp.cli bench \
   --config-dir configs \
-  --experiment qwen25_7b_target_qwen25_0p5b_all_methods \
+  --experiment qwen25_3b_target_qwen25_0p5b_all_methods \
   --dataset datasets/mt_bench.jsonl \
   --out datasets/results.jsonl
 ```
@@ -325,7 +329,7 @@ python -m sp_samp.cli bench \
 ```bash
 python -m sp_samp.cli bench \
   --config-dir configs \
-  --experiment qwen25_7b_target_qwen25_0p5b_all_paper \
+  --experiment qwen25_3b_target_qwen25_0p5b_all_paper \
   --dataset datasets/gsm8k_test.jsonl \
   --eval-task gsm8k \
   --gsm8k-eval-mode zero_shot_cot \
@@ -335,7 +339,7 @@ python -m sp_samp.cli bench \
 ```bash
 python -m sp_samp.cli autojudge \
   --config-dir configs \
-  --experiment qwen25_7b_target_qwen25_0p5b_autojudge_k4 \
+  --experiment qwen25_3b_target_qwen25_0p5b_autojudge_k4 \
   --dataset datasets/mt_bench.jsonl \
   --out datasets/results_autojudge.jsonl
 ```
@@ -343,7 +347,7 @@ python -m sp_samp.cli autojudge \
 ```bash
 python -m sp_samp.cli specexec \
   --config-dir configs \
-  --experiment qwen25_7b_target_qwen25_0p5b_specexec_k4 \
+  --experiment qwen25_3b_target_qwen25_0p5b_specexec_k4 \
   --dataset datasets/mt_bench.jsonl \
   --out datasets/results_specexec.jsonl
 ```
@@ -351,7 +355,7 @@ python -m sp_samp.cli specexec \
 ```bash
 python -m sp_samp.cli bench \
   --config-dir configs \
-  --experiment qwen25_7b_target_qwen25_0p5b_all_methods \
+  --experiment qwen25_3b_target_qwen25_0p5b_all_methods \
   --dataset datasets/mt_bench.jsonl \
   --require-headless \
   --out datasets/results.jsonl
@@ -405,7 +409,8 @@ python scripts/validate_results_jsonl.py --path datasets/results.jsonl --strict
 - Failed runs are written to JSONL and do not stop the whole benchmark method loop.
 - `make validate-configs` checks config references and tokenizer compatibility in `configs/*.json`.
 - `make validate-results` enforces JSONL schema compatibility for downstream analysis.
-- Current Make defaults are paper-aligned for open models: `Qwen2.5-0.5B-Instruct` draft -> `Qwen2.5-7B-Instruct` target.
+- Current Make defaults are paper-aligned for compatible open models: `Qwen2.5-0.5B-Instruct` draft -> `Qwen2.5-3B-Instruct` target.
+- `Qwen2.5-0.5B -> Qwen2.5-7B` is kept as legacy preset pair, but it fails strict speculative methods because model vocab sizes differ.
 
 **Docker Troubleshooting**
 - Error `parent snapshot ... does not exist` during `docker build` is typically a Docker BuildKit cache/snapshot issue on host.

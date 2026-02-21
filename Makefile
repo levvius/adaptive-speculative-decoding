@@ -5,11 +5,11 @@ DATASET ?= datasets/mt_bench.jsonl
 OUT ?= datasets/results.jsonl
 RESULTS ?= $(OUT)
 METHOD ?= all
-EXPERIMENT ?= qwen25_7b_target_qwen25_0p5b_all_methods
-AUTOJUDGE_EXPERIMENT ?= qwen25_7b_target_qwen25_0p5b_autojudge_k4
-SPECEXEC_EXPERIMENT ?= qwen25_7b_target_qwen25_0p5b_specexec_k4
-TARGET_PRESET ?= qwen25_7b_instruct
-DRAFT_PRESET ?= qwen25_0p5b_instruct
+EXPERIMENT ?= qwen25_3b_target_qwen25_0p5b_all_methods
+AUTOJUDGE_EXPERIMENT ?= qwen25_3b_target_qwen25_0p5b_autojudge_k4
+SPECEXEC_EXPERIMENT ?= qwen25_3b_target_qwen25_0p5b_specexec_k4
+TARGET_PRESET ?= qwen25_3b_instruct
+DRAFT_PRESET ?= qwen25_0p5b_instruct_compat
 SMOKE_HF_MODEL ?= sshleifer/tiny-gpt2
 SMOKE_HF_TOKENIZER ?= sshleifer/tiny-gpt2
 SMOKE_HF_DEVICE ?= cpu
@@ -141,7 +141,7 @@ bench-all: ## Run baseline+speculative+autojudge+topk+specexec in one call (requ
 		$(HEADLESS_ARG) \
 		--out $(OUT)
 
-paper-eval: ## Run paper-style GSM8K sweep (Qwen2.5 0.5B -> 7B) and build reports
+paper-eval: ## Run paper-style GSM8K sweep (Qwen2.5 0.5B -> 3B) and build reports
 	PYTHON_BIN="$(PYTHON)" OUT_RAW="$(PAPER_RAW)" REPORT_PREFIX="$(PAPER_REPORT_PREFIX)" MANIFEST_PATH="$(PAPER_MANIFEST)" scripts/run_autojudge_paper_eval.sh
 
 docker-build: ## Build CPU Docker image
