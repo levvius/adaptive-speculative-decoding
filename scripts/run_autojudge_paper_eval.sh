@@ -31,51 +31,7 @@ mkdir -p datasets reports
 rm -f "${OUT_RAW}"
 
 echo "[INFO] Writing manifest: ${MANIFEST_PATH}"
-"${PYTHON_BIN}" - "${MANIFEST_PATH}" <<'PY'
-import json
-import platform
-import subprocess
-import sys
-from datetime import datetime
-from pathlib import Path
-
-manifest_path = Path(sys.argv[1])
-def run(cmd):
-    try:
-        return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True).strip()
-    except Exception:
-        return None
-
-torch_version = None
-cuda_runtime = None
-cuda_available = None
-gpu_name = None
-try:
-    import torch
-    torch_version = getattr(torch, "__version__", None)
-    cuda_runtime = getattr(torch.version, "cuda", None)
-    cuda_available = bool(torch.cuda.is_available())
-    if cuda_available:
-        gpu_name = torch.cuda.get_device_name(0)
-except Exception:
-    pass
-
-payload = {
-    "generated_at": datetime.now().isoformat(),
-    "platform": platform.platform(),
-    "python": run(["python3", "--version"]),
-    "kernel": run(["uname", "-a"]),
-    "git_sha": run(["git", "rev-parse", "HEAD"]),
-    "git_branch": run(["git", "rev-parse", "--abbrev-ref", "HEAD"]),
-    "nvidia_smi": run(["nvidia-smi", "--query-gpu=name,driver_version,memory.total,memory.free", "--format=csv,noheader"]),
-    "torch_version": torch_version,
-    "cuda_runtime": cuda_runtime,
-    "cuda_available": cuda_available,
-    "cuda_device_name": gpu_name,
-}
-manifest_path.parent.mkdir(parents=True, exist_ok=True)
-manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-PY
+"${PYTHON_BIN}" scripts/write_run_manifest.py --out "${MANIFEST_PATH}"
 
 if [[ ! -f "${TRAIN_DATASET}" ]]; then
   echo "[INFO] Downloading GSM8K train split to ${TRAIN_DATASET}"
