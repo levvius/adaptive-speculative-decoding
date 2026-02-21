@@ -19,14 +19,17 @@ except ModuleNotFoundError:
     torch = None
 
 from sp_samp.models import NoisyModel, RandomModel
+from sp_samp.gsm8k import load_gsm8k
 from sp_samp.mtbench import load_mtbench
 from sp_samp.sampling import SamplingStats, sample_baseline, speculative_sample
 from sp_samp.specexec import SpecExecStats, specexec_sample
 
 HFModel = None
+AutoJudgeClassifier = None
 AutoJudgeTrainConfig = None
-JudgeMLP = None
 build_autojudge_classifier = None
+parse_c_grid = None
+warn_deprecated_autojudge_args = None
 AutoJudgeStats = None
 autojudge_sample_hf = None
 sample_baseline_hf = None
@@ -35,11 +38,13 @@ specexec_sample_hf = None
 
 if torch is not None:
     from sp_samp.autojudge import (
+        AutoJudgeClassifier,
         AutoJudgeStats,
         AutoJudgeTrainConfig,
-        JudgeMLP,
         autojudge_sample_hf,
         build_autojudge_classifier,
+        parse_c_grid,
+        warn_deprecated_autojudge_args,
     )
     from sp_samp.hf_adapter import HFModel
     from sp_samp.hf_sampling import sample_baseline_hf, speculative_sample_hf
@@ -91,8 +96,6 @@ def _accumulate_stats(total, stats) -> None:
         "branches_pruned",
         "cache_hits",
         "cache_misses",
-        "audit_samples",
-        "audit_expected_accept",
     ]
     for field in extra_fields:
         if hasattr(total, field) and hasattr(stats, field):
@@ -109,8 +112,7 @@ def _run_once(
     k: int,
     seed: int,
     autojudge_model=None,
-    autojudge_threshold: float = 0.5,
-    autojudge_audit_ratio: float = 0.0,
+    autojudge_threshold: Optional[float] = None,
     specexec_parallel_branches: int = 8,
     specexec_branch_prune_threshold: float = 0.0,
 ) -> Tuple[float, float, int, object, int]:
@@ -164,7 +166,6 @@ def _run_once(
                         threshold=autojudge_threshold,
                         eos_id=target_model.eos_token_id,
                         seed=seed,
-                        audit_ratio=autojudge_audit_ratio,
                     )
                 elif method == "specexec":
                     if specexec_sample_hf is None:
@@ -255,6 +256,15 @@ def _run_cmd(cmd: List[str]) -> Optional[str]:
     return out.strip()
 
 
+def _torch_load_checkpoint(path: Path):
+    if torch is None:
+        raise RuntimeError("torch is required to load checkpoints.")
+    try:
+        return torch.load(path, map_location="cpu", weights_only=False)
+    except TypeError:
+        return torch.load(path, map_location="cpu")
+
+
 def _collect_system_metadata(require_headless: bool = False) -> Dict[str, Optional[str]]:
     git_sha = _run_cmd(["git", "rev-parse", "HEAD"])
     hostname = socket.gethostname()
@@ -336,8 +346,11 @@ def _base_record_fields(
     resolved_draft_dtype: str,
     resolved_draft_quant: Optional[str],
     resolved_draft_bnb_compute_dtype: Optional[str],
+    resolved_autojudge_threshold_used: float,
+    resolved_autojudge_threshold_calibrated: float,
     autojudge_train_samples: int,
-    autojudge_train_loss: float,
+    autojudge_val_auc: float,
+    autojudge_val_recall: float,
 ) -> Dict[str, object]:
     return {
         "method": method,
@@ -361,9 +374,20 @@ def _base_record_fields(
         "max_samples": args.max_samples,
         "turn_index": args.turn_index,
         "dataset": args.dataset,
-        "autojudge_threshold": args.autojudge_threshold,
+        "autojudge_threshold": resolved_autojudge_threshold_used,
+        "autojudge_threshold_used": resolved_autojudge_threshold_used,
+        "autojudge_threshold_calibrated": resolved_autojudge_threshold_calibrated,
+        "autojudge_task": args.autojudge_task,
+        "autojudge_train_dataset": args.autojudge_train_dataset,
+        "autojudge_recall_target": args.autojudge_recall_target,
+        "autojudge_train_split": args.autojudge_train_split,
+        "autojudge_c_grid": args.autojudge_c_grid,
         "autojudge_train_samples": autojudge_train_samples,
-        "autojudge_train_loss": autojudge_train_loss,
+        "autojudge_train_loss": 0.0,
+        "autojudge_val_auc": autojudge_val_auc,
+        "autojudge_val_recall": autojudge_val_recall,
+        # Legacy alias kept for backward compatibility.
+        "autojudge_threshold_selected": resolved_autojudge_threshold_calibrated,
         "autojudge_checkpoint": args.autojudge_checkpoint,
         "parallel_branches": args.parallel_branches,
         "branch_prune_threshold": args.branch_prune_threshold,
@@ -417,8 +441,18 @@ def _record_resume_key(record: Dict[str, object]) -> Optional[str]:
         "turn_index",
         "dataset",
         "autojudge_threshold",
+        "autojudge_threshold_used",
+        "autojudge_threshold_calibrated",
+        "autojudge_task",
+        "autojudge_train_dataset",
+        "autojudge_recall_target",
+        "autojudge_train_split",
+        "autojudge_c_grid",
         "autojudge_train_samples",
         "autojudge_train_loss",
+        "autojudge_val_auc",
+        "autojudge_val_recall",
+        "autojudge_threshold_selected",
         "autojudge_checkpoint",
         "parallel_branches",
         "branch_prune_threshold",
@@ -571,8 +605,9 @@ def _stats_record_fields(stats) -> dict:
         "cache_misses",
         "train_samples",
         "train_loss",
-        "audit_samples",
-        "audit_expected_accept_mean",
+        "val_auc",
+        "val_recall",
+        "threshold_selected",
     ]:
         if hasattr(stats, key):
             record[key] = getattr(stats, key)
@@ -612,12 +647,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--draft-quant", type=str, default=None, choices=["8bit", "4bit"], help="Quantization override for draft model.")
     parser.add_argument("--bnb-compute-dtype", type=str, default="bfloat16", help="Compute dtype for 4-bit quantization.")
     parser.add_argument("--draft-bnb-compute-dtype", type=str, default=None, help="Compute dtype override for draft 4-bit quantization.")
-    parser.add_argument("--autojudge-threshold", type=float, default=0.5, help="Decision threshold for judge acceptance.")
-    parser.add_argument("--autojudge-train-samples", type=int, default=4000, help="Number of synthetic judge training samples.")
-    parser.add_argument("--autojudge-train-steps", type=int, default=400, help="Judge optimizer steps.")
-    parser.add_argument("--autojudge-train-batch-size", type=int, default=128, help="Judge training batch size.")
-    parser.add_argument("--autojudge-train-lr", type=float, default=1e-3, help="Judge training learning rate.")
-    parser.add_argument("--autojudge-audit-ratio", type=float, default=0.0, help="Fraction of accepted tokens to audit with target model.")
+    parser.add_argument("--autojudge-threshold", type=float, default=None, help="Decision threshold override for judge acceptance. If unset, calibrated threshold is used.")
+    parser.add_argument("--autojudge-task", type=str, default="gsm8k", choices=["gsm8k"], help="AutoJudge training/equivalence task mode.")
+    parser.add_argument("--autojudge-train-dataset", type=str, default=None, help="Optional dataset path for AutoJudge training. Defaults to --dataset.")
+    parser.add_argument("--autojudge-train-samples", type=int, default=4000, help="Max mined mismatches for AutoJudge training.")
+    parser.add_argument("--autojudge-recall-target", type=float, default=0.9, help="Validation recall target for threshold calibration.")
+    parser.add_argument("--autojudge-train-split", type=float, default=0.9, help="Train split fraction for AutoJudge classifier calibration.")
+    parser.add_argument("--autojudge-c-grid", type=str, default=None, help="Comma-separated C values for LogisticRegression grid search (e.g. 1e-7,1e-6,...,1e2).")
+    parser.add_argument("--autojudge-train-steps", type=int, default=None, help="Deprecated and ignored.")
+    parser.add_argument("--autojudge-train-batch-size", type=int, default=None, help="Deprecated and ignored.")
+    parser.add_argument("--autojudge-train-lr", type=float, default=None, help="Deprecated and ignored.")
+    parser.add_argument("--autojudge-audit-ratio", type=float, default=None, help="Deprecated and ignored.")
     parser.add_argument("--autojudge-checkpoint", type=str, default=None, help="Path to save/load judge checkpoint (.pt).")
     parser.add_argument("--parallel-branches", type=int, default=8, help="Number of draft branches for SpecExec.")
     parser.add_argument("--branch-prune-threshold", type=float, default=0.0, help="Draft-probability pruning threshold in [0,1] for SpecExec.")
@@ -778,59 +818,141 @@ def run_with_args(args: argparse.Namespace) -> None:
 
     autojudge_model = None
     autojudge_train_samples = 0
-    autojudge_train_loss = 0.0
+    autojudge_val_auc = 0.0
+    autojudge_val_recall = 0.0
+    autojudge_threshold_calibrated = 0.0
     if "autojudge" in methods:
         if (
-            AutoJudgeTrainConfig is None
-            or JudgeMLP is None
+            AutoJudgeClassifier is None
+            or AutoJudgeTrainConfig is None
             or build_autojudge_classifier is None
+            or parse_c_grid is None
+            or warn_deprecated_autojudge_args is None
             or torch is None
         ):
-            raise SystemExit("AutoJudge dependencies are missing (torch/transformers).")
-        judge_device = draft_model.device if isinstance(draft_model, HFModel) else "cpu"
+            raise SystemExit(
+                "AutoJudge dependencies are missing (torch/transformers/scikit-learn)."
+            )
+
+        if (
+            args.autojudge_train_steps is not None
+            or args.autojudge_train_batch_size is not None
+            or args.autojudge_train_lr is not None
+            or args.autojudge_audit_ratio is not None
+        ):
+            warn_deprecated_autojudge_args()
+
+        if not (0.0 < float(args.autojudge_train_split) < 1.0):
+            raise SystemExit("--autojudge-train-split must be in (0,1).")
+        if not (0.0 < float(args.autojudge_recall_target) <= 1.0):
+            raise SystemExit("--autojudge-recall-target must be in (0,1].")
+
+        should_train = True
         checkpoint_path = Path(args.autojudge_checkpoint) if args.autojudge_checkpoint else None
         if checkpoint_path is not None and checkpoint_path.exists():
-            payload = torch.load(checkpoint_path, map_location="cpu")
-            in_features = int(payload.get("in_features", 7))
-            autojudge_model = JudgeMLP(in_features=in_features)
-            autojudge_model.load_state_dict(payload["state_dict"])
-            autojudge_model.to(judge_device)
-            autojudge_model.eval()
-            autojudge_train_samples = int(payload.get("train_samples", 0))
-            autojudge_train_loss = float(payload.get("train_loss", 0.0))
-        else:
+            payload = _torch_load_checkpoint(checkpoint_path)
+            classifier = payload.get("classifier") if isinstance(payload, dict) else None
+            version = payload.get("autojudge_version") if isinstance(payload, dict) else None
+            if (
+                version == 2
+                and classifier is not None
+                and hasattr(classifier, "predict_important_prob")
+                and hasattr(classifier, "threshold")
+            ):
+                autojudge_model = classifier
+                autojudge_train_samples = int(payload.get("train_samples", 0))
+                autojudge_val_auc = float(payload.get("val_auc", 0.0))
+                autojudge_val_recall = float(payload.get("val_recall", 0.0))
+                autojudge_threshold_calibrated = float(
+                    payload.get("threshold_selected", classifier.threshold)
+                )
+                should_train = False
+            else:
+                print(
+                    f"[WARN] Legacy/unsupported AutoJudge checkpoint at {checkpoint_path}; retraining paper-aligned head."
+                )
+
+        if should_train:
+            train_dataset = args.autojudge_train_dataset or args.dataset
+            if not train_dataset:
+                raise SystemExit(
+                    "AutoJudge training requires a GSM8K train dataset when checkpoint is absent.\n"
+                    "Provide --autojudge-train-dataset <gsm8k_train.jsonl> (or set --dataset to GSM8K).\n"
+                    "Example:\n"
+                    "  python -m sp_samp.cli autojudge --config-dir configs "
+                    "--experiment qwen25_7b_target_qwen25_0p5b_autojudge_k4 "
+                    "--dataset datasets/mt_bench.jsonl "
+                    "--autojudge-train-dataset datasets/gsm8k_train.jsonl "
+                    "--out datasets/results_autojudge.jsonl"
+                )
+            train_dataset_path = Path(train_dataset)
+            if not train_dataset_path.exists():
+                raise SystemExit(
+                    f"AutoJudge train dataset path not found: {train_dataset_path}. "
+                    "Provide a valid GSM8K JSON/JSONL file with 'question' and 'answer' fields."
+                )
+
+            try:
+                gsm_samples = load_gsm8k(
+                    path=str(train_dataset_path),
+                    max_samples=args.autojudge_train_samples,
+                )
+            except Exception as exc:
+                raise SystemExit(
+                    f"Failed to load AutoJudge train dataset from {train_dataset_path}: {exc}"
+                ) from exc
+            if not gsm_samples:
+                raise SystemExit(
+                    "AutoJudge training dataset is not GSM8K-compatible. "
+                    "Expected records with 'question' and 'answer' fields. "
+                    "MT-Bench files are not suitable for AutoJudge training."
+                )
+
             train_cfg = AutoJudgeTrainConfig(
+                task=args.autojudge_task,
                 max_train_samples=args.autojudge_train_samples,
                 max_new_tokens=args.max_new_tokens,
                 k=args.k,
-                train_steps=args.autojudge_train_steps,
-                batch_size=args.autojudge_train_batch_size,
-                lr=args.autojudge_train_lr,
+                train_split=args.autojudge_train_split,
+                recall_target=args.autojudge_recall_target,
+                c_grid=parse_c_grid(args.autojudge_c_grid),
                 seed=args.seed,
             )
-            training_prompts = [encode_fn(p) for p in prompts]
-            autojudge_model, autojudge_train_samples, autojudge_train_loss = (
+
+            training_prompts = [encode_fn(sample.question) for sample in gsm_samples]
+            autojudge_model, autojudge_train_samples, autojudge_val_auc = (
                 build_autojudge_classifier(
                     target_model=target_model,
                     draft_model=draft_model,
                     prompts=training_prompts,
                     cfg=train_cfg,
                     eos_id=target_model.eos_token_id,
-                    device=judge_device,
+                    device="cpu",
                 )
             )
+            autojudge_threshold_calibrated = float(autojudge_model.threshold)
+            autojudge_val_recall = float(getattr(autojudge_model, "val_recall", 0.0))
             if checkpoint_path is not None:
                 checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
                 torch.save(
                     {
-                        "state_dict": autojudge_model.state_dict(),
-                        "in_features": 7,
+                        "autojudge_version": 2,
+                        "classifier": autojudge_model,
                         "train_samples": autojudge_train_samples,
-                        "train_loss": autojudge_train_loss,
+                        "val_auc": autojudge_val_auc,
+                        "val_recall": autojudge_val_recall,
+                        "threshold_selected": autojudge_threshold_calibrated,
                         "created_at": datetime.now().isoformat(),
                     },
                     checkpoint_path,
                 )
+
+    resolved_autojudge_threshold_used = (
+        float(args.autojudge_threshold)
+        if args.autojudge_threshold is not None
+        else float(autojudge_threshold_calibrated)
+    )
+    resolved_autojudge_threshold_calibrated = float(autojudge_threshold_calibrated)
 
     system_metadata = _collect_system_metadata(require_headless=args.require_headless)
     out_path = _resolve_out_path(args.out)
@@ -855,8 +977,11 @@ def run_with_args(args: argparse.Namespace) -> None:
             resolved_draft_dtype=resolved_draft_dtype,
             resolved_draft_quant=resolved_draft_quant,
             resolved_draft_bnb_compute_dtype=resolved_draft_bnb_compute_dtype,
+            resolved_autojudge_threshold_used=resolved_autojudge_threshold_used,
+            resolved_autojudge_threshold_calibrated=resolved_autojudge_threshold_calibrated,
             autojudge_train_samples=autojudge_train_samples,
-            autojudge_train_loss=autojudge_train_loss,
+            autojudge_val_auc=autojudge_val_auc,
+            autojudge_val_recall=autojudge_val_recall,
         )
 
         results = []
@@ -889,8 +1014,7 @@ def run_with_args(args: argparse.Namespace) -> None:
                     k=args.k,
                     seed=args.seed + run,
                     autojudge_model=autojudge_model,
-                    autojudge_threshold=args.autojudge_threshold,
-                    autojudge_audit_ratio=args.autojudge_audit_ratio,
+                    autojudge_threshold=resolved_autojudge_threshold_used,
                     specexec_parallel_branches=args.parallel_branches,
                     specexec_branch_prune_threshold=args.branch_prune_threshold,
                 )
@@ -917,7 +1041,13 @@ def run_with_args(args: argparse.Namespace) -> None:
             if hasattr(stats, "train_samples"):
                 stats.train_samples = autojudge_train_samples
             if hasattr(stats, "train_loss"):
-                stats.train_loss = autojudge_train_loss
+                stats.train_loss = 0.0
+            if hasattr(stats, "val_auc"):
+                stats.val_auc = autojudge_val_auc
+            if hasattr(stats, "val_recall"):
+                stats.val_recall = autojudge_val_recall
+            if hasattr(stats, "threshold_selected"):
+                stats.threshold_selected = resolved_autojudge_threshold_calibrated
             results.append(tps)
             acceptance_rates.append(stats.acceptance_rate)
             avg_tokens_per_step.append(stats.avg_tokens_per_step)

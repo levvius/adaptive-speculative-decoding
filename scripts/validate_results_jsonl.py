@@ -40,6 +40,19 @@ BASE_FIELDS = {
     "branch_prune_threshold",
 }
 
+OPTIONAL_BASE_FIELDS = {
+    "autojudge_threshold_used",
+    "autojudge_threshold_calibrated",
+    "autojudge_task",
+    "autojudge_train_dataset",
+    "autojudge_recall_target",
+    "autojudge_train_split",
+    "autojudge_c_grid",
+    "autojudge_val_auc",
+    "autojudge_val_recall",
+    "autojudge_threshold_selected",
+}
+
 SYSTEM_FIELDS = {
     "git_sha",
     "hostname",
@@ -76,8 +89,9 @@ AUTOJUDGE_OK_FIELDS = {
     "draft_prefills",
     "train_samples",
     "train_loss",
-    "audit_samples",
-    "audit_expected_accept_mean",
+    "val_auc",
+    "val_recall",
+    "threshold_selected",
 }
 
 SPECEXEC_OK_FIELDS = {
@@ -133,6 +147,7 @@ GENERAL_FIELDS = {
 ALLOWED_FIELDS = (
     GENERAL_FIELDS
     | BASE_FIELDS
+    | OPTIONAL_BASE_FIELDS
     | SYSTEM_FIELDS
     | COMMON_OK_FIELDS
     | AUTOJUDGE_OK_FIELDS
@@ -234,12 +249,31 @@ def _validate_record(
             "autojudge_threshold",
             "autojudge_train_samples",
             "autojudge_train_loss",
+            "autojudge_recall_target",
+            "autojudge_train_split",
+            "autojudge_val_auc",
+            "autojudge_val_recall",
+            "autojudge_threshold_selected",
             "parallel_branches",
             "branch_prune_threshold",
         }:
             _check_type(record, key, "number", errors, ctx, allow_none=True)
         elif key in {"quant", "draft_quant"}:
             _check_type(record, key, "string", errors, ctx, allow_none=True)
+        else:
+            _check_type(record, key, "string", errors, ctx, allow_none=True)
+
+    for key in OPTIONAL_BASE_FIELDS:
+        if key in {
+            "autojudge_threshold_used",
+            "autojudge_threshold_calibrated",
+            "autojudge_recall_target",
+            "autojudge_train_split",
+            "autojudge_val_auc",
+            "autojudge_val_recall",
+            "autojudge_threshold_selected",
+        }:
+            _check_type(record, key, "number", errors, ctx, allow_none=True)
         else:
             _check_type(record, key, "string", errors, ctx, allow_none=True)
 

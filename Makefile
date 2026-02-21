@@ -5,13 +5,14 @@ DATASET ?= datasets/mt_bench.jsonl
 OUT ?= datasets/results.jsonl
 RESULTS ?= $(OUT)
 METHOD ?= all
-EXPERIMENT ?= llama3_all_methods
-AUTOJUDGE_EXPERIMENT ?= llama3_target_llama3_autojudge_k4
-SPECEXEC_EXPERIMENT ?= llama3_target_llama3_specexec_k4
-TARGET_PRESET ?= llama3_8b_instruct
-DRAFT_PRESET ?= llama3_8b_instruct
+EXPERIMENT ?= qwen25_7b_target_qwen25_0p5b_all_methods
+AUTOJUDGE_EXPERIMENT ?= qwen25_7b_target_qwen25_0p5b_autojudge_k4
+SPECEXEC_EXPERIMENT ?= qwen25_7b_target_qwen25_0p5b_specexec_k4
+TARGET_PRESET ?= qwen25_7b_instruct
+DRAFT_PRESET ?= qwen25_0p5b_instruct
 SMOKE_HF_MODEL ?= sshleifer/tiny-gpt2
 SMOKE_HF_TOKENIZER ?= sshleifer/tiny-gpt2
+SMOKE_HF_DEVICE ?= cpu
 
 IMAGE_CPU ?= sp-samp
 IMAGE_GPU ?= sp-samp-gpu
@@ -29,7 +30,7 @@ OUT_IN_CONTAINER ?= /data/$(notdir $(OUT))
 ALLOW_EOL_UBUNTU ?= 0
 ALLOW_EOL_ARG := $(if $(filter 1 true yes,$(ALLOW_EOL_UBUNTU)),--allow-eol-ubuntu,)
 
-.PHONY: help setup setup-gpu check validate-configs validate-results list-presets test bench-toy smoke-hf bench bench-method autojudge specexec bench-all \
+.PHONY: help setup setup-gpu check validate-configs validate-results list-presets test bench-toy smoke-hf smoke-hf-gpu bench bench-method autojudge specexec bench-all \
 		docker-build docker-build-gpu docker-build-gpu-safe docker-prune-builder docker-gpu-check docker-gpu-check-image docker-test docker-bench docker-autojudge docker-specexec docker-bench-all
 
 help: ## Show available targets
@@ -78,12 +79,15 @@ smoke-hf: ## Quick HF smoke run (requires torch+transformers and internet)
 		--hf-draft-model $(SMOKE_HF_MODEL) \
 		--tokenizer $(SMOKE_HF_TOKENIZER) \
 		--draft-tokenizer $(SMOKE_HF_TOKENIZER) \
-		--device cpu \
+		--device $(SMOKE_HF_DEVICE) \
 		--runs 1 \
 		--max-samples 2 \
 		--max-new-tokens 8 \
 		--k 2 \
 		--out $(OUT)
+
+smoke-hf-gpu: ## Quick HF smoke run on GPU (tiny model)
+	$(MAKE) smoke-hf SMOKE_HF_DEVICE=cuda OUT=$(OUT)
 
 bench: ## Run benchmark using EXPERIMENT preset (requires DATASET)
 	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi

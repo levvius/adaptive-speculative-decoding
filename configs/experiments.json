@@ -78,6 +78,30 @@
       "draft_preset": "gpt_oss_20b_4bit",
       "method_preset": "compare_all_k4"
     },
+    "qwen25_7b_target_qwen25_0p5b_speculative_k4": {
+      "description": "Qwen2.5 7B target with Qwen2.5 0.5B draft, speculative k=4.",
+      "target_preset": "qwen25_7b_instruct",
+      "draft_preset": "qwen25_0p5b_instruct",
+      "method_preset": "speculative_k4"
+    },
+    "qwen25_7b_target_qwen25_0p5b_autojudge_k4": {
+      "description": "Qwen2.5 7B target with Qwen2.5 0.5B draft, AutoJudge k=4.",
+      "target_preset": "qwen25_7b_instruct",
+      "draft_preset": "qwen25_0p5b_instruct",
+      "method_preset": "autojudge_k4"
+    },
+    "qwen25_7b_target_qwen25_0p5b_specexec_k4": {
+      "description": "Qwen2.5 7B target with Qwen2.5 0.5B draft, SpecExec k=4.",
+      "target_preset": "qwen25_7b_instruct",
+      "draft_preset": "qwen25_0p5b_instruct",
+      "method_preset": "specexec_k4"
+    },
+    "qwen25_7b_target_qwen25_0p5b_all_methods": {
+      "description": "Run baseline, speculative, AutoJudge, and SpecExec in one benchmark for Qwen2.5 7B target / 0.5B draft.",
+      "target_preset": "qwen25_7b_instruct",
+      "draft_preset": "qwen25_0p5b_instruct",
+      "method_preset": "compare_all_k4"
+    },
     "llama3_baseline": {
       "description": "Llama-3 8B baseline.",
       "target_preset": "llama3_8b_instruct",

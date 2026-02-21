@@ -2,79 +2,65 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Sequence, Tuple
+import warnings
 
+import numpy as np
 import torch
-import torch.nn as nn
 
+from .gsm8k import generations_equivalent
 from .hf_adapter import HFModel
 
-
-def _softmax(logits: torch.Tensor) -> torch.Tensor:
-    return torch.softmax(logits, dim=-1)
-
-
-def _torch_multinomial(probs: torch.Tensor) -> int:
-    token = torch.multinomial(probs, num_samples=1)
-    return int(token.item())
-
-
-def _safe_log(x: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
-    return torch.log(torch.clamp(x, min=eps))
+try:
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import recall_score, roc_auc_score
+    from sklearn.preprocessing import StandardScaler
+except ModuleNotFoundError:
+    LogisticRegression = None
+    StandardScaler = None
+    recall_score = None
+    roc_auc_score = None
 
 
-def judge_features(
-    probs: torch.Tensor,
-    token_id: int,
-    position_in_block: int,
-    block_size: int,
-) -> torch.Tensor:
-    """Create lightweight draft-only features for judge classifier."""
-    top_values, top_indices = torch.topk(probs, k=min(2, probs.numel()))
-    max_prob = float(top_values[0])
-    second_prob = float(top_values[1]) if top_values.numel() > 1 else 0.0
-    token_prob = float(probs[token_id])
-    entropy = float(-(probs * _safe_log(probs)).sum())
-    is_top1 = 1.0 if int(top_indices[0]) == int(token_id) else 0.0
-    pos_norm = float(position_in_block + 1) / float(max(block_size, 1))
-    return torch.tensor(
-        [
-            token_prob,
-            max_prob,
-            second_prob,
-            max_prob - second_prob,
-            entropy,
-            is_top1,
-            pos_norm,
-        ],
-        dtype=torch.float32,
-    )
-
-
-class JudgeMLP(nn.Module):
-    def __init__(self, in_features: int = 7, hidden_size: int = 32) -> None:
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(in_features, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, 1),
+def _require_sklearn() -> None:
+    if (
+        LogisticRegression is None
+        or StandardScaler is None
+        or recall_score is None
+        or roc_auc_score is None
+    ):
+        raise RuntimeError(
+            "AutoJudge requires scikit-learn. Install project requirements first."
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
+
+def _default_c_grid() -> Tuple[float, ...]:
+    return tuple(10.0**p for p in range(-7, 3))
+
+
+def parse_c_grid(spec: Optional[str]) -> Tuple[float, ...]:
+    if spec is None or not spec.strip():
+        return _default_c_grid()
+    values: List[float] = []
+    for raw in spec.split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        values.append(float(raw))
+    if not values:
+        return _default_c_grid()
+    return tuple(values)
 
 
 @dataclass
 class AutoJudgeTrainConfig:
+    task: str = "gsm8k"
     max_train_samples: int = 4000
     max_new_tokens: int = 96
     k: int = 4
-    train_steps: int = 400
-    batch_size: int = 128
-    lr: float = 1e-3
+    train_split: float = 0.9
+    recall_target: float = 0.9
+    c_grid: Tuple[float, ...] = _default_c_grid()
     seed: int = 123
-    eps: float = 1e-12
 
 
 @dataclass
@@ -96,9 +82,9 @@ class AutoJudgeStats:
 
     train_samples: int = 0
     train_loss: float = 0.0
-
-    audit_samples: int = 0
-    audit_expected_accept: float = 0.0
+    val_auc: float = 0.0
+    val_recall: float = 0.0
+    threshold_selected: float = 0.0
 
     @property
     def acceptance_rate(self) -> float:
@@ -120,129 +106,291 @@ class AutoJudgeStats:
     def target_calls_per_token(self) -> float:
         return self.target_calls / self.target_tokens if self.target_tokens else 0.0
 
-    @property
-    def audit_expected_accept_mean(self) -> float:
-        if self.audit_samples == 0:
-            return 0.0
-        return self.audit_expected_accept / self.audit_samples
+
+@dataclass
+class AutoJudgeClassifier:
+    scaler: object
+    model: object
+    threshold: float
+    feature_dim: int
+    task: str = "gsm8k"
+    c_selected: float = 0.0
+    val_auc: float = 0.0
+    val_recall: float = 0.0
+
+    def predict_important_prob(self, x: np.ndarray) -> np.ndarray:
+        if x.ndim == 1:
+            x = x.reshape(1, -1)
+        x_scaled = self.scaler.transform(x)
+        return self.model.predict_proba(x_scaled)[:, 1]
 
 
-def _stack_features(features: Sequence[torch.Tensor]) -> torch.Tensor:
-    if not features:
-        raise ValueError("No features collected for judge training.")
-    return torch.stack(features, dim=0)
+# Backward-compatible export name used by older code paths.
+JudgeMLP = AutoJudgeClassifier
 
 
-def collect_autojudge_training_data(
+def _argmax_token_from_logits(logits: torch.Tensor) -> int:
+    return int(torch.argmax(logits, dim=-1).item())
+
+
+def _generate_greedy(
+    model: HFModel,
+    prompt_tokens: Sequence[int],
+    max_new_tokens: int,
+    eos_id: Optional[int] = None,
+) -> List[int]:
+    generated: List[int] = []
+    if max_new_tokens <= 0:
+        return generated
+
+    with torch.no_grad():
+        state = model.prefill(prompt_tokens)
+        for _ in range(max_new_tokens):
+            token = _argmax_token_from_logits(state.logits.squeeze(0))
+            generated.append(token)
+            if eos_id is not None and token == eos_id:
+                break
+            state = model.step([token], state)
+    return generated
+
+
+def _draft_argmax_tokens_for_target_response(
+    draft_model: HFModel,
+    prompt_tokens: Sequence[int],
+    target_new_tokens: Sequence[int],
+) -> List[int]:
+    if not target_new_tokens:
+        return []
+
+    sequence = list(prompt_tokens) + list(target_new_tokens)
+    logits, _ = draft_model.logits_and_last_hidden(sequence)
+    start = len(prompt_tokens) - 1
+    stop = start + len(target_new_tokens)
+    if start < 0 or stop > logits.shape[1]:
+        raise RuntimeError("Invalid logits slicing while mining important tokens.")
+    return logits[0, start:stop, :].argmax(dim=-1).tolist()
+
+
+def _feature_for_mismatch(
+    target_model: HFModel,
+    draft_model: HFModel,
+    prompt_tokens: Sequence[int],
+    target_prefix_tokens: Sequence[int],
+    draft_token: int,
+) -> torch.Tensor:
+    prefix_with_draft = list(prompt_tokens) + list(target_prefix_tokens) + [int(draft_token)]
+    _, draft_hidden = draft_model.logits_and_last_hidden(prefix_with_draft)
+    _, target_hidden = target_model.logits_and_last_hidden(prefix_with_draft)
+    draft_vec = draft_hidden[0, -1, :].detach().to(torch.float32).cpu()
+    target_vec = target_hidden[0, -1, :].detach().to(torch.float32).cpu()
+    return torch.cat([draft_vec, target_vec], dim=0)
+
+
+def mine_important_tokens_gsm8k(
     target_model: HFModel,
     draft_model: HFModel,
     prompts: Iterable[Sequence[int]],
     cfg: AutoJudgeTrainConfig,
     eos_id: Optional[int] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Collect synthetic labels from exact acceptance probabilities."""
-    torch.manual_seed(cfg.seed)
+    if cfg.task != "gsm8k":
+        raise ValueError(f"Unsupported AutoJudge task: {cfg.task}")
+
     features: List[torch.Tensor] = []
     labels: List[float] = []
 
-    with torch.no_grad():
-        for prompt_tokens in prompts:
-            if len(features) >= cfg.max_train_samples:
+    for prompt_tokens in prompts:
+        if len(features) >= cfg.max_train_samples:
+            break
+
+        prompt = target_model.ensure_prefix(prompt_tokens)
+        y = _generate_greedy(
+            model=target_model,
+            prompt_tokens=prompt,
+            max_new_tokens=cfg.max_new_tokens,
+            eos_id=eos_id,
+        )
+        if not y:
+            continue
+
+        current = list(y)
+        cursor = 0
+        while cursor < len(current) and len(features) < cfg.max_train_samples:
+            y_e = _draft_argmax_tokens_for_target_response(
+                draft_model=draft_model,
+                prompt_tokens=prompt,
+                target_new_tokens=current,
+            )
+            mismatches = [i for i in range(cursor, len(current)) if current[i] != y_e[i]]
+            if not mismatches:
                 break
-            generated: List[int] = []
-            draft_state = draft_model.prefill(prompt_tokens)
 
-            while len(generated) < cfg.max_new_tokens:
-                remaining = cfg.max_new_tokens - len(generated)
-                block = min(cfg.k, remaining)
-                rejected = False
+            t = mismatches[0]
+            draft_token = int(y_e[t])
 
-                for pos in range(block):
-                    q_probs = _softmax(draft_state.logits).squeeze(0)
-                    token = _torch_multinomial(q_probs)
-                    feat = judge_features(q_probs, token, pos, cfg.k)
+            feat = _feature_for_mismatch(
+                target_model=target_model,
+                draft_model=draft_model,
+                prompt_tokens=prompt,
+                target_prefix_tokens=current[:t],
+                draft_token=draft_token,
+            )
 
-                    # Compute exact acceptance probability alpha via target.
-                    prefix = list(prompt_tokens) + generated
-                    target_state = target_model.prefill(prefix)
-                    p_probs = _softmax(target_state.logits).squeeze(0)
-                    q_token = float(q_probs[token])
-                    p_token = float(p_probs[token])
-                    alpha = min(1.0, p_token / max(q_token, cfg.eps))
-                    accept_label = 1.0 if torch.rand(1).item() <= alpha else 0.0
+            replacement_prefix = prompt + current[:t] + [draft_token]
+            alternative_suffix = _generate_greedy(
+                model=target_model,
+                prompt_tokens=replacement_prefix,
+                max_new_tokens=max(cfg.max_new_tokens - (t + 1), 0),
+                eos_id=eos_id,
+            )
+            y_hat = current[:t] + [draft_token] + alternative_suffix
 
-                    features.append(feat.cpu())
-                    labels.append(accept_label)
-                    if len(features) >= cfg.max_train_samples:
-                        break
+            target_text = target_model.tokenizer.decode(current, skip_special_tokens=True)
+            alt_text = target_model.tokenizer.decode(y_hat, skip_special_tokens=True)
+            equivalent = generations_equivalent(target_text, alt_text)
 
-                    if accept_label >= 0.5:
-                        generated.append(token)
-                        draft_state = draft_model.step([token], draft_state)
-                        if eos_id is not None and token == eos_id:
-                            rejected = True
-                            break
-                    else:
-                        fallback = _torch_multinomial(p_probs)
-                        generated.append(fallback)
-                        draft_state = draft_model.prefill(list(prompt_tokens) + generated)
-                        rejected = True
-                        if eos_id is not None and fallback == eos_id:
-                            break
-                        break
+            important = 0.0 if equivalent else 1.0
+            features.append(feat)
+            labels.append(important)
 
-                if len(features) >= cfg.max_train_samples or rejected:
-                    if len(features) >= cfg.max_train_samples:
-                        break
-                if generated and eos_id is not None and generated[-1] == eos_id:
-                    break
+            if equivalent:
+                current = y_hat
 
-    x = _stack_features(features)
+            cursor = t + 1
+
+    if not features:
+        raise ValueError("No important-token samples were mined for AutoJudge training.")
+
+    x = torch.stack(features, dim=0)
     y = torch.tensor(labels, dtype=torch.float32).unsqueeze(-1)
     return x, y
+
+
+def _split_indices(n: int, train_split: float, seed: int) -> Tuple[np.ndarray, np.ndarray]:
+    if n <= 1:
+        return np.arange(n), np.arange(n)
+    rng = np.random.default_rng(seed)
+    idx = np.arange(n)
+    rng.shuffle(idx)
+    train_size = int(round(float(train_split) * n))
+    train_size = max(1, min(train_size, n - 1))
+    train_idx = idx[:train_size]
+    val_idx = idx[train_size:]
+    if val_idx.size == 0:
+        val_idx = train_idx
+    return train_idx, val_idx
+
+
+def _threshold_for_recall(
+    probs: np.ndarray,
+    labels: np.ndarray,
+    recall_target: float,
+) -> Tuple[float, float]:
+    # Predict "important" if prob >= threshold.
+    thresholds = np.unique(np.concatenate([probs, np.array([0.0, 1.0])]))
+    thresholds = np.sort(thresholds)
+    best_threshold = 0.5
+    best_recall = 0.0
+
+    for thr in thresholds:
+        preds = (probs >= thr).astype(np.int64)
+        rec = float(recall_score(labels, preds, zero_division=0))
+        if rec >= recall_target:
+            best_threshold = float(thr)
+            best_recall = rec
+    if best_recall == 0.0:
+        preds = (probs >= 0.5).astype(np.int64)
+        best_recall = float(recall_score(labels, preds, zero_division=0))
+        best_threshold = 0.5
+    return best_threshold, best_recall
+
+
+def train_autojudge_logreg(
+    x: torch.Tensor,
+    y: torch.Tensor,
+    cfg: AutoJudgeTrainConfig,
+) -> Tuple[AutoJudgeClassifier, float]:
+    _require_sklearn()
+
+    if x.ndim != 2 or y.ndim != 2:
+        raise ValueError("x and y must be 2D tensors.")
+    if x.shape[0] != y.shape[0]:
+        raise ValueError("x and y must have the same number of rows.")
+    if x.shape[0] < 2:
+        raise ValueError("Need at least two AutoJudge training examples.")
+
+    x_np = x.detach().cpu().numpy().astype(np.float32)
+    y_np = y.detach().cpu().numpy().reshape(-1).astype(np.int64)
+
+    if len(np.unique(y_np)) < 2:
+        raise ValueError("AutoJudge mined labels contain a single class; cannot train classifier.")
+
+    train_idx, val_idx = _split_indices(x_np.shape[0], cfg.train_split, cfg.seed)
+
+    scaler = StandardScaler()
+    x_train = scaler.fit_transform(x_np[train_idx])
+    x_val = scaler.transform(x_np[val_idx])
+    y_train = y_np[train_idx]
+    y_val = y_np[val_idx]
+
+    best_auc = -1.0
+    best_model = None
+    best_threshold = 0.5
+    best_recall = 0.0
+    best_c = float(cfg.c_grid[0])
+
+    for c in cfg.c_grid:
+        model = LogisticRegression(C=float(c), max_iter=500, random_state=cfg.seed)
+        model.fit(x_train, y_train)
+        val_probs = model.predict_proba(x_val)[:, 1]
+
+        if len(np.unique(y_val)) < 2:
+            val_auc = 0.0
+        else:
+            val_auc = float(roc_auc_score(y_val, val_probs))
+
+        thr, rec = _threshold_for_recall(
+            probs=val_probs,
+            labels=y_val,
+            recall_target=cfg.recall_target,
+        )
+
+        if val_auc > best_auc:
+            best_auc = val_auc
+            best_model = model
+            best_threshold = thr
+            best_recall = rec
+            best_c = float(c)
+
+    if best_model is None:
+        raise RuntimeError("Failed to train AutoJudge classifier.")
+
+    scaler_full = StandardScaler()
+    x_full = scaler_full.fit_transform(x_np)
+    model_full = LogisticRegression(C=best_c, max_iter=500, random_state=cfg.seed)
+    model_full.fit(x_full, y_np)
+
+    classifier = AutoJudgeClassifier(
+        scaler=scaler_full,
+        model=model_full,
+        threshold=best_threshold,
+        feature_dim=int(x_np.shape[1]),
+        task=cfg.task,
+        c_selected=best_c,
+        val_auc=max(best_auc, 0.0),
+        val_recall=max(best_recall, 0.0),
+    )
+    return classifier, classifier.val_auc
 
 
 def train_judge_classifier(
     x: torch.Tensor,
     y: torch.Tensor,
-    steps: int = 400,
-    batch_size: int = 128,
-    lr: float = 1e-3,
-    seed: int = 123,
-    device: str = "cpu",
-) -> Tuple[JudgeMLP, float]:
-    torch.manual_seed(seed)
-    if x.ndim != 2 or y.ndim != 2:
-        raise ValueError("x and y must be 2D tensors.")
-    if x.shape[0] != y.shape[0]:
-        raise ValueError("x and y must have same number of rows.")
-    if x.shape[0] == 0:
-        raise ValueError("No training examples.")
-
-    model = JudgeMLP(in_features=x.shape[1])
-    model.to(device)
-    x = x.to(device)
-    y = y.to(device)
-
-    criterion = nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    n = x.shape[0]
-    last_loss = 0.0
-
-    model.train()
-    for _ in range(steps):
-        idx = torch.randint(0, n, size=(min(batch_size, n),), device=device)
-        x_batch = x.index_select(0, idx)
-        y_batch = y.index_select(0, idx)
-        logits = model(x_batch)
-        loss = criterion(logits, y_batch)
-        optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        optimizer.step()
-        last_loss = float(loss.item())
-
-    model.eval()
-    return model, last_loss
+    cfg: Optional[AutoJudgeTrainConfig] = None,
+) -> Tuple[AutoJudgeClassifier, float]:
+    if cfg is None:
+        cfg = AutoJudgeTrainConfig()
+    return train_autojudge_logreg(x=x, y=y, cfg=cfg)
 
 
 def build_autojudge_classifier(
@@ -252,119 +400,149 @@ def build_autojudge_classifier(
     cfg: AutoJudgeTrainConfig,
     eos_id: Optional[int] = None,
     device: str = "cpu",
-) -> Tuple[JudgeMLP, int, float]:
-    x, y = collect_autojudge_training_data(
+) -> Tuple[AutoJudgeClassifier, int, float]:
+    del device  # sklearn-based classifier is CPU-side.
+
+    x, y = mine_important_tokens_gsm8k(
         target_model=target_model,
         draft_model=draft_model,
         prompts=prompts,
         cfg=cfg,
         eos_id=eos_id,
     )
-    model, loss = train_judge_classifier(
-        x=x,
-        y=y,
-        steps=cfg.train_steps,
-        batch_size=cfg.batch_size,
-        lr=cfg.lr,
-        seed=cfg.seed,
-        device=device,
-    )
-    return model, int(x.shape[0]), float(loss)
+    classifier, val_auc = train_autojudge_logreg(x=x, y=y, cfg=cfg)
+    return classifier, int(x.shape[0]), float(val_auc)
 
 
 def autojudge_sample_hf(
     target_model: HFModel,
     draft_model: HFModel,
-    judge_model: JudgeMLP,
+    judge_model: AutoJudgeClassifier,
     prompt_tokens: Sequence[int],
     max_new_tokens: int,
     k: int,
-    threshold: float = 0.5,
+    threshold: Optional[float] = None,
     eos_id: Optional[int] = None,
     seed: Optional[int] = None,
-    audit_ratio: float = 0.0,
     eps: float = 1e-12,
 ) -> Tuple[List[int], AutoJudgeStats]:
+    del eps
+
     if max_new_tokens < 0:
         raise ValueError("max_new_tokens must be non-negative.")
     if k <= 0:
         raise ValueError("k must be positive.")
     if target_model.vocab_size != draft_model.vocab_size:
         raise ValueError("target and draft vocab sizes must match.")
-    if not (0.0 <= threshold <= 1.0):
-        raise ValueError("threshold must be in [0, 1].")
-    if not (0.0 <= audit_ratio <= 1.0):
-        raise ValueError("audit_ratio must be in [0, 1].")
+
     if seed is not None:
         torch.manual_seed(seed)
 
+    if threshold is None:
+        threshold = float(judge_model.threshold)
+    if not (0.0 <= float(threshold) <= 1.0):
+        raise ValueError("threshold must be in [0, 1].")
+
     generated: List[int] = []
     stats = AutoJudgeStats()
+    base_prompt = target_model.ensure_prefix(prompt_tokens)
 
-    judge_device = str(next(judge_model.parameters()).device)
-    judge_model.eval()
+    while len(generated) < max_new_tokens:
+        stats.steps += 1
+        remaining = max_new_tokens - len(generated)
+        block = min(k, remaining)
 
-    with torch.no_grad():
-        draft_state = draft_model.prefill(prompt_tokens)
+        prefix = list(base_prompt) + generated
+        draft_state = draft_model.prefill(prefix)
         stats.draft_prefills += 1
 
-        while len(generated) < max_new_tokens:
-            stats.steps += 1
-            remaining = max_new_tokens - len(generated)
-            block = min(k, remaining)
-            rejected = False
+        draft_tokens: List[int] = []
+        for _ in range(block):
+            token = _argmax_token_from_logits(draft_state.logits.squeeze(0))
+            draft_tokens.append(token)
+            stats.draft_calls += 1
+            if eos_id is not None and token == eos_id:
+                break
+            draft_state = draft_model.step([token], draft_state)
 
-            for pos in range(block):
-                q_probs = _softmax(draft_state.logits).squeeze(0)
-                token = _torch_multinomial(q_probs)
+        if not draft_tokens:
+            break
 
-                feat = judge_features(q_probs, token, pos, k).to(judge_device)
-                prob = float(torch.sigmoid(judge_model(feat.unsqueeze(0))).item())
+        stats.proposed += len(draft_tokens)
 
-                stats.proposed += 1
-                stats.judge_total += 1
+        full_seq = prefix + draft_tokens
+        target_logits, target_hidden = target_model.logits_and_last_hidden(full_seq)
+        _, draft_hidden = draft_model.logits_and_last_hidden(full_seq)
+        stats.target_calls += 1
 
-                if audit_ratio > 0.0 and torch.rand(1).item() < audit_ratio:
-                    prefix = list(prompt_tokens) + generated
-                    target_state = target_model.prefill(prefix)
-                    stats.target_calls += 1
-                    p_probs = _softmax(target_state.logits).squeeze(0)
-                    alpha = min(1.0, float(p_probs[token]) / max(float(q_probs[token]), eps))
-                    stats.audit_samples += 1
-                    stats.audit_expected_accept += alpha
+        accepted_tokens: List[int] = []
+        important_rejection = False
+        start = len(prefix) - 1
 
-                if prob >= threshold:
-                    stats.accepted += 1
-                    stats.judge_accepted += 1
-                    generated.append(token)
-                    stats.target_tokens += 1
-                    draft_state = draft_model.step([token], draft_state)
-                    stats.draft_calls += 1
-                    if eos_id is not None and token == eos_id:
-                        return generated, stats
-                    if len(generated) >= max_new_tokens:
-                        return generated, stats
-                else:
-                    stats.rejections += 1
-                    stats.judge_rejected += 1
-                    stats.target_fallbacks += 1
+        for i, draft_token in enumerate(draft_tokens):
+            logits_row = target_logits[0, start + i, :]
+            target_token = int(torch.argmax(logits_row, dim=-1).item())
 
-                    prefix = list(prompt_tokens) + generated
-                    target_state = target_model.prefill(prefix)
-                    stats.target_calls += 1
-                    p_probs = _softmax(target_state.logits).squeeze(0)
-                    fallback = _torch_multinomial(p_probs)
-                    generated.append(fallback)
-                    stats.target_tokens += 1
-                    if eos_id is not None and fallback == eos_id:
-                        return generated, stats
-
-                    draft_state = draft_model.prefill(list(prompt_tokens) + generated)
-                    stats.draft_prefills += 1
-                    rejected = True
-                    break
-
-            if rejected:
+            if draft_token == target_token:
+                accepted_tokens.append(draft_token)
+                stats.accepted += 1
                 continue
 
+            stats.judge_total += 1
+            abs_idx = len(prefix) + i
+            feat = torch.cat(
+                [
+                    draft_hidden[0, abs_idx, :].to(torch.float32),
+                    target_hidden[0, abs_idx, :].to(torch.float32),
+                ],
+                dim=0,
+            )
+            prob_important = float(
+                judge_model.predict_important_prob(feat.cpu().numpy().reshape(1, -1))[0]
+            )
+
+            if prob_important < float(threshold):
+                accepted_tokens.append(draft_token)
+                stats.accepted += 1
+                stats.judge_accepted += 1
+                continue
+
+            stats.judge_rejected += 1
+            stats.rejections += 1
+            stats.target_fallbacks += 1
+            accepted_tokens.append(target_token)
+            important_rejection = True
+            break
+
+        generated.extend(accepted_tokens)
+        if len(generated) > max_new_tokens:
+            generated = generated[:max_new_tokens]
+        stats.target_tokens = len(generated)
+
+        if generated and eos_id is not None and generated[-1] == eos_id:
+            return generated, stats
+
+        if len(generated) >= max_new_tokens:
+            return generated, stats
+
+        # Same as greedy speculative decoding: if full draft block accepted, emit one extra target token.
+        if not important_rejection and len(accepted_tokens) == len(draft_tokens):
+            extra_logits = target_logits[0, len(prefix) + len(draft_tokens) - 1, :]
+            extra_token = int(torch.argmax(extra_logits, dim=-1).item())
+            generated.append(extra_token)
+            if len(generated) > max_new_tokens:
+                generated = generated[:max_new_tokens]
+            stats.target_tokens = len(generated)
+            if eos_id is not None and generated[-1] == eos_id:
+                return generated, stats
+
     return generated, stats
+
+
+def warn_deprecated_autojudge_args() -> None:
+    warnings.warn(
+        "AutoJudge now uses paper-aligned LogisticRegression training. "
+        "Legacy args (--autojudge-train-steps, --autojudge-train-batch-size, "
+        "--autojudge-train-lr, --autojudge-audit-ratio) are ignored.",
+        RuntimeWarning,
+    )

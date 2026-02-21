@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Tuple
 import warnings
 
 import torch
@@ -190,6 +190,29 @@ class HFModel(BaseModel):
             logits=logits,
             length=state.length + input_ids.shape[1],
         )
+
+    def logits_and_last_hidden(self, tokens: Sequence[int]) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Run a full forward pass and return logits and final-layer hidden states."""
+        input_ids = torch.tensor(
+            [self.ensure_prefix(tokens)], device=self.device, dtype=torch.long
+        )
+        attention_mask = torch.ones_like(input_ids, device=self.device)
+        with torch.no_grad():
+            outputs = self.model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                use_cache=False,
+                output_hidden_states=True,
+                return_dict=True,
+            )
+        logits = outputs.logits
+        if getattr(outputs, "hidden_states", None):
+            hidden = outputs.hidden_states[-1]
+        elif hasattr(outputs, "last_hidden_state"):
+            hidden = outputs.last_hidden_state
+        else:
+            raise RuntimeError("Model forward output does not expose hidden states.")
+        return logits, hidden
 
     def next_token_probs(self, context_tokens: Sequence[int]) -> List[float]:
         tokens = self.ensure_prefix(context_tokens)

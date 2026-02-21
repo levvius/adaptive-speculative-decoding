@@ -34,19 +34,23 @@ except ModuleNotFoundError:
 
 try:
     from .autojudge import (
+        AutoJudgeClassifier,
         AutoJudgeStats,
         AutoJudgeTrainConfig,
         JudgeMLP,
         autojudge_sample_hf,
         build_autojudge_classifier,
+        parse_c_grid,
     )
 
     __all__ += [
+        "AutoJudgeClassifier",
         "AutoJudgeStats",
         "AutoJudgeTrainConfig",
         "JudgeMLP",
         "autojudge_sample_hf",
         "build_autojudge_classifier",
+        "parse_c_grid",
     ]
 except ModuleNotFoundError:
     pass
