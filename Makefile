@@ -23,6 +23,10 @@ TORCH_VERSION ?= 2.9.1
 DOCKER_CMD ?= docker
 HEADLESS ?= 0
 HEADLESS_ARG := $(if $(filter 1 true yes,$(HEADLESS)),--require-headless,)
+PAPER_DATE ?= $(shell date +%F)
+PAPER_RAW ?= datasets/results_autojudge_qwen25_paper_$(PAPER_DATE).jsonl
+PAPER_REPORT_PREFIX ?= reports/autojudge_qwen25_paper_$(PAPER_DATE)
+PAPER_MANIFEST ?= reports/autojudge_run_manifest_$(PAPER_DATE).json
 
 DATA_DIR ?= $(abspath $(dir $(DATASET)))
 DATASET_IN_CONTAINER ?= /data/$(notdir $(DATASET))
@@ -30,7 +34,7 @@ OUT_IN_CONTAINER ?= /data/$(notdir $(OUT))
 ALLOW_EOL_UBUNTU ?= 0
 ALLOW_EOL_ARG := $(if $(filter 1 true yes,$(ALLOW_EOL_UBUNTU)),--allow-eol-ubuntu,)
 
-.PHONY: help setup setup-gpu check validate-configs validate-results list-presets test bench-toy smoke-hf smoke-hf-gpu bench bench-method autojudge specexec bench-all \
+.PHONY: help setup setup-gpu check validate-configs validate-results list-presets test bench-toy smoke-hf smoke-hf-gpu bench bench-method autojudge specexec bench-all paper-eval \
 		docker-build docker-build-gpu docker-build-gpu-safe docker-prune-builder docker-gpu-check docker-gpu-check-image docker-test docker-bench docker-autojudge docker-specexec docker-bench-all
 
 help: ## Show available targets
@@ -127,7 +131,7 @@ specexec: ## Run SpecExec preset (requires DATASET)
 		$(HEADLESS_ARG) \
 		--out $(OUT)
 
-bench-all: ## Run baseline+speculative+autojudge+specexec in one call (requires DATASET)
+bench-all: ## Run baseline+speculative+autojudge+topk+specexec in one call (requires DATASET)
 	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
 	$(PYTHON) -m sp_samp.cli bench \
 		--config-dir $(CONFIG_DIR) \
@@ -136,6 +140,9 @@ bench-all: ## Run baseline+speculative+autojudge+specexec in one call (requires 
 		--dataset $(DATASET) \
 		$(HEADLESS_ARG) \
 		--out $(OUT)
+
+paper-eval: ## Run paper-style GSM8K sweep (Qwen2.5 0.5B -> 7B) and build reports
+	PYTHON_BIN="$(PYTHON)" OUT_RAW="$(PAPER_RAW)" REPORT_PREFIX="$(PAPER_REPORT_PREFIX)" MANIFEST_PATH="$(PAPER_MANIFEST)" scripts/run_autojudge_paper_eval.sh
 
 docker-build: ## Build CPU Docker image
 	$(DOCKER_CMD) build -t $(IMAGE_CPU) .
@@ -212,7 +219,7 @@ docker-specexec: ## Run SpecExec in GPU Docker (requires DATASET)
 		$(HEADLESS_ARG) \
 		--out $(OUT_IN_CONTAINER)
 
-docker-bench-all: ## Run all methods (baseline+speculative+autojudge+specexec) in GPU Docker (requires DATASET)
+docker-bench-all: ## Run all methods (baseline+speculative+autojudge+topk+specexec) in GPU Docker (requires DATASET)
 	@if [ ! -f "$(DATASET)" ]; then echo "Dataset not found: $(DATASET). Expected default datasets/mt_bench.jsonl or override DATASET=/absolute/path/to/mt_bench.jsonl"; exit 2; fi
 	$(DOCKER_CMD) run --rm $(DOCKER_GPU_ARGS) -v $(DATA_DIR):/data $(IMAGE_GPU) \
 		python -m sp_samp.cli bench \

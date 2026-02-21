@@ -9,13 +9,16 @@ features, or behaviors are added.
 
 ## Structure
 - `Makefile`: Unified entrypoints for checks, preset listing, local benchmarks, AutoJudge runs, and Docker CPU/GPU flows.
-- `benchmarks/bench_speculative.py`: Benchmark runner for baseline, speculative, AutoJudge, and SpecExec methods. Supports HF models, KV cache, quantization, resume mode, enriched JSONL logging, and per-run error persistence.
+- `benchmarks/bench_speculative.py`: Benchmark runner for baseline, speculative, AutoJudge, Top-K, and SpecExec methods. Supports HF models, KV cache, quantization, GSM8K/MT-Bench eval modes, resume mode, enriched JSONL logging, and per-run error persistence.
+- `sp_samp/hf_topk.py`: HF Top-K lossy verification baseline and runtime stats.
 - `configs/models.json`: Model presets (target/draft HF models, device, dtype, quantization, tokenizer, chat template).
-- `configs/methods.json`: Method presets (baseline/speculative/autojudge/specexec/all).
+- `configs/methods.json`: Method presets (baseline/speculative/autojudge/topk/specexec/all/all_paper).
 - `configs/experiments.json`: Target/draft pairing presets for common comparisons.
 - `configs/method_templates.json`: Templates for AutoJudge and SpecExec configs with parameters/metrics.
 - `scripts/validate_configs.py`: Static validator for configs (cross-file references, method constraints, tokenizer compatibility for target/draft pair methods).
 - `scripts/validate_results_jsonl.py`: JSONL schema/type validator for benchmark outputs (strict mode supported).
+- `scripts/run_autojudge_paper_eval.sh`: Orchestrates paper-style GSM8K sweeps (AutoJudge thresholds + Top-K grid) for Qwen2.5.
+- `scripts/report_autojudge_paper.py`: Aggregates raw JSONL into `.md/.csv/.json` report artifacts with derived speed/accuracy deltas.
 - `scripts/install_dependencies.sh`: Safe host bootstrap script (idempotent apt/pip install, optional GPU extras, EOL Ubuntu guard, never touches NVIDIA driver packages).
 - `.github/workflows/ci.yml`: GitHub Actions CI pipeline (checks, tests, toy SpecExec smoke run, result-schema validation).
 - `.python-version`: Recommended local Python runtime version.
@@ -35,10 +38,32 @@ features, or behaviors are added.
 - `tests/test_sampling.py`: Core correctness tests for baseline/speculative sampling.
 - `tests/test_autojudge.py`: Unit tests for AutoJudge features, classifier fitting, and stats.
 - `tests/test_specexec.py`: Unit tests for SpecExec behavior and stats.
+- `tests/test_topk.py`: Unit tests for Top-K mismatch acceptance/rejection behavior.
 - `Dockerfile`, `Dockerfile.gpu`: CPU/GPU containers.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
 
 ## Recent Changes (2026-02-21)
+- Added paper-style benchmark extensions for Qwen2.5 (`0.5B -> 7B`):
+- new method `topk` and bundle `all_paper` in `benchmarks/bench_speculative.py`;
+- `all` now runs baseline + speculative + autojudge + topk + specexec.
+- Added GSM8K evaluation path in benchmark:
+- new args `--eval-task` and `--gsm8k-eval-mode`;
+- quality fields `gsm8k_exact_match`, `gsm8k_correct`, `gsm8k_total` in JSONL run/summary records.
+- Added Top-K controls and metrics:
+- new args `--topk-rank`, `--topk-grid`;
+- metrics `topk_accept_rate`, `topk_rank_effective`, `topk_mismatches`, `topk_accepted_mismatches`.
+- Added configs for paper-style runs:
+- `configs/methods.json`: `topk_k4`, `compare_all_paper_k4`;
+- `configs/experiments.json`: `qwen25_7b_target_qwen25_0p5b_topk_k4`, `qwen25_7b_target_qwen25_0p5b_all_paper`.
+- Updated CLI/validators for top-k and paper fields:
+- `sp_samp/cli.py` accepts `topk`, `all_paper`, `eval-task`, `gsm8k-eval-mode`, `topk-rank`, `topk-grid`;
+- `scripts/validate_configs.py` and `scripts/validate_results_jsonl.py` support new methods/fields with backward compatibility.
+- Added paper evaluation tooling:
+- `scripts/run_autojudge_paper_eval.sh` (preflight manifest + GSM8K download + sweep orchestration);
+- `scripts/report_autojudge_paper.py` (aggregates raw runs and computes `speedup_vs_speculative`, `accuracy_delta_vs_speculative`);
+- `make paper-eval` target.
+- Added Top-K unit tests in `tests/test_topk.py`.
+
 - AutoJudge presets/defaults migrated to paper-aligned open-model pairing:
 - added model presets `qwen25_0p5b_instruct`, `qwen25_7b_instruct`, `qwen25_32b_instruct`;
 - added experiment presets `qwen25_7b_target_qwen25_0p5b_{speculative,autojudge,specexec,all_methods}_k4`;

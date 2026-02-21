@@ -3,12 +3,13 @@
 This project provides:
 - Exact speculative sampling (SpS).
 - AutoJudge (paper-aligned judge decoding: Algorithm 1 mining + Logistic Regression classifier).
+- Top-K lossy baseline for paper-style comparisons.
 - SpecExec (exact target sampling with draft-branch cache prefill and pruning).
 - A Hugging Face adapter with KV cache and optional quantization.
 - A benchmark harness on MT-Bench with JSONL metrics.
 
 **Features**
-1. Baseline, speculative, AutoJudge, and SpecExec decoding in one benchmark entrypoint.
+1. Baseline, speculative, AutoJudge, Top-K, and SpecExec decoding in one benchmark entrypoint.
 2. MT-Bench loader (JSON/JSONL).
 3. Benchmark runner with median timing, resume support, and method-specific metrics.
 4. Preset configs for models, methods, and paired experiments.
@@ -92,7 +93,7 @@ docker run --rm --gpus all -v "$(pwd)/datasets:/data" sp-samp-gpu \
   --runs 5 \
   --out /data/results.jsonl
 ```
-9. Run all methods in one launch (baseline + speculative + autojudge + specexec):
+9. Run all methods in one launch (baseline + speculative + autojudge + topk + specexec):
 ```bash
 docker run --rm --gpus all -v "$(pwd)/datasets:/data" sp-samp-gpu \
   python -m benchmarks.bench_speculative \
@@ -252,6 +253,24 @@ Validate the output:
 ```bash
 python scripts/validate_results_jsonl.py --path datasets/results_gptoss20b_load.jsonl --strict
 ```
+16. Paper-style GSM8K AutoJudge evaluation (Qwen2.5 0.5B -> 7B, medium sweep):
+```bash
+mkdir -p datasets
+curl -fsSL https://raw.githubusercontent.com/openai/grade-school-math/master/grade_school_math/data/train.jsonl -o datasets/gsm8k_train.jsonl
+curl -fsSL https://raw.githubusercontent.com/openai/grade-school-math/master/grade_school_math/data/test.jsonl -o datasets/gsm8k_test.jsonl
+make paper-eval
+```
+Raw JSONL stays in `datasets/`; report artifacts are written to `reports/` as:
+- `reports/autojudge_qwen25_paper_<date>.md`
+- `reports/autojudge_qwen25_paper_<date>.csv`
+- `reports/autojudge_qwen25_paper_<date>.json`
+
+The benchmark supports dedicated paper-eval switches:
+- `--eval-task mtbench|gsm8k`
+- `--gsm8k-eval-mode zero_shot_cot|plain`
+- `--topk-rank <int|all>`
+- `--topk-grid <csv>`
+- GSM8K output fields in JSONL: `gsm8k_exact_match`, `gsm8k_correct`, `gsm8k_total`
 
 **Troubleshooting (RTX 50xx / Blackwell)**
 - Symptom: `sm_120 is not compatible with the current PyTorch installation` or `no kernel image is available for execution on the device`.
@@ -268,7 +287,7 @@ make docker-build-gpu-safe \
 - Models: `configs/models.json`
 - Methods: `configs/methods.json`
 - Experiments (target/draft pairings): `configs/experiments.json`
-- Method templates (AutoJudge/SpecExec): `configs/method_templates.json`
+- Method templates (AutoJudge/Top-K/SpecExec): `configs/method_templates.json`
 
 **CLI Runner**
 1. List presets:
@@ -302,7 +321,17 @@ python -m sp_samp.cli bench \
   --dataset datasets/mt_bench.jsonl \
   --out datasets/results.jsonl
 ```
-5. Run AutoJudge shortcut command:
+5. Run paper-method bundle only (baseline + speculative + autojudge + topk):
+```bash
+python -m sp_samp.cli bench \
+  --config-dir configs \
+  --experiment qwen25_7b_target_qwen25_0p5b_all_paper \
+  --dataset datasets/gsm8k_test.jsonl \
+  --eval-task gsm8k \
+  --gsm8k-eval-mode zero_shot_cot \
+  --out datasets/results_all_paper.jsonl
+```
+6. Run AutoJudge shortcut command:
 ```bash
 python -m sp_samp.cli autojudge \
   --config-dir configs \
@@ -310,7 +339,7 @@ python -m sp_samp.cli autojudge \
   --dataset datasets/mt_bench.jsonl \
   --out datasets/results_autojudge.jsonl
 ```
-6. Run SpecExec shortcut command:
+7. Run SpecExec shortcut command:
 ```bash
 python -m sp_samp.cli specexec \
   --config-dir configs \
@@ -341,12 +370,14 @@ The benchmark writes JSONL records with per-run metrics and a summary record per
 - `autojudge_train_samples`, `autojudge_val_auc`, `autojudge_val_recall` (AutoJudge only)
 - `autojudge_threshold_calibrated`, `autojudge_threshold_used` (AutoJudge only)
 - legacy aliases: `autojudge_threshold_selected` (= calibrated), `autojudge_threshold` (= used)
+- `topk_accept_rate`, `topk_rank_effective`, `topk_mismatches`, `topk_accepted_mismatches` (Top-K only)
 - `branch_prune_rate` (SpecExec only)
 - `effective_parallelism` (SpecExec only)
-- `target_calls_per_token` (AutoJudge and SpecExec)
+- `target_calls_per_token` (AutoJudge, Top-K, and SpecExec)
 - `draft_calls_per_token` (SpecExec only)
 - `cache_hit_rate` (SpecExec only)
 - `max_active_branches` (SpecExec only)
+- `gsm8k_exact_match`, `gsm8k_correct`, `gsm8k_total` (when `--eval-task gsm8k`)
 - `error_type`, `error_message`, `traceback` (for failed runs)
 - System metadata: `git_sha`, `hostname`, `gpu_name`, `gpu_driver`, `cuda_runtime`, `torch_version`, `transformers_version`, `display_active`
 - Validate output schema with:
@@ -364,7 +395,7 @@ python scripts/validate_results_jsonl.py --path datasets/results.jsonl --strict
 **Notes**
 - SpecExec is implemented as an exact (distribution-preserving) decoder with speculative cache prefill and configurable `parallel_branches` / `branch_prune_threshold`.
 - HF SpecExec uses KV-cache reuse and depth-wise tree passes for faster cache construction.
-- Draft and target models must share an identical tokenizer vocabulary mapping for speculative, AutoJudge, and SpecExec correctness.
+- Draft and target models must share an identical tokenizer vocabulary mapping for speculative, AutoJudge, Top-K, and SpecExec correctness.
 - AutoJudge training in this implementation is `gsm8k`-specific. If `--autojudge-checkpoint` is absent, provide a GSM8K-compatible train dataset (`question` + `answer`) via `--autojudge-train-dataset` or `--dataset`.
 - AutoJudge now fails fast with an actionable message when the train dataset path is missing or not GSM8K-compatible (for example, MT-Bench JSONL is not valid for judge training).
 - `scripts/install_dependencies.sh` is idempotent for apt/pip dependencies and never modifies NVIDIA driver packages.
