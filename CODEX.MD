@@ -21,7 +21,8 @@ features, or behaviors are added.
 - `.python-version`: Recommended local Python runtime version.
 - `datasets/.gitkeep`: Repository placeholder for local dataset directory (`datasets/`).
 - `README.MD`: Project overview, usage, and examples.
-- `sp_samp/autojudge.py`: AutoJudge implementation (synthetic label collection, judge training, and decoding).
+- `sp_samp/autojudge.py`: Paper-aligned AutoJudge implementation (Algorithm 1 token mining, LogisticRegression training, and verification-stage decoding override).
+- `sp_samp/gsm8k.py`: GSM8K utilities (dataset loading, final-answer extraction, and equivalence checks).
 - `sp_samp/specexec.py`: CPU SpecExec implementation (exact target sampling with draft-tree cache prefill and pruning).
 - `sp_samp/hf_specexec.py`: HF SpecExec implementation with KV-cache reuse along prefix-tree edges.
 - `sp_samp/cli.py`: Unified CLI runner (`bench`, `autojudge`, `specexec`, preset application).
@@ -36,6 +37,52 @@ features, or behaviors are added.
 - `tests/test_specexec.py`: Unit tests for SpecExec behavior and stats.
 - `Dockerfile`, `Dockerfile.gpu`: CPU/GPU containers.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
+
+## Recent Changes (2026-02-21)
+- AutoJudge presets/defaults migrated to paper-aligned open-model pairing:
+- added model presets `qwen25_0p5b_instruct`, `qwen25_7b_instruct`, `qwen25_32b_instruct`;
+- added experiment presets `qwen25_7b_target_qwen25_0p5b_{speculative,autojudge,specexec,all_methods}_k4`;
+- Make defaults now point to `qwen25_7b_target_qwen25_0p5b_all_methods` and related AutoJudge/SpecExec experiments.
+- Hardened AutoJudge training dataset gate in `benchmarks/bench_speculative.py`:
+- fail-fast with actionable command when no checkpoint and no GSM8K train dataset is provided;
+- explicit `path not found` error for missing train dataset path;
+- explicit incompatibility error when dataset lacks GSM8K `question`/`answer` schema (for example MT-Bench files).
+- JSONL threshold semantics split with backward-compatible aliases:
+- new fields `autojudge_threshold_calibrated` and `autojudge_threshold_used`;
+- legacy `autojudge_threshold_selected` kept as alias of calibrated value;
+- legacy `autojudge_threshold` kept as alias of used value;
+- updated `scripts/validate_results_jsonl.py` to accept new fields while remaining compatible with older JSONL files.
+- Replaced legacy synthetic-label AutoJudge with paper-aligned pipeline:
+- mining labels via semi-greedy mismatch search (Algorithm 1 style) on GSM8K prompts;
+- classifier training switched to `StandardScaler + LogisticRegression` with threshold calibration by target recall;
+- inference integrated at speculative verification stage (classifier called only on would-be-rejected mismatches).
+- Extended AutoJudge runtime/config interfaces:
+- new args in benchmark/CLI: `autojudge_task`, `autojudge_train_dataset`, `autojudge_recall_target`, `autojudge_train_split`, `autojudge_c_grid`;
+- legacy args (`autojudge_train_steps`, `autojudge_train_batch_size`, `autojudge_train_lr`, `autojudge_audit_ratio`) are parsed but ignored with deprecation warning;
+- checkpoint format bumped (`autojudge_version=2`) with explicit legacy checkpoint fallback to retraining.
+- Extended JSONL/schema metrics for AutoJudge calibration:
+- `autojudge_val_auc`, `autojudge_val_recall`, `autojudge_threshold_selected` in records;
+- updated strict validator `scripts/validate_results_jsonl.py`.
+- Added/updated tests:
+- `tests/test_autojudge.py` now covers GSM8K parsing/equivalence, classifier recall-target calibration, Algorithm-1-style mining behavior, and mismatch-time inference decisions.
+- Validated host + Docker GPU workflow on Ubuntu 24.04.4 with RTX 5090 (driver 590.48.01):
+- installed host toolchain/dependencies via `scripts/install_dependencies.sh --gpu`;
+- verified local checks/tests (`make check`, `make test`) and host CUDA visibility (`torch 2.9.1+cu128`, `sm_120`).
+- Installed Docker Engine + NVIDIA Container Toolkit and verified GPU runtime:
+- `docker run hello-world` passes;
+- `make docker-gpu-check` and `make docker-gpu-check-image` pass.
+- Added Makefile smoke flexibility for host GPU validation:
+- new variable `SMOKE_HF_DEVICE` (default `cpu`);
+- new target `smoke-hf-gpu` as alias to run tiny HF smoke on CUDA.
+- Extended README operational guidance:
+- explicit Ubuntu 24.04 Docker Engine install commands;
+- explicit NVIDIA Container Toolkit setup/config commands;
+- documented host GPU tiny smoke workflow and expected JSONL output;
+- documented one-off `DOCKER_CMD="sudo docker"` usage;
+- documented short Docker load run command for `gptoss20b_target_gptoss20b_draft_k4` plus strict JSONL validation and fallback command.
+- Bench run artifacts captured under `datasets/`:
+- `datasets/results_smoke_hf_gpu.jsonl` (validated strict);
+- `datasets/results_gptoss20b_load.jsonl` (validated strict, generated via deterministic fallback preset `mistral_target_mistral_draft_k4` after GPT-OSS runtime mismatch).
 
 ## Recent Changes (2026-02-13)
 - Standardized local dataset layout to `datasets/`:
