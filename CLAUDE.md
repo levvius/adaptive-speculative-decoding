@@ -1,0 +1,117 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+A speculative decoding research playground implementing and benchmarking several LLM inference acceleration methods:
+- **Speculative Sampling (SpS)**: exact decoding using a small draft model + large target model
+- **AutoJudge**: paper-aligned judge decoding (Algorithm 1 label mining + LogisticRegression classifier)
+- **Top-K**: lossy baseline for paper-style comparisons
+- **SpecExec**: exact target sampling with draft-branch KV cache prefill and pruning
+
+## Common Commands
+
+```bash
+# Install dependencies (CPU)
+make setup
+# Install with GPU extras (bitsandbytes, accelerate)
+make setup-gpu
+
+# Syntax check + config validation
+make check
+
+# Run all tests
+make test
+# Run a single test file
+.venv/bin/python -m pytest tests/test_sampling.py -q
+# Run a single test by name
+.venv/bin/python -m pytest tests/test_autojudge.py::test_gsm8k_parsing -q
+
+# Quick toy benchmark (no HF models, fast)
+make bench-toy
+
+# Quick HF smoke run (downloads tiny model)
+make smoke-hf
+
+# List all preset experiments/models/methods
+make list-presets
+
+# Validate config consistency
+make validate-configs
+
+# Validate benchmark JSONL output schema
+make validate-results RESULTS=datasets/results.jsonl
+
+# Run paper-style GSM8K sweep and generate reports
+make paper-eval
+```
+
+## Architecture
+
+### Core Library (`sp_samp/`)
+
+The library is layered — toy/CPU implementations first, HF-backed implementations second:
+
+- **`models.py`**: Abstract `BaseModel` interface (`next_token_probs`) + toy implementations: `FixedModel`, `BigramModel`, `RandomModel`, `NoisyModel`
+- **`sampling.py`**: Pure-Python reference implementations of `sample_baseline` and `speculative_sample` operating on `BaseModel`. Returns `SamplingStats`.
+- **`specexec.py`**: CPU SpecExec reference implementation. Returns `SpecExecStats` (branch metrics).
+- **`hf_adapter.py`**: `HFModel(BaseModel)` wraps HuggingFace causal LMs with KV cache (`KVCacheState`) and optional bitsandbytes quantization. Handles native-quantized checkpoint edge cases.
+- **`hf_sampling.py`**: HF-backed `sample_baseline_hf` and `speculative_sample_hf` using `KVCacheState`.
+- **`hf_specexec.py`**: HF SpecExec with KV-cache reuse along prefix-tree edges and depth-wise tree passes.
+- **`hf_topk.py`**: HF Top-K lossy verification baseline. Returns `TopKStats`.
+- **`autojudge.py`**: Paper-aligned AutoJudge — Algorithm 1 GSM8K label mining, `StandardScaler + LogisticRegression` classifier training with recall-target calibration, and inference at the speculative verification stage. Requires `scikit-learn`.
+- **`gsm8k.py`**: GSM8K dataset loading and answer equivalence utilities used by AutoJudge.
+- **`mtbench.py`**: MT-Bench dataset loader.
+- **`cli.py`**: Unified CLI entrypoint (`python -m sp_samp.cli`). Subcommands: `bench`, `autojudge`, `specexec`, `list-presets`. Loads and applies JSON presets from `configs/`.
+- **`__init__.py`**: Lazy/optional imports — HF and AutoJudge exports are skipped gracefully when `torch`/`transformers`/`scikit-learn` are absent.
+- **`methods/`**: Method-facing re-exports (including SpecExec).
+
+### Benchmark Runner (`benchmarks/bench_speculative.py`)
+
+Single entry point for all method comparisons: `python -m benchmarks.bench_speculative`. Supports toy (no HF) and HF modes, resume mode (skips completed runs via `resume_key` in JSONL), per-run error persistence, system metadata tagging, GSM8K and MT-Bench eval modes.
+
+### Configs (`configs/`)
+
+All JSON, no code:
+- `models.json` — HF model presets (model name, device, dtype, quantization, tokenizer)
+- `methods.json` — method presets (baseline, speculative, autojudge, topk, specexec, all, all_paper)
+- `experiments.json` — target/draft pairing presets; current paper default pair is `Qwen2.5-0.5B-Instruct` → `Qwen2.5-3B-Instruct`
+- `method_templates.json` — AutoJudge and SpecExec parameter/metric templates
+
+### Scripts (`scripts/`)
+
+- `validate_configs.py` — cross-file config consistency + tokenizer compatibility checks
+- `validate_results_jsonl.py` — strict JSONL schema validation for benchmark output
+- `run_autojudge_paper_eval.sh` — orchestrates full paper-style GSM8K sweep
+- `report_autojudge_paper.py` — aggregates raw JSONL into `.md/.csv/.json` reports in `reports/`
+- `write_run_manifest.py` — writes environment manifest JSON for reproducibility
+- `install_dependencies.sh` — idempotent host bootstrap (never modifies NVIDIA drivers)
+
+### Tests (`tests/`)
+
+Tests live at the top of `tests/` (not under `sp_samp/`). Coverage: `test_sampling.py` (baseline/speculative correctness), `test_autojudge.py` (GSM8K parsing, classifier calibration, mining), `test_specexec.py` (distribution correctness, exactness vs baseline), `test_topk.py` (mismatch accept/reject).
+
+## Key Constraints
+
+- **Tokenizer compatibility**: Draft and target models must share an identical vocabulary mapping for speculative, AutoJudge, Top-K, and SpecExec. The `Qwen2.5-0.5B → 7B` legacy pair violates this; use `0.5B → 3B` instead.
+- **AutoJudge training**: Only valid with GSM8K-format datasets (`question` + `answer` fields). MT-Bench JSONL will fail fast with an actionable error.
+- **AutoJudge checkpoint versioning**: Checkpoint format v2 (`autojudge_version=2`). Loading a v1 checkpoint triggers retraining.
+- **Benchmark resume**: Re-running with the same `--out` file skips completed `resume_key` entries automatically.
+- **GPU checks**: Use `make docker-gpu-check` / `make docker-gpu-check-image` before long runs. RTX 50xx (Blackwell/sm_120) requires `torch==2.9.1+cu128`.
+- **Makefile Python**: Prefers `.venv/bin/python`; falls back to `python3`.
+
+## Paper Alignment
+
+Source papers are in `papers/`. Audit summary (2026-02-25); full record in `file_changes/2026-02-25-paper-alignment.md`.
+
+### Confirmed correct vs. papers
+- AutoJudge C-grid: `_default_c_grid()` → `range(-7, 1)` = {10⁻⁷…10⁰} (8 values, matches Section 3.2). Previously `range(-7, 3)` included out-of-paper 10¹ and 10² — **fixed**.
+- Label convention: 0=unimportant / 1=important matches Algorithm 1.
+- `_threshold_for_recall` returns highest threshold where recall ≥ target (optimal).
+- Final model retrained on full dataset after C-grid search.
+
+### Known intentional deviations (documented; no code change)
+- **AutoJudge mining — initial response from TARGET not DRAFT**: Algorithm 1 pseudocode says draft model; code uses target model to match the paper's mathematical definition of I(x). Documented with inline comment.
+- **AutoJudge — greedy decoding**: Paper Appendix A describes Gumbel-max stochastic sampling; implementation uses argmax. Valid deterministic variant.
+- **SpecExec — BFS vs. SSSP**: Paper uses modified Dijkstra with priority queue and log-prob budget K; code uses BFS level-by-level with `parallel_branches` / `branch_prune_threshold`. Correct distribution preserved; known simplification.

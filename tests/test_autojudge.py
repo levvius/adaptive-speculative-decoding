@@ -7,6 +7,7 @@ import torch
 
 from sp_samp.autojudge import (
     AutoJudgeTrainConfig,
+    _default_c_grid,
     autojudge_sample_hf,
     mine_important_tokens_gsm8k,
     parse_c_grid,
@@ -95,6 +96,19 @@ class _ConstantJudge:
 def test_parse_c_grid():
     assert parse_c_grid(None)[0] == 1e-7
     assert parse_c_grid("1e-4, 1e-2,1") == (1e-4, 1e-2, 1.0)
+
+
+def test_default_c_grid_matches_paper():
+    # Paper: Section 3.2 — C ∈ {10^0, 10^-1, …, 10^-7} (exactly 8 values).
+    grid = _default_c_grid()
+    assert len(grid) == 8, f"Expected 8 C values, got {len(grid)}: {grid}"
+    expected = tuple(10.0**p for p in range(-7, 1))
+    assert grid == expected, f"C grid mismatch: {grid} != {expected}"
+    # Must NOT contain 10^1 or 10^2 (not in paper).
+    assert 10.0 not in grid, "10^1 should not be in the C grid"
+    assert 100.0 not in grid, "10^2 should not be in the C grid"
+    # Must contain 10^0 = 1.0 as the largest value.
+    assert 1.0 in grid, "10^0 = 1.0 should be in the C grid"
 
 
 def test_gsm8k_extraction_and_equivalence():

@@ -34,7 +34,9 @@ def _require_sklearn() -> None:
 
 
 def _default_c_grid() -> Tuple[float, ...]:
-    return tuple(10.0**p for p in range(-7, 3))
+    # Paper: Section 3.2 — C-regularisation grid C ∈ {10^0, 10^-1, …, 10^-7}
+    # (8 values; range(-7, 1) gives exponents -7,-6,-5,-4,-3,-2,-1,0)
+    return tuple(10.0**p for p in range(-7, 1))
 
 
 def parse_c_grid(spec: Optional[str]) -> Tuple[float, ...]:
@@ -138,6 +140,8 @@ def _generate_greedy(
     prompt_tokens: Sequence[int],
     max_new_tokens: int,
     eos_id: Optional[int] = None,
+    # Paper: Appendix A — paper uses Gumbel-max stochastic sampling; this implementation
+    # uses argmax (greedy), a valid deterministic variant that does not affect correctness.
 ) -> List[int]:
     generated: List[int] = []
     if max_new_tokens <= 0:
@@ -193,6 +197,7 @@ def mine_important_tokens_gsm8k(
     cfg: AutoJudgeTrainConfig,
     eos_id: Optional[int] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
+    # Paper: Algorithm 1 — important-token label mining for AutoJudge training.
     if cfg.task != "gsm8k":
         raise ValueError(f"Unsupported AutoJudge task: {cfg.task}")
 
@@ -204,6 +209,10 @@ def mine_important_tokens_gsm8k(
             break
 
         prompt = target_model.ensure_prefix(prompt_tokens)
+        # Paper: Algorithm 1 line 1 — pseudocode says GENERATE(x, θ_draft); here we use
+        # the TARGET model instead, which matches the paper's mathematical formula for I(x)
+        # (importance defined relative to the target response). Intentional deviation from
+        # the literal pseudocode; no correctness impact.
         y = _generate_greedy(
             model=target_model,
             prompt_tokens=prompt,
@@ -249,6 +258,7 @@ def mine_important_tokens_gsm8k(
             alt_text = target_model.tokenizer.decode(y_hat, skip_special_tokens=True)
             equivalent = generations_equivalent(target_text, alt_text)
 
+            # Paper: Algorithm 1, line 9 — label convention: 0=unimportant, 1=important.
             important = 0.0 if equivalent else 1.0
             features.append(feat)
             labels.append(important)
@@ -310,6 +320,9 @@ def train_autojudge_logreg(
     y: torch.Tensor,
     cfg: AutoJudgeTrainConfig,
 ) -> Tuple[AutoJudgeClassifier, float]:
+    # Paper: Section 3.2 — StandardScaler + LogisticRegression classifier with
+    # C-grid cross-validation and recall-target threshold calibration on val split;
+    # final model retrained on full dataset using best C.
     _require_sklearn()
 
     if x.ndim != 2 or y.ndim != 2:
@@ -488,6 +501,7 @@ def autojudge_sample_hf(
                 stats.accepted += 1
                 continue
 
+            # Paper: Section 3 — judge called only on mismatches for efficiency.
             stats.judge_total += 1
             abs_idx = len(prefix) + i
             feat = torch.cat(
