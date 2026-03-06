@@ -26,6 +26,7 @@ from sp_samp.gsm8k import (
     extract_reference_answer,
     load_gsm8k,
 )
+from sp_samp.livecodebench import load_livecodebench
 from sp_samp.mtbench import load_mtbench
 from sp_samp.sampling import SamplingStats, sample_baseline, speculative_sample
 from sp_samp.specexec import SpecExecStats, specexec_sample
@@ -736,7 +737,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--eval-task",
         type=str,
         default="mtbench",
-        choices=["mtbench", "gsm8k"],
+        choices=["mtbench", "gsm8k", "livecodebench"],
         help="Evaluation task dataset mode.",
     )
     parser.add_argument(
@@ -829,6 +830,15 @@ def run_with_args(args: argparse.Namespace) -> None:
             )
             for sample in gsm_samples
         ]
+    elif args.eval_task == "livecodebench":
+        if not args.hf_model:
+            raise SystemExit("--eval-task livecodebench currently requires HF models.")
+        if not args.dataset:
+            raise SystemExit("--eval-task livecodebench requires --dataset path.")
+        lcb_prompts = load_livecodebench(path=args.dataset, max_samples=args.max_samples)
+        if not lcb_prompts:
+            raise SystemExit("No LiveCodeBench prompts loaded from dataset.")
+        prompts = [EvalSample(prompt=p) for p in lcb_prompts]
     else:
         if args.dataset:
             mt_prompts = load_mtbench(
@@ -927,12 +937,17 @@ def run_with_args(args: argparse.Namespace) -> None:
                 quantization=resolved_draft_quant,
                 bnb_compute_dtype=resolved_draft_bnb_compute_dtype,
             )
-            if target_model.vocab_size != draft_model.vocab_size:
-                raise SystemExit("Target and draft vocab sizes differ.")
             if not _tokenizers_compatible(target_model.tokenizer, draft_model.tokenizer):
                 raise SystemExit(
                     "Target and draft tokenizers are incompatible. "
                     "Use models sharing identical token-id mapping."
+                )
+            if target_model.vocab_size != draft_model.vocab_size:
+                print(
+                    f"[WARN] Target and draft config vocab sizes differ "
+                    f"({target_model.vocab_size} vs {draft_model.vocab_size}). "
+                    f"Tokenizers are compatible; difference is padding. "
+                    f"Using min vocab_size={min(target_model.vocab_size, draft_model.vocab_size)}."
                 )
         else:
             draft_model = target_model

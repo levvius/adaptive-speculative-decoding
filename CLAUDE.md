@@ -45,6 +45,9 @@ make validate-results RESULTS=datasets/results.jsonl
 
 # Run paper-style GSM8K sweep and generate reports
 make paper-eval
+
+# Run local Qwen2.5 7B/1.5B eval (GSM8K + LiveCodeBench) with Yandex-style reports
+make local-eval
 ```
 
 ## Architecture
@@ -63,20 +66,21 @@ The library is layered — toy/CPU implementations first, HF-backed implementati
 - **`autojudge.py`**: Paper-aligned AutoJudge — Algorithm 1 GSM8K label mining, `StandardScaler + LogisticRegression` classifier training with recall-target calibration, and inference at the speculative verification stage. Requires `scikit-learn`.
 - **`gsm8k.py`**: GSM8K dataset loading and answer equivalence utilities used by AutoJudge.
 - **`mtbench.py`**: MT-Bench dataset loader.
+- **`livecodebench.py`**: LiveCodeBench dataset loader (JSONL) + HF hub downloader.
 - **`cli.py`**: Unified CLI entrypoint (`python -m sp_samp.cli`). Subcommands: `bench`, `autojudge`, `specexec`, `list-presets`. Loads and applies JSON presets from `configs/`.
 - **`__init__.py`**: Lazy/optional imports — HF and AutoJudge exports are skipped gracefully when `torch`/`transformers`/`scikit-learn` are absent.
 - **`methods/`**: Method-facing re-exports (including SpecExec).
 
 ### Benchmark Runner (`benchmarks/bench_speculative.py`)
 
-Single entry point for all method comparisons: `python -m benchmarks.bench_speculative`. Supports toy (no HF) and HF modes, resume mode (skips completed runs via `resume_key` in JSONL), per-run error persistence, system metadata tagging, GSM8K and MT-Bench eval modes.
+Single entry point for all method comparisons: `python -m benchmarks.bench_speculative`. Supports toy (no HF) and HF modes, resume mode (skips completed runs via `resume_key` in JSONL), per-run error persistence, system metadata tagging, GSM8K, MT-Bench, and LiveCodeBench eval modes.
 
 ### Configs (`configs/`)
 
 All JSON, no code:
-- `models.json` — HF model presets (model name, device, dtype, quantization, tokenizer)
+- `models.json` — HF model presets (model name, device, dtype, quantization, tokenizer); includes local model presets (`qwen25_7b_instruct_local`, `qwen25_1p5b_instruct_local`) for offline use
 - `methods.json` — method presets (baseline, speculative, autojudge, topk, specexec, all, all_paper)
-- `experiments.json` — target/draft pairing presets; current paper default pair is `Qwen2.5-0.5B-Instruct` → `Qwen2.5-3B-Instruct`
+- `experiments.json` — target/draft pairing presets; current paper default pair is `Qwen2.5-0.5B-Instruct` → `Qwen2.5-3B-Instruct`; local 7B/1.5B presets available for offline experiments
 - `method_templates.json` — AutoJudge and SpecExec parameter/metric templates
 
 ### Scripts (`scripts/`)
@@ -84,17 +88,20 @@ All JSON, no code:
 - `validate_configs.py` — cross-file config consistency + tokenizer compatibility checks
 - `validate_results_jsonl.py` — strict JSONL schema validation for benchmark output
 - `run_autojudge_paper_eval.sh` — orchestrates full paper-style GSM8K sweep
+- `run_local_7b_1p5b_eval.sh` — orchestrates local Qwen2.5 7B/1.5B GSM8K + LiveCodeBench eval
 - `report_autojudge_paper.py` — aggregates raw JSONL into `.md/.csv/.json` reports in `reports/`
+- `report_yandex_style.py` — generates Yandex-style threshold/accuracy/speedup report tables
 - `write_run_manifest.py` — writes environment manifest JSON for reproducibility
 - `install_dependencies.sh` — idempotent host bootstrap (never modifies NVIDIA drivers)
 
 ### Tests (`tests/`)
 
-Tests live at the top of `tests/` (not under `sp_samp/`). Coverage: `test_sampling.py` (baseline/speculative correctness), `test_autojudge.py` (GSM8K parsing, classifier calibration, mining), `test_specexec.py` (distribution correctness, exactness vs baseline), `test_topk.py` (mismatch accept/reject).
+Tests live at the top of `tests/` (not under `sp_samp/`). Coverage: `test_sampling.py` (baseline/speculative correctness), `test_autojudge.py` (GSM8K parsing, classifier calibration, mining), `test_specexec.py` (distribution correctness, exactness vs baseline), `test_topk.py` (mismatch accept/reject), `test_livecodebench.py` (JSONL parsing, max_samples, key fallbacks).
 
 ## Key Constraints
 
-- **Tokenizer compatibility**: Draft and target models must share an identical vocabulary mapping for speculative, AutoJudge, Top-K, and SpecExec. The `Qwen2.5-0.5B → 7B` legacy pair violates this; use `0.5B → 3B` instead.
+- **Tokenizer compatibility**: Draft and target models must share an identical vocabulary mapping for speculative, AutoJudge, Top-K, and SpecExec. The `Qwen2.5-0.5B → 7B` legacy pair violates this; use `0.5B → 3B` instead. The local `1.5B → 7B` pair has confirmed identical tokenizers.
+- **Local models**: Pre-downloaded models go in `models/` (gitignored). Presets `qwen25_7b_instruct_local` and `qwen25_1p5b_instruct_local` point to `models/qwen2.5-7b-Instruct-model` and `models/qwen2.5-1.5b-Instruct-model`.
 - **AutoJudge training**: Only valid with GSM8K-format datasets (`question` + `answer` fields). MT-Bench JSONL will fail fast with an actionable error.
 - **AutoJudge checkpoint versioning**: Checkpoint format v2 (`autojudge_version=2`). Loading a v1 checkpoint triggers retraining.
 - **Benchmark resume**: Re-running with the same `--out` file skips completed `resume_key` entries automatically.

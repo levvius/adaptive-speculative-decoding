@@ -80,7 +80,7 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
             "all_paper",
         ],
     )
-    parser.add_argument("--eval-task", type=str, default=None, choices=["mtbench", "gsm8k"])
+    parser.add_argument("--eval-task", type=str, default=None, choices=["mtbench", "gsm8k", "livecodebench"])
     parser.add_argument(
         "--gsm8k-eval-mode",
         type=str,

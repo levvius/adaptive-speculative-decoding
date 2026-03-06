@@ -20,6 +20,8 @@ features, or behaviors are added.
 - `scripts/run_autojudge_paper_eval.sh`: Orchestrates paper-style GSM8K sweeps (AutoJudge thresholds + Top-K grid) for Qwen2.5.
 - `scripts/write_run_manifest.py`: Writes environment manifest JSON for run reproducibility (used by paper-eval runner).
 - `scripts/report_autojudge_paper.py`: Aggregates raw JSONL into `.md/.csv/.json` report artifacts with derived speed/accuracy deltas.
+- `scripts/report_yandex_style.py`: Generates Yandex-style threshold/accuracy/speedup report tables (.md/.csv/.json).
+- `scripts/run_local_7b_1p5b_eval.sh`: Orchestrates local Qwen2.5 7B/1.5B GSM8K + LiveCodeBench evaluation.
 - `scripts/install_dependencies.sh`: Safe host bootstrap script (idempotent apt/pip install, optional GPU extras, EOL Ubuntu guard, never touches NVIDIA driver packages).
 - `.github/workflows/ci.yml`: GitHub Actions CI pipeline (checks, tests, toy SpecExec smoke run, result-schema validation).
 - `.python-version`: Recommended local Python runtime version.
@@ -35,13 +37,37 @@ features, or behaviors are added.
 - `sp_samp/hf_sampling.py`: HF sampling (baseline + speculative) using KV cache.
 - `sp_samp/sampling.py`: Reference CPU implementations + metrics.
 - `sp_samp/mtbench.py`: MT-Bench loader.
+- `sp_samp/livecodebench.py`: LiveCodeBench loader and HF hub downloader.
 - `sp_samp/methods/`: Method-facing exports (including SpecExec export).
 - `tests/test_sampling.py`: Core correctness tests for baseline/speculative sampling.
 - `tests/test_autojudge.py`: Unit tests for AutoJudge features, classifier fitting, and stats.
 - `tests/test_specexec.py`: Unit tests for SpecExec behavior and stats.
 - `tests/test_topk.py`: Unit tests for Top-K mismatch acceptance/rejection behavior.
+- `tests/test_livecodebench.py`: Unit tests for LiveCodeBench loader.
 - `Dockerfile`, `Dockerfile.gpu`: CPU/GPU containers.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
+
+## Recent Changes (2026-03-06)
+- Added local Qwen2.5 7B/1.5B model support for offline experiments:
+  - new model presets `qwen25_7b_instruct_local`, `qwen25_1p5b_instruct_local` in `configs/models.json`;
+  - new experiment presets `qwen25_7b_local_target_1p5b_local_{speculative,autojudge,topk,all_paper}_k4` and `qwen25_7b_local_baseline` in `configs/experiments.json`;
+  - `.gitignore` now ignores `models/*` while keeping `models/.gitkeep`.
+- Added LiveCodeBench dataset loader (`sp_samp/livecodebench.py`):
+  - `load_livecodebench(path, max_samples)` loads prompts from local JSONL;
+  - `download_livecodebench(output_path, version_tag)` downloads from HF hub;
+  - exported in `sp_samp/__init__.py`.
+- Added `livecodebench` as eval task in benchmark runner and CLI:
+  - `--eval-task livecodebench` loads prompts as throughput-only `EvalSample` (no `reference_answer`).
+- Added Yandex-style report generator (`scripts/report_yandex_style.py`):
+  - produces threshold/accuracy/speed/speedup tables as `.md/.csv/.json`.
+- Added local evaluation orchestration script (`scripts/run_local_7b_1p5b_eval.sh`):
+  - runs GSM8K + LiveCodeBench sweeps (baseline, speculative, AutoJudge thresholds, Top-K grid);
+  - auto-downloads LiveCodeBench dataset if missing;
+  - generates Yandex-style reports for both datasets.
+- Added `make local-eval` target in Makefile.
+- Added `datasets>=2.18.0` to `requirements.txt` (needed for LiveCodeBench HF hub download).
+- Added `tests/test_livecodebench.py` with JSONL parsing, max_samples, and key fallback tests.
+- Updated documentation: `README.MD`, `CLAUDE.md`, `CODEX.MD`.
 
 ## Recent Changes (2026-02-21)
 - Switched paper-style default compute pair to vocabulary-compatible Qwen2.5 (`0.5B -> 3B`):

@@ -1,3 +1,4 @@
+from .livecodebench import load_livecodebench
 from .models import BaseModel, BigramModel, FixedModel, NoisyModel, RandomModel
 from .mtbench import load_mtbench
 from .sampling import SamplingStats, sample_baseline, speculative_sample
@@ -11,6 +12,7 @@ __all__ = [
     "RandomModel",
     "SamplingStats",
     "SpecExecStats",
+    "load_livecodebench",
     "load_mtbench",
     "sample_baseline",
     "speculative_sample",

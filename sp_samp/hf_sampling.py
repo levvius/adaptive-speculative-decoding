@@ -49,6 +49,14 @@ def sample_baseline_hf(
     return generated
 
 
+def _align_probs(p: torch.Tensor, q: torch.Tensor) -> tuple:
+    """Truncate probability tensors to the same (min) size when vocab padding differs."""
+    if p.shape[-1] == q.shape[-1]:
+        return p, q
+    n = min(p.shape[-1], q.shape[-1])
+    return p[..., :n], q[..., :n]
+
+
 def speculative_sample_hf(
     target_model: HFModel,
     draft_model: HFModel,
@@ -64,8 +72,6 @@ def speculative_sample_hf(
         raise ValueError("max_new_tokens must be non-negative.")
     if k <= 0:
         raise ValueError("k must be positive.")
-    if target_model.vocab_size != draft_model.vocab_size:
-        raise ValueError("target and draft vocab sizes must match.")
     if seed is not None:
         torch.manual_seed(seed)
 
@@ -97,8 +103,9 @@ def speculative_sample_hf(
             accepted_all = True
 
             for i, token in enumerate(draft_tokens):
-                p_probs = _softmax(target_state.logits).squeeze(0)
-                q_probs = draft_probs[i]
+                p_probs_raw = _softmax(target_state.logits).squeeze(0)
+                q_probs_raw = draft_probs[i]
+                p_probs, q_probs = _align_probs(p_probs_raw, q_probs_raw)
                 q_token = float(q_probs[token])
                 p_token = float(p_probs[token])
                 alpha = min(1.0, p_token / max(q_token, eps))

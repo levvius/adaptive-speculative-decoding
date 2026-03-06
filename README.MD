@@ -276,6 +276,41 @@ The benchmark supports dedicated paper-eval switches:
 - `--topk-grid <csv>`
 - GSM8K output fields in JSONL: `gsm8k_exact_match`, `gsm8k_correct`, `gsm8k_total`
 
+**Local Model Workflow**
+
+For offline experiments with pre-downloaded models:
+1. Place models in the `models/` directory (gitignored by default).
+2. Use the local model presets in `configs/models.json` (`qwen25_7b_instruct_local`, `qwen25_1p5b_instruct_local`).
+3. Run the local evaluation sweep (GSM8K + LiveCodeBench):
+```bash
+make local-eval
+```
+This runs baseline, speculative, AutoJudge threshold sweep, and Top-K grid for both datasets, then generates Yandex-style reports in `reports/`.
+
+Or run individual experiments:
+```bash
+python -m sp_samp.cli bench \
+  --config-dir configs \
+  --experiment qwen25_7b_local_target_1p5b_local_speculative_k4 \
+  --dataset datasets/gsm8k_test.jsonl \
+  --eval-task gsm8k \
+  --out datasets/results_local.jsonl
+```
+
+**LiveCodeBench Evaluation**
+
+The benchmark supports LiveCodeBench as a throughput-only eval task (no accuracy metric):
+```bash
+python -m sp_samp.cli bench \
+  --config-dir configs \
+  --experiment qwen25_7b_local_target_1p5b_local_speculative_k4 \
+  --dataset datasets/livecodebench.jsonl \
+  --eval-task livecodebench \
+  --out datasets/results_lcb.jsonl
+```
+
+The `--eval-task` flag accepts `mtbench`, `gsm8k`, or `livecodebench`.
+
 **Troubleshooting (RTX 50xx / Blackwell)**
 - Symptom: `sm_120 is not compatible with the current PyTorch installation` or `no kernel image is available for execution on the device`.
 - Cause: torch build without native Blackwell kernels.

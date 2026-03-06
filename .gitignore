@@ -46,3 +46,7 @@ pip-wheel-metadata/
 # Local datasets and generated benchmark outputs
 datasets/*
 !datasets/.gitkeep
+
+# Local model weights
+models/*
+!models/.gitkeep
