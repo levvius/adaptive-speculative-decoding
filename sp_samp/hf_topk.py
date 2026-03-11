@@ -48,6 +48,33 @@ def _argmax_token_from_logits(logits: torch.Tensor) -> int:
     return int(torch.argmax(logits, dim=-1).item())
 
 
+def _tokenizer_vocab_size(model: HFModel) -> int:
+    tokenizer = getattr(model, "tokenizer", None)
+    if tokenizer is None:
+        return int(model.vocab_size)
+    try:
+        return int(len(tokenizer))
+    except Exception:
+        pass
+    try:
+        return int(len(tokenizer.get_vocab()))
+    except Exception:
+        return int(model.vocab_size)
+
+
+def _common_vocab_size(target_model: HFModel, draft_model: HFModel) -> int:
+    sizes = (
+        int(target_model.vocab_size),
+        int(draft_model.vocab_size),
+        _tokenizer_vocab_size(target_model),
+        _tokenizer_vocab_size(draft_model),
+    )
+    common = min(sizes)
+    if common <= 0:
+        raise ValueError(f"common vocab size must be positive, got {common} from {sizes}.")
+    return common
+
+
 def topk_sample_hf(
     target_model: HFModel,
     draft_model: HFModel,
@@ -64,8 +91,7 @@ def topk_sample_hf(
         raise ValueError("k must be positive.")
     if topk_rank is not None and topk_rank <= 0:
         raise ValueError("topk_rank must be positive or None (all).")
-    if target_model.vocab_size != draft_model.vocab_size:
-        raise ValueError("target and draft vocab sizes must match.")
+    common_vocab_n = _common_vocab_size(target_model, draft_model)
 
     if seed is not None:
         torch.manual_seed(seed)
@@ -85,7 +111,7 @@ def topk_sample_hf(
 
         draft_tokens: List[int] = []
         for _ in range(block):
-            token = _argmax_token_from_logits(draft_state.logits.squeeze(0))
+            token = _argmax_token_from_logits(draft_state.logits.squeeze(0)[:common_vocab_n])
             draft_tokens.append(token)
             if eos_id is not None and token == eos_id:
                 break
@@ -103,12 +129,12 @@ def topk_sample_hf(
         accepted_tokens: List[int] = []
         rejected = False
         start = len(prefix) - 1
-        vocab_size = int(target_logits.shape[-1])
+        vocab_size = common_vocab_n
         effective_topk = vocab_size if topk_rank is None else min(int(topk_rank), vocab_size)
         stats.topk_rank_effective = effective_topk
 
         for i, draft_token in enumerate(draft_tokens):
-            logits_row = target_logits[0, start + i, :]
+            logits_row = target_logits[0, start + i, :vocab_size]
             target_token = int(torch.argmax(logits_row, dim=-1).item())
 
             if draft_token == target_token:
@@ -146,7 +172,7 @@ def topk_sample_hf(
 
         # Keep one extra target token when full block is accepted.
         if not rejected and len(accepted_tokens) == len(draft_tokens):
-            extra_logits = target_logits[0, len(prefix) + len(draft_tokens) - 1, :]
+            extra_logits = target_logits[0, len(prefix) + len(draft_tokens) - 1, :vocab_size]
             extra_token = int(torch.argmax(extra_logits, dim=-1).item())
             generated.append(extra_token)
             if len(generated) > max_new_tokens:

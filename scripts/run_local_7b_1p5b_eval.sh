@@ -41,6 +41,47 @@ export HF_HUB_DISABLE_XET
 
 mkdir -p datasets reports
 
+# Optional quantization
+QUANT="${QUANT:-}"
+DRAFT_QUANT="${DRAFT_QUANT:-}"
+
+# GPU pre-flight
+MIN_FREE_VRAM_MIB="${MIN_FREE_VRAM_MIB:-17000}"
+GPU_WAIT_TIMEOUT_SECS="${GPU_WAIT_TIMEOUT_SECS:-43200}"
+GPU_CHECK_INTERVAL_SECS="${GPU_CHECK_INTERVAL_SECS:-120}"
+
+_gpu_free_mib() {
+  nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null \
+    | head -1 | tr -d ' '
+}
+_gpu_other_pids() {
+  nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null \
+    | tr -d ' ' | grep -v "^$" || true
+}
+
+echo "[$(date)] Checking GPU availability (need ${MIN_FREE_VRAM_MIB} MiB free)..."
+elapsed=0
+while true; do
+  free_mib=$(_gpu_free_mib)
+  pids=$(_gpu_other_pids)
+  if [[ -n "${free_mib}" && "${free_mib}" -ge "${MIN_FREE_VRAM_MIB}" ]]; then
+    echo "[$(date)] GPU free: ${free_mib} MiB — proceeding."
+    break
+  fi
+  if [[ "${elapsed}" -ge "${GPU_WAIT_TIMEOUT_SECS}" ]]; then
+    echo "[$(date)] ERROR: GPU still busy after ${GPU_WAIT_TIMEOUT_SECS}s. Aborting."
+    echo "  Free VRAM: ${free_mib} MiB, competing PIDs: ${pids}"
+    exit 1
+  fi
+  echo "[$(date)] GPU busy (free: ${free_mib} MiB, PIDs: ${pids}). Waiting ${GPU_CHECK_INTERVAL_SECS}s..."
+  sleep "${GPU_CHECK_INTERVAL_SECS}"
+  elapsed=$(( elapsed + GPU_CHECK_INTERVAL_SECS ))
+done
+
+QUANT_ARGS=()
+[[ -n "${QUANT}" ]] && QUANT_ARGS+=(--quant "${QUANT}")
+[[ -n "${DRAFT_QUANT}" ]] && QUANT_ARGS+=(--draft-quant "${DRAFT_QUANT}")
+
 if [[ "${RESET_OUT}" == "1" ]]; then
   rm -f "${OUT_GSM8K}" "${OUT_LCB}"
 fi
@@ -93,13 +134,15 @@ echo "[INFO] Running baseline"
 "${PYTHON_BIN}" -m sp_samp.cli bench \
   --experiment "${SPEC_EXPERIMENT}" \
   --method baseline \
-  "${GSM8K_COMMON_ARGS[@]}"
+  "${GSM8K_COMMON_ARGS[@]}" \
+  "${QUANT_ARGS[@]}"
 
 echo "[INFO] Running speculative"
 "${PYTHON_BIN}" -m sp_samp.cli bench \
   --experiment "${SPEC_EXPERIMENT}" \
   --method speculative \
-  "${GSM8K_COMMON_ARGS[@]}"
+  "${GSM8K_COMMON_ARGS[@]}" \
+  "${QUANT_ARGS[@]}"
 
 IFS=',' read -r -a threshold_values <<< "${AUTOJUDGE_THRESHOLDS}"
 for threshold in "${threshold_values[@]}"; do
@@ -110,7 +153,8 @@ for threshold in "${threshold_values[@]}"; do
     --autojudge-checkpoint "${CHECKPOINT_PATH}" \
     --autojudge-train-dataset "${TRAIN_DATASET}" \
     --autojudge-threshold "${threshold}" \
-    "${GSM8K_COMMON_ARGS[@]}"
+    "${GSM8K_COMMON_ARGS[@]}" \
+    "${QUANT_ARGS[@]}"
 done
 
 IFS=',' read -r -a topk_values <<< "${TOPK_GRID}"
@@ -120,7 +164,8 @@ for rank in "${topk_values[@]}"; do
     --experiment "${TOPK_EXPERIMENT}" \
     --method topk \
     --topk-rank "${rank}" \
-    "${GSM8K_COMMON_ARGS[@]}"
+    "${GSM8K_COMMON_ARGS[@]}" \
+    "${QUANT_ARGS[@]}"
 done
 
 echo "[INFO] Validating GSM8K output schema"
@@ -145,13 +190,15 @@ echo "[INFO] Running baseline"
 "${PYTHON_BIN}" -m sp_samp.cli bench \
   --experiment "${SPEC_EXPERIMENT}" \
   --method baseline \
-  "${LCB_COMMON_ARGS[@]}"
+  "${LCB_COMMON_ARGS[@]}" \
+  "${QUANT_ARGS[@]}"
 
 echo "[INFO] Running speculative"
 "${PYTHON_BIN}" -m sp_samp.cli bench \
   --experiment "${SPEC_EXPERIMENT}" \
   --method speculative \
-  "${LCB_COMMON_ARGS[@]}"
+  "${LCB_COMMON_ARGS[@]}" \
+  "${QUANT_ARGS[@]}"
 
 for threshold in "${threshold_values[@]}"; do
   echo "[INFO] Running AutoJudge threshold=${threshold}"
@@ -161,7 +208,8 @@ for threshold in "${threshold_values[@]}"; do
     --autojudge-checkpoint "${CHECKPOINT_PATH}" \
     --autojudge-train-dataset "${TRAIN_DATASET}" \
     --autojudge-threshold "${threshold}" \
-    "${LCB_COMMON_ARGS[@]}"
+    "${LCB_COMMON_ARGS[@]}" \
+    "${QUANT_ARGS[@]}"
 done
 
 for rank in "${topk_values[@]}"; do
@@ -170,7 +218,8 @@ for rank in "${topk_values[@]}"; do
     --experiment "${TOPK_EXPERIMENT}" \
     --method topk \
     --topk-rank "${rank}" \
-    "${LCB_COMMON_ARGS[@]}"
+    "${LCB_COMMON_ARGS[@]}" \
+    "${QUANT_ARGS[@]}"
 done
 
 echo "[INFO] Validating LiveCodeBench output schema"

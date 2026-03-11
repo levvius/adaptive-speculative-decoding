@@ -22,6 +22,7 @@ features, or behaviors are added.
 - `scripts/report_autojudge_paper.py`: Aggregates raw JSONL into `.md/.csv/.json` report artifacts with derived speed/accuracy deltas.
 - `scripts/report_yandex_style.py`: Generates Yandex-style threshold/accuracy/speedup report tables (.md/.csv/.json).
 - `scripts/run_local_7b_1p5b_eval.sh`: Orchestrates local Qwen2.5 7B/1.5B GSM8K + LiveCodeBench evaluation.
+- `scripts/run_autojudge_topk_gsm8k_bg.sh`: Long-run orchestration for local Qwen2.5 7B/1.5B GSM8K AutoJudge-threshold + Top-K sweeps with GPU preflight wait gate and resume-friendly append output.
 - `scripts/install_dependencies.sh`: Safe host bootstrap script (idempotent apt/pip install, optional GPU extras, EOL Ubuntu guard, never touches NVIDIA driver packages).
 - `.github/workflows/ci.yml`: GitHub Actions CI pipeline (checks, tests, toy SpecExec smoke run, result-schema validation).
 - `.python-version`: Recommended local Python runtime version.
@@ -46,6 +47,20 @@ features, or behaviors are added.
 - `tests/test_livecodebench.py`: Unit tests for LiveCodeBench loader.
 - `Dockerfile`, `Dockerfile.gpu`: CPU/GPU containers.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
+
+## Recent Changes (2026-03-10)
+- Documentation-only operational update (no API/algorithm changes):
+  - `CLAUDE.md` now includes a canonical 24-48h runbook using `tmux + staged AutoJudge profile`.
+  - Stage A (checkpoint bootstrap) and Stage B (main AutoJudge + Top-K sweep) are documented as separate steps to avoid mixing bootstrap metrics into final JSONL.
+- Added standardized long-run operations guidance in docs:
+  - GPU preflight checks (`nvidia-smi`, conflicting PID detection).
+  - session lifecycle (`tmux` start/detach/reattach), monitoring commands, and post-run validation/report commands.
+  - stop/recovery command set for process termination and GPU cleanup.
+- Documented operational constraints for stability:
+  - single GPU-heavy job rule;
+  - resume behavior via stable `OUT_GSM8K` output file;
+  - checkpoint-first flow for AutoJudge (`datasets/autojudge_qwen25_1p5b_to_7b.pt`);
+  - OOM mitigation hints (`PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`, optional quantized run flags).
 
 ## Recent Changes (2026-03-06)
 - Added local Qwen2.5 7B/1.5B model support for offline experiments:

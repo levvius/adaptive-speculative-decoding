@@ -50,6 +50,118 @@ make paper-eval
 make local-eval
 ```
 
+## Long-Run Operations (24-48h)
+
+Canonical long-run mode in this repo is `tmux + staged AutoJudge` (not `nohup` as default).
+
+### 1) GPU preflight
+
+```bash
+nvidia-smi --query-gpu=name,memory.total,memory.free,utilization.gpu --format=csv,noheader
+nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory --format=csv,noheader
+```
+
+If another compute PID is active, stop it first (or wait for script preflight gate).
+
+### 2) Start a persistent tmux session
+
+```bash
+tmux new -s aj48h
+cd /home/robot/Project/adaptive-speculative-decoding
+mkdir -p logs datasets reports
+export HF_HUB_DISABLE_XET=1
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+```
+
+Detach: `Ctrl-b d`  
+Reattach: `tmux attach -t aj48h`
+
+### 3) Stage A: AutoJudge checkpoint bootstrap (separate tmp output)
+
+This stage trains/validates `datasets/autojudge_qwen25_1p5b_to_7b.pt` without mixing records into the final report JSONL.
+
+```bash
+.venv/bin/python -m sp_samp.cli bench \
+  --config-dir configs \
+  --experiment qwen25_7b_local_target_1p5b_local_autojudge_k4 \
+  --method autojudge \
+  --eval-task gsm8k \
+  --gsm8k-eval-mode zero_shot_cot \
+  --dataset datasets/gsm8k_test.jsonl \
+  --autojudge-train-dataset datasets/gsm8k_train.jsonl \
+  --autojudge-train-samples 4000 \
+  --autojudge-checkpoint datasets/autojudge_qwen25_1p5b_to_7b.pt \
+  --autojudge-threshold 0.005 \
+  --runs 1 \
+  --max-samples 1 \
+  --max-new-tokens 256 \
+  --k 4 \
+  --require-headless \
+  --out datasets/results_autojudge_bootstrap_tmp.jsonl
+```
+
+### 4) Stage B: Main AutoJudge + Top-K sweep (final JSONL)
+
+```bash
+DATE_TAG="$(date +%F)"
+.venv/bin/python scripts/write_run_manifest.py \
+  --out "reports/local_7b_1p5b_run_manifest_${DATE_TAG}.json"
+
+OUT_GSM8K=datasets/results_local_7b_1p5b_gsm8k.jsonl \
+CHECKPOINT_PATH=datasets/autojudge_qwen25_1p5b_to_7b.pt \
+MAX_SAMPLES=100 \
+RUNS=3 \
+DATE_TAG="${DATE_TAG}" \
+bash scripts/run_autojudge_topk_gsm8k_bg.sh \
+  | tee -a "logs/aj_topk_${DATE_TAG}.log"
+```
+
+### 5) Monitoring
+
+```bash
+tail -f logs/aj_topk_$(date +%F).log
+nvidia-smi --query-gpu=memory.free,utilization.gpu --format=csv,noheader
+wc -l datasets/results_local_7b_1p5b_gsm8k.jsonl
+```
+
+### 6) Emergency stop / recovery
+
+```bash
+# Stop repo-related long runs first.
+pkill -f "run_autojudge_topk_gsm8k_bg.sh|sp_samp\\.cli|bench_speculative"
+
+# If GPU memory is still occupied, kill remaining compute-app PIDs.
+for p in $(nvidia-smi --query-compute-apps=pid --format=csv,noheader,nounits); do
+  kill -9 "$p" 2>/dev/null || true
+done
+
+nvidia-smi
+```
+
+### 7) Post-run validation and report generation
+
+```bash
+DATE_TAG="$(date +%F)"
+.venv/bin/python scripts/validate_results_jsonl.py \
+  --path datasets/results_local_7b_1p5b_gsm8k.jsonl \
+  --strict
+
+.venv/bin/python scripts/report_yandex_style.py \
+  --input datasets/results_local_7b_1p5b_gsm8k.jsonl \
+  --eval-task gsm8k \
+  --manifest "reports/local_7b_1p5b_run_manifest_${DATE_TAG}.json" \
+  --out-prefix "reports/yandex_local_7b_1p5b_${DATE_TAG}-gsm8k"
+```
+
+### OOM/Race Conditions
+
+- Run only one GPU-heavy job at a time (single-job rule).
+- Reuse the same `OUT_GSM8K` file to benefit from benchmark resume mode (`resume_key` skip).
+- Keep `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` for long sessions to reduce fragmentation-related OOM risk.
+- Optional VRAM reduction for the sweep script (if quantized runtime is available):
+  - `QUANT=8bit DRAFT_QUANT=8bit bash scripts/run_autojudge_topk_gsm8k_bg.sh`
+  - Increase preflight gate if needed: `MIN_FREE_VRAM_MIB=22000`.
+
 ## Architecture
 
 ### Core Library (`sp_samp/`)

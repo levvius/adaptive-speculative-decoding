@@ -1093,6 +1093,9 @@ def run_with_args(args: argparse.Namespace) -> None:
             )
 
             training_prompts = [encode_fn(sample.question) for sample in gsm_samples]
+            mining_cache_path = (
+                str(checkpoint_path) + ".mining_cache.pt" if checkpoint_path is not None else None
+            )
             autojudge_model, autojudge_train_samples, autojudge_val_auc = (
                 build_autojudge_classifier(
                     target_model=target_model,
@@ -1101,6 +1104,7 @@ def run_with_args(args: argparse.Namespace) -> None:
                     cfg=train_cfg,
                     eos_id=target_model.eos_token_id,
                     device="cpu",
+                    mining_cache_path=mining_cache_path,
                 )
             )
             autojudge_threshold_calibrated = float(autojudge_model.threshold)

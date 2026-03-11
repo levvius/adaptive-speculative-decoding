@@ -13,10 +13,24 @@ class _FakeState:
     logits: torch.Tensor
 
 
+class _FakeTokenizer:
+    def __init__(self, vocab_size: int) -> None:
+        self.vocab_size = int(vocab_size)
+
+    def __len__(self) -> int:
+        return self.vocab_size
+
+
 class _FakeDraftModel:
-    def __init__(self, draft_token: int, vocab_size: int = 5) -> None:
+    def __init__(
+        self,
+        draft_token: int,
+        vocab_size: int = 5,
+        tokenizer_vocab_size: int | None = None,
+    ) -> None:
         self.vocab_size = vocab_size
         self._draft_token = int(draft_token)
+        self.tokenizer = _FakeTokenizer(tokenizer_vocab_size or vocab_size)
 
     def ensure_prefix(self, tokens):
         if tokens:
@@ -38,8 +52,9 @@ class _FakeDraftModel:
 
 
 class _FakeTargetModel:
-    def __init__(self, vocab_size: int = 5) -> None:
+    def __init__(self, vocab_size: int = 5, tokenizer_vocab_size: int | None = None) -> None:
         self.vocab_size = vocab_size
+        self.tokenizer = _FakeTokenizer(tokenizer_vocab_size or vocab_size)
 
     def ensure_prefix(self, tokens):
         if tokens:
@@ -96,3 +111,20 @@ def test_topk_rejects_mismatch_when_outside_topk():
     assert stats.topk_mismatches == 1
     assert stats.topk_accepted_mismatches == 0
     assert stats.rejections == 1
+
+
+def test_topk_handles_padded_vocab_mismatch_and_caps_rank():
+    target = _FakeTargetModel(vocab_size=7, tokenizer_vocab_size=4)
+    draft = _FakeDraftModel(draft_token=5, vocab_size=6, tokenizer_vocab_size=4)
+    out, stats = topk_sample_hf(
+        target_model=target,
+        draft_model=draft,
+        prompt_tokens=[0],
+        max_new_tokens=1,
+        k=1,
+        topk_rank=None,
+        eos_id=None,
+        seed=0,
+    )
+    assert out[0] < 4
+    assert stats.topk_rank_effective == 4

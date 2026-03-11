@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Iterable, List, Optional, Sequence, Tuple
+import os
+import tempfile
 import warnings
 
 import numpy as np
@@ -135,6 +138,33 @@ def _argmax_token_from_logits(logits: torch.Tensor) -> int:
     return int(torch.argmax(logits, dim=-1).item())
 
 
+def _tokenizer_vocab_size(model: HFModel) -> int:
+    tokenizer = getattr(model, "tokenizer", None)
+    if tokenizer is None:
+        return int(model.vocab_size)
+    try:
+        return int(len(tokenizer))
+    except Exception:
+        pass
+    try:
+        return int(len(tokenizer.get_vocab()))
+    except Exception:
+        return int(model.vocab_size)
+
+
+def _common_vocab_size(target_model: HFModel, draft_model: HFModel) -> int:
+    sizes = (
+        int(target_model.vocab_size),
+        int(draft_model.vocab_size),
+        _tokenizer_vocab_size(target_model),
+        _tokenizer_vocab_size(draft_model),
+    )
+    common = min(sizes)
+    if common <= 0:
+        raise ValueError(f"common vocab size must be positive, got {common} from {sizes}.")
+    return common
+
+
 def _generate_greedy(
     model: HFModel,
     prompt_tokens: Sequence[int],
@@ -196,6 +226,7 @@ def mine_important_tokens_gsm8k(
     prompts: Iterable[Sequence[int]],
     cfg: AutoJudgeTrainConfig,
     eos_id: Optional[int] = None,
+    mining_cache_path: Optional[str] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     # Paper: Algorithm 1 — important-token label mining for AutoJudge training.
     if cfg.task != "gsm8k":
@@ -203,8 +234,33 @@ def mine_important_tokens_gsm8k(
 
     features: List[torch.Tensor] = []
     labels: List[float] = []
+    prompts_done = 0
 
-    for prompt_tokens in prompts:
+    # Resume from cache if available.
+    if mining_cache_path is not None and os.path.exists(mining_cache_path):
+        try:
+            cache = torch.load(mining_cache_path, map_location="cpu", weights_only=False)
+            saved_x = cache.get("x")
+            saved_y = cache.get("y")
+            prompts_done = int(cache.get("prompts_done", 0))
+            if saved_x is not None and saved_y is not None and saved_x.shape[0] > 0:
+                features = list(saved_x)
+                labels = saved_y.squeeze(-1).tolist()
+                print(
+                    f"[{datetime.now():%H:%M:%S}] [mining] Resumed from cache:"
+                    f" {prompts_done} prompts done, {len(features)} features loaded.",
+                    flush=True,
+                )
+        except Exception as e:
+            print(f"[{datetime.now():%H:%M:%S}] [mining] Cache load failed ({e}), starting fresh.", flush=True)
+            features = []
+            labels = []
+            prompts_done = 0
+
+    prompts_list = list(prompts)
+    total_prompts = len(prompts_list)
+
+    for prompt_tokens in prompts_list[prompts_done:]:
         if len(features) >= cfg.max_train_samples:
             break
 
@@ -268,12 +324,52 @@ def mine_important_tokens_gsm8k(
 
             cursor = t + 1
 
+        prompts_done += 1
+
+        # Progress log + intermediate cache every 50 prompts.
+        if prompts_done % 50 == 0:
+            print(
+                f"[{datetime.now():%H:%M:%S}] [mining]"
+                f" {prompts_done}/{total_prompts} prompts, {len(features)} features",
+                flush=True,
+            )
+            if mining_cache_path is not None and features:
+                _save_mining_cache(mining_cache_path, features, labels, prompts_done)
+
     if not features:
         raise ValueError("No important-token samples were mined for AutoJudge training.")
 
     x = torch.stack(features, dim=0)
     y = torch.tensor(labels, dtype=torch.float32).unsqueeze(-1)
+
+    # Delete cache on successful completion.
+    if mining_cache_path is not None and os.path.exists(mining_cache_path):
+        try:
+            os.remove(mining_cache_path)
+        except OSError:
+            pass
+
     return x, y
+
+
+def _save_mining_cache(
+    cache_path: str,
+    features: List[torch.Tensor],
+    labels: List[float],
+    prompts_done: int,
+) -> None:
+    x = torch.stack(features, dim=0)
+    y = torch.tensor(labels, dtype=torch.float32).unsqueeze(-1)
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(cache_path) or ".", suffix=".tmp")
+    try:
+        os.close(tmp_fd)
+        torch.save({"x": x, "y": y, "prompts_done": prompts_done}, tmp_path)
+        os.replace(tmp_path, cache_path)
+    except Exception:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
 
 
 def _split_indices(n: int, train_split: float, seed: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -351,8 +447,9 @@ def train_autojudge_logreg(
     best_threshold = 0.5
     best_recall = 0.0
     best_c = float(cfg.c_grid[0])
+    n_c = len(cfg.c_grid)
 
-    for c in cfg.c_grid:
+    for i, c in enumerate(cfg.c_grid):
         model = LogisticRegression(C=float(c), max_iter=500, random_state=cfg.seed)
         model.fit(x_train, y_train)
         val_probs = model.predict_proba(x_val)[:, 1]
@@ -366,6 +463,12 @@ def train_autojudge_logreg(
             probs=val_probs,
             labels=y_val,
             recall_target=cfg.recall_target,
+        )
+
+        print(
+            f"[{datetime.now():%H:%M:%S}] [autojudge-train]"
+            f" C-grid {i + 1}/{n_c}: C={c:.2e} → val_AUC={val_auc:.4f}, recall={rec:.3f}",
+            flush=True,
         )
 
         if val_auc > best_auc:
@@ -413,6 +516,7 @@ def build_autojudge_classifier(
     cfg: AutoJudgeTrainConfig,
     eos_id: Optional[int] = None,
     device: str = "cpu",
+    mining_cache_path: Optional[str] = None,
 ) -> Tuple[AutoJudgeClassifier, int, float]:
     del device  # sklearn-based classifier is CPU-side.
 
@@ -422,6 +526,7 @@ def build_autojudge_classifier(
         prompts=prompts,
         cfg=cfg,
         eos_id=eos_id,
+        mining_cache_path=mining_cache_path,
     )
     classifier, val_auc = train_autojudge_logreg(x=x, y=y, cfg=cfg)
     return classifier, int(x.shape[0]), float(val_auc)
@@ -445,8 +550,7 @@ def autojudge_sample_hf(
         raise ValueError("max_new_tokens must be non-negative.")
     if k <= 0:
         raise ValueError("k must be positive.")
-    if target_model.vocab_size != draft_model.vocab_size:
-        raise ValueError("target and draft vocab sizes must match.")
+    common_vocab_n = _common_vocab_size(target_model, draft_model)
 
     if seed is not None:
         torch.manual_seed(seed)
@@ -471,7 +575,7 @@ def autojudge_sample_hf(
 
         draft_tokens: List[int] = []
         for _ in range(block):
-            token = _argmax_token_from_logits(draft_state.logits.squeeze(0))
+            token = _argmax_token_from_logits(draft_state.logits.squeeze(0)[:common_vocab_n])
             draft_tokens.append(token)
             stats.draft_calls += 1
             if eos_id is not None and token == eos_id:
@@ -493,7 +597,7 @@ def autojudge_sample_hf(
         start = len(prefix) - 1
 
         for i, draft_token in enumerate(draft_tokens):
-            logits_row = target_logits[0, start + i, :]
+            logits_row = target_logits[0, start + i, :common_vocab_n]
             target_token = int(torch.argmax(logits_row, dim=-1).item())
 
             if draft_token == target_token:

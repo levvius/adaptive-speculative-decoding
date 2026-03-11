@@ -23,8 +23,12 @@ class _FakeState:
 
 
 class _FakeTokenizer:
-    def __init__(self, mode: str) -> None:
+    def __init__(self, mode: str, vocab_size: int = 6) -> None:
         self.mode = mode
+        self.vocab_size = int(vocab_size)
+
+    def __len__(self) -> int:
+        return self.vocab_size
 
     def decode(self, tokens, skip_special_tokens: bool = True) -> str:
         if self.mode == "same":
@@ -241,4 +245,44 @@ def test_autojudge_sample_hf_rejects_important_mismatch():
     )
     assert out[0] == 2
     assert stats.judge_rejected >= 1
+    assert stats.target_fallbacks >= 1
+
+
+def test_autojudge_sample_hf_handles_padded_vocab_mismatch():
+    tokenizer = _FakeTokenizer("same", vocab_size=4)
+    target_transition = {
+        (0,): 2,
+        (0, 2): 2,
+    }
+    draft_transition = {
+        (0,): 4,  # Outside tokenizer/common vocab; must be clipped by decoder path.
+        (0, 2): 2,
+    }
+    target = _FakeHFModel(
+        target_transition,
+        tokenizer=tokenizer,
+        vocab_size=7,
+        hidden_offset=10.0,
+    )
+    draft = _FakeHFModel(
+        draft_transition,
+        tokenizer=tokenizer,
+        vocab_size=5,
+        hidden_offset=20.0,
+    )
+
+    judge = _ConstantJudge(probability=1.0, threshold=0.5)
+    out, stats = autojudge_sample_hf(
+        target_model=target,
+        draft_model=draft,
+        judge_model=judge,
+        prompt_tokens=[0],
+        max_new_tokens=2,
+        k=1,
+        threshold=None,
+        eos_id=None,
+        seed=0,
+    )
+    assert out[0] == 2
+    assert max(out) < 4
     assert stats.target_fallbacks >= 1

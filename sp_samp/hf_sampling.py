@@ -17,6 +17,41 @@ def _softmax(logits: torch.Tensor) -> torch.Tensor:
     return torch.softmax(logits, dim=-1)
 
 
+def _tokenizer_vocab_size(model: HFModel) -> int:
+    tokenizer = getattr(model, "tokenizer", None)
+    if tokenizer is None:
+        return int(model.vocab_size)
+    try:
+        return int(len(tokenizer))
+    except Exception:
+        pass
+    try:
+        return int(len(tokenizer.get_vocab()))
+    except Exception:
+        return int(model.vocab_size)
+
+
+def _common_vocab_size(target_model: HFModel, draft_model: HFModel) -> int:
+    sizes = (
+        int(target_model.vocab_size),
+        int(draft_model.vocab_size),
+        _tokenizer_vocab_size(target_model),
+        _tokenizer_vocab_size(draft_model),
+    )
+    common = min(sizes)
+    if common <= 0:
+        raise ValueError(f"common vocab size must be positive, got {common} from {sizes}.")
+    return common
+
+
+def _truncate_and_normalize(probs: torch.Tensor, vocab_size: int) -> torch.Tensor:
+    clipped = probs[..., :vocab_size]
+    denom = clipped.sum(dim=-1, keepdim=True)
+    if torch.any(denom <= 0):
+        raise ValueError("Probability mass in common vocabulary is non-positive.")
+    return clipped / denom
+
+
 def sample_baseline_hf(
     model: HFModel,
     prompt_tokens: Sequence[int],
@@ -49,14 +84,6 @@ def sample_baseline_hf(
     return generated
 
 
-def _align_probs(p: torch.Tensor, q: torch.Tensor) -> tuple:
-    """Truncate probability tensors to the same (min) size when vocab padding differs."""
-    if p.shape[-1] == q.shape[-1]:
-        return p, q
-    n = min(p.shape[-1], q.shape[-1])
-    return p[..., :n], q[..., :n]
-
-
 def speculative_sample_hf(
     target_model: HFModel,
     draft_model: HFModel,
@@ -75,6 +102,7 @@ def speculative_sample_hf(
     if seed is not None:
         torch.manual_seed(seed)
 
+    common_vocab_n = _common_vocab_size(target_model, draft_model)
     stats = SamplingStats()
     generated: List[int] = []
 
@@ -91,7 +119,9 @@ def speculative_sample_hf(
             draft_probs: List[torch.Tensor] = []
 
             for _ in range(draft_steps):
-                q_probs = _softmax(draft_state.logits).squeeze(0)
+                q_probs = _truncate_and_normalize(
+                    _softmax(draft_state.logits).squeeze(0), common_vocab_n
+                )
                 token = _torch_multinomial(q_probs)
                 draft_tokens.append(token)
                 draft_probs.append(q_probs)
@@ -103,9 +133,10 @@ def speculative_sample_hf(
             accepted_all = True
 
             for i, token in enumerate(draft_tokens):
-                p_probs_raw = _softmax(target_state.logits).squeeze(0)
-                q_probs_raw = draft_probs[i]
-                p_probs, q_probs = _align_probs(p_probs_raw, q_probs_raw)
+                p_probs = _truncate_and_normalize(
+                    _softmax(target_state.logits).squeeze(0), common_vocab_n
+                )
+                q_probs = draft_probs[i]
                 q_token = float(q_probs[token])
                 p_token = float(p_probs[token])
                 alpha = min(1.0, p_token / max(q_token, eps))
@@ -151,7 +182,9 @@ def speculative_sample_hf(
             stats.accepted += len(draft_tokens)
 
             if len(generated) < max_new_tokens:
-                p_probs = _softmax(target_state.logits).squeeze(0)
+                p_probs = _truncate_and_normalize(
+                    _softmax(target_state.logits).squeeze(0), common_vocab_n
+                )
                 token = _torch_multinomial(p_probs)
                 generated.append(token)
                 stats.target_tokens += 1
