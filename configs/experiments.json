@@ -179,6 +179,35 @@
       "target_preset": "qwen25_7b_instruct_local",
       "method_preset": "baseline"
     },
+    "gemma2_9b_local_target_2b_local_speculative_k4": {
+      "description": "Gemma-2 9B local target with Gemma-2 2B local draft, speculative k=4.",
+      "target_preset": "gemma2_9b_instruct_local",
+      "draft_preset": "gemma2_2b_instruct_local",
+      "method_preset": "speculative_k4"
+    },
+    "gemma2_9b_local_target_2b_local_autojudge_k4": {
+      "description": "Gemma-2 9B local target with Gemma-2 2B local draft, AutoJudge k=4.",
+      "target_preset": "gemma2_9b_instruct_local",
+      "draft_preset": "gemma2_2b_instruct_local",
+      "method_preset": "autojudge_k4"
+    },
+    "gemma2_9b_local_target_2b_local_topk_k4": {
+      "description": "Gemma-2 9B local target with Gemma-2 2B local draft, Top-K lossy baseline k=4.",
+      "target_preset": "gemma2_9b_instruct_local",
+      "draft_preset": "gemma2_2b_instruct_local",
+      "method_preset": "topk_k4"
+    },
+    "gemma2_9b_local_target_2b_local_all_paper": {
+      "description": "Run baseline, speculative, AutoJudge, and Top-K for Gemma-2 9B/2B local models.",
+      "target_preset": "gemma2_9b_instruct_local",
+      "draft_preset": "gemma2_2b_instruct_local",
+      "method_preset": "compare_all_paper_k4"
+    },
+    "gemma2_9b_local_baseline": {
+      "description": "Gemma-2 9B local baseline.",
+      "target_preset": "gemma2_9b_instruct_local",
+      "method_preset": "baseline"
+    },
     "llama3_baseline": {
       "description": "Llama-3 8B baseline.",
       "target_preset": "llama3_8b_instruct",
