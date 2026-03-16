@@ -20,7 +20,7 @@
 
 ## Results
 
-| method | threshold | accuracy, % | speed, tokens/s | speculative decoding | speedup (ours) |
+| method | parameter | accuracy, % | speed, tokens/s | speculative decoding | speedup (ours) |
 |---|---:|---:|---:|---:|---:|
 | baseline | - | - | 76.41 | 41.41 | 1.845 |
 | speculative | - | - | 41.41 | 41.41 | 1.000 |
@@ -32,17 +32,17 @@
 | autojudge | 0.140 | - | 28.60 | 41.41 | 0.691 |
 | autojudge | 0.230 | - | 28.78 | 41.41 | 0.695 |
 | autojudge | 1.000 | - | 37.13 | 41.41 | 0.897 |
-| topk | - | - | 43.85 | 41.41 | 1.059 |
-| topk | - | - | 39.92 | 41.41 | 0.964 |
-| topk | - | - | 43.87 | 41.41 | 1.059 |
-| topk | - | - | 42.83 | 41.41 | 1.034 |
-| topk | - | - | 43.62 | 41.41 | 1.053 |
-| topk | - | - | 44.02 | 41.41 | 1.063 |
+| topk | 16 | - | 43.85 | 41.41 | 1.059 |
+| topk | 2 | - | 39.92 | 41.41 | 0.964 |
+| topk | 32 | - | 43.87 | 41.41 | 1.059 |
+| topk | 4 | - | 42.83 | 41.41 | 1.034 |
+| topk | 8 | - | 43.62 | 41.41 | 1.053 |
+| topk | all | - | 44.02 | 41.41 | 1.063 |
 
 
 ## AutoJudge threshold sweep
 
-| method | threshold | accuracy, % | speed, tokens/s | speculative decoding | speedup (ours) |
+| method | parameter | accuracy, % | speed, tokens/s | speculative decoding | speedup (ours) |
 |---|---:|---:|---:|---:|---:|
 | autojudge | 0.005 | - | 28.23 | 41.41 | 0.682 |
 | autojudge | 0.010 | - | 28.25 | 41.41 | 0.682 |
@@ -56,14 +56,14 @@
 
 ## Top-K sweep
 
-| method | threshold | accuracy, % | speed, tokens/s | speculative decoding | speedup (ours) |
+| method | parameter | accuracy, % | speed, tokens/s | speculative decoding | speedup (ours) |
 |---|---:|---:|---:|---:|---:|
-| topk | - | - | 43.85 | 41.41 | 1.059 |
-| topk | - | - | 39.92 | 41.41 | 0.964 |
-| topk | - | - | 43.87 | 41.41 | 1.059 |
-| topk | - | - | 42.83 | 41.41 | 1.034 |
-| topk | - | - | 43.62 | 41.41 | 1.053 |
-| topk | - | - | 44.02 | 41.41 | 1.063 |
+| topk | 16 | - | 43.85 | 41.41 | 1.059 |
+| topk | 2 | - | 39.92 | 41.41 | 0.964 |
+| topk | 32 | - | 43.87 | 41.41 | 1.059 |
+| topk | 4 | - | 42.83 | 41.41 | 1.034 |
+| topk | 8 | - | 43.62 | 41.41 | 1.053 |
+| topk | all | - | 44.02 | 41.41 | 1.063 |
 
 
 ## Notes

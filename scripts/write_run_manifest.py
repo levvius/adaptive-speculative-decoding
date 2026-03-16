@@ -35,11 +35,23 @@ def main() -> int:
                 "--format=csv,noheader",
             ]
         ),
-        "torch_version": None,
-        "cuda_runtime": None,
-        "cuda_available": None,
-        "cuda_device_name": None,
     }
+
+    try:
+        import torch
+
+        payload["torch_version"] = torch.__version__
+        payload["cuda_runtime"] = getattr(torch.version, "cuda", None)
+        payload["cuda_available"] = torch.cuda.is_available()
+        if torch.cuda.is_available():
+            payload["cuda_device_name"] = torch.cuda.get_device_name(0)
+        else:
+            payload["cuda_device_name"] = None
+    except ImportError:
+        payload["torch_version"] = None
+        payload["cuda_runtime"] = None
+        payload["cuda_available"] = None
+        payload["cuda_device_name"] = None
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)

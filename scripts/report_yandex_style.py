@@ -169,9 +169,18 @@ def build_yandex_report(
     return rows
 
 
+def _param_display(row: YandexRow) -> str:
+    """Display the method-specific parameter (threshold for AJ, rank for Top-K)."""
+    if row.method == "autojudge" and row.threshold is not None:
+        return _fmt(row.threshold)
+    if row.method == "topk" and row.setting.startswith("topk_rank="):
+        return row.setting.split("=", 1)[1]
+    return "-"
+
+
 def _to_markdown_table(rows: List[YandexRow], title: str = "") -> str:
     header = (
-        "| method | threshold | accuracy, % | speed, tokens/s | "
+        "| method | parameter | accuracy, % | speed, tokens/s | "
         "speculative decoding | speedup (ours) |\n"
         "|---|---:|---:|---:|---:|---:|\n"
     )
@@ -181,7 +190,7 @@ def _to_markdown_table(rows: List[YandexRow], title: str = "") -> str:
             + " | ".join(
                 [
                     row.method,
-                    _fmt(row.threshold),
+                    _param_display(row),
                     _fmt(row.accuracy_pct, digits=2),
                     _fmt(row.speed_tps, digits=2),
                     _fmt(row.speculative_tps, digits=2),

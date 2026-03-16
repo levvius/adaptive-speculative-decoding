@@ -220,6 +220,41 @@ Tests live at the top of `tests/` (not under `sp_samp/`). Coverage: `test_sampli
 - **GPU checks**: Use `make docker-gpu-check` / `make docker-gpu-check-image` before long runs. RTX 50xx (Blackwell/sm_120) requires `torch==2.9.1+cu128`.
 - **Makefile Python**: Prefers `.venv/bin/python`; falls back to `python3`.
 
+## Evaluation Results (Qwen2.5 7B/1.5B, RTX 5090, 2026-03-10)
+
+### GSM8K (k=4, zero-shot CoT, 100 samples x 3 runs)
+
+| Method | Accuracy | Speed | vs Speculative | vs Baseline |
+|--------|----------|-------|---------------|-------------|
+| Baseline (7B only) | 58.1% | 78.6 tok/s | 1.67x | 1.00x |
+| Speculative | 56.9% | 47.2 tok/s | 1.00x | 0.60x |
+| AutoJudge t=0.09 (best balanced) | 61.7% | 55.9 tok/s | 1.18x | 0.71x |
+| AutoJudge t=1.0 (fastest AJ) | 52.3% | 63.4 tok/s | 1.34x | 0.81x |
+| Top-K rank=4 (fastest overall) | 54.3% | 71.5 tok/s | 1.52x | 0.91x |
+
+### LiveCodeBench (k=4, throughput-only)
+
+| Method | Speed | vs Speculative |
+|--------|-------|---------------|
+| Baseline | 76.4 tok/s | 1.85x |
+| Speculative | 41.4 tok/s | 1.00x |
+| AutoJudge (all thresholds) | 28-37 tok/s | 0.68-0.90x |
+| Top-K rank=all (best) | 44.0 tok/s | 1.06x |
+
+### Known Limitations
+
+- **Speculative slower than baseline**: Expected with small target/draft ratio (7B/1.5B = 4.7x) on single GPU. Paper uses 70B/8B+ ratios with multi-GPU. Draft model overhead not offset by acceptance gains at k=4.
+- **AutoJudge slower on LiveCodeBench**: Classifier trained on GSM8K data doesn't generalize to code tasks. Paper trains separate classifiers per task (Section 4.2).
+- **AutoJudge accuracy improvement (+3.5% over baseline on GSM8K)**: The judge correctly identifies important tokens, improving answer quality by selectively falling back to the target model.
+
+### Planned Improvements
+
+1. Increase draft window (k=8, k=16) — paper uses W=64
+2. GPU-resident classifier (eliminate CPU roundtrip per mismatch)
+3. Distributional features (entropy, KL divergence) for better classifier accuracy
+4. Confidence-based early accept to skip judge on high-confidence drafts
+5. Task-specific training for LiveCodeBench
+
 ## Paper Alignment
 
 Source papers are in `papers/`. Audit summary (2026-02-25); full record in `file_changes/2026-02-25-paper-alignment.md`.

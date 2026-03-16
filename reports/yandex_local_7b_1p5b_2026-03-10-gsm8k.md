@@ -20,7 +20,7 @@
 
 ## Results
 
-| method | threshold | accuracy, % | speed, tokens/s | speculative decoding | speedup (ours) |
+| method | parameter | accuracy, % | speed, tokens/s | speculative decoding | speedup (ours) |
 |---|---:|---:|---:|---:|---:|
 | baseline | - | 58.11 | 78.56 | 47.16 | 1.666 |
 | speculative | - | 56.89 | 47.16 | 47.16 | 1.000 |
@@ -32,17 +32,17 @@
 | autojudge | 0.140 | 59.67 | 56.35 | 47.16 | 1.195 |
 | autojudge | 0.230 | 59.67 | 57.84 | 47.16 | 1.226 |
 | autojudge | 1.000 | 52.33 | 63.38 | 47.16 | 1.344 |
-| topk | - | 53.67 | 68.62 | 47.16 | 1.455 |
-| topk | - | 54.00 | 71.53 | 47.16 | 1.517 |
-| topk | - | 53.00 | 68.39 | 47.16 | 1.450 |
-| topk | - | 54.33 | 71.53 | 47.16 | 1.517 |
-| topk | - | 54.33 | 68.47 | 47.16 | 1.452 |
-| topk | - | 52.33 | 68.47 | 47.16 | 1.452 |
+| topk | 16 | 53.67 | 68.62 | 47.16 | 1.455 |
+| topk | 2 | 54.00 | 71.53 | 47.16 | 1.517 |
+| topk | 32 | 53.00 | 68.39 | 47.16 | 1.450 |
+| topk | 4 | 54.33 | 71.53 | 47.16 | 1.517 |
+| topk | 8 | 54.33 | 68.47 | 47.16 | 1.452 |
+| topk | all | 52.33 | 68.47 | 47.16 | 1.452 |
 
 
 ## AutoJudge threshold sweep
 
-| method | threshold | accuracy, % | speed, tokens/s | speculative decoding | speedup (ours) |
+| method | parameter | accuracy, % | speed, tokens/s | speculative decoding | speedup (ours) |
 |---|---:|---:|---:|---:|---:|
 | autojudge | 0.005 | 61.67 | 51.55 | 47.16 | 1.093 |
 | autojudge | 0.010 | 61.67 | 54.50 | 47.16 | 1.156 |
@@ -56,14 +56,14 @@
 
 ## Top-K sweep
 
-| method | threshold | accuracy, % | speed, tokens/s | speculative decoding | speedup (ours) |
+| method | parameter | accuracy, % | speed, tokens/s | speculative decoding | speedup (ours) |
 |---|---:|---:|---:|---:|---:|
-| topk | - | 53.67 | 68.62 | 47.16 | 1.455 |
-| topk | - | 54.00 | 71.53 | 47.16 | 1.517 |
-| topk | - | 53.00 | 68.39 | 47.16 | 1.450 |
-| topk | - | 54.33 | 71.53 | 47.16 | 1.517 |
-| topk | - | 54.33 | 68.47 | 47.16 | 1.452 |
-| topk | - | 52.33 | 68.47 | 47.16 | 1.452 |
+| topk | 16 | 53.67 | 68.62 | 47.16 | 1.455 |
+| topk | 2 | 54.00 | 71.53 | 47.16 | 1.517 |
+| topk | 32 | 53.00 | 68.39 | 47.16 | 1.450 |
+| topk | 4 | 54.33 | 71.53 | 47.16 | 1.517 |
+| topk | 8 | 54.33 | 68.47 | 47.16 | 1.452 |
+| topk | all | 52.33 | 68.47 | 47.16 | 1.452 |
 
 
 ## Notes
