@@ -70,6 +70,26 @@
       "use_chat_template": true,
       "trust_remote_code": false
     },
+    "mistral_8b_instruct_local": {
+      "hf_model": "models/Mistral-3-8B-instruct-2512",
+      "tokenizer": "models/Mistral-3-8B-instruct-2512",
+      "device": "cuda",
+      "dtype": "bfloat16",
+      "quant": null,
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": true,
+      "trust_remote_code": false
+    },
+    "mistral_3b_instruct_local": {
+      "hf_model": "models/Mistral-3-3B-instruct-2512",
+      "tokenizer": "models/Mistral-3-8B-instruct-2512",
+      "device": "cuda",
+      "dtype": "bfloat16",
+      "quant": null,
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": true,
+      "trust_remote_code": false
+    },
     "gpt_oss_20b_4bit": {
       "hf_model": "RedHatAI/gpt-oss-20b",
       "tokenizer": "RedHatAI/gpt-oss-20b",
