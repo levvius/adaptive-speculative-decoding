@@ -962,11 +962,24 @@ def run_with_args(args: argparse.Namespace) -> None:
                 if args.system_prompt:
                     messages.append({"role": "system", "content": args.system_prompt})
                 messages.append({"role": "user", "content": text})
-                return hf_tokenizer.apply_chat_template(
+                tokenized = hf_tokenizer.apply_chat_template(
                     messages,
                     tokenize=True,
                     add_generation_prompt=True,
                 )
+                if hasattr(tokenized, "keys") and "input_ids" in tokenized:
+                    tokenized = tokenized["input_ids"]
+                if isinstance(tokenized, dict):
+                    tokenized = tokenized.get("input_ids", tokenized)
+                if hasattr(tokenized, "tolist"):
+                    tokenized = tokenized.tolist()
+                if (
+                    isinstance(tokenized, list)
+                    and tokenized
+                    and isinstance(tokenized[0], list)
+                ):
+                    tokenized = tokenized[0]
+                return [int(tok) for tok in tokenized]
             return hf_tokenizer.encode(text, add_special_tokens=args.add_special_tokens)
 
         def decode_fn(token_ids: List[int]) -> str:
