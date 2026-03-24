@@ -140,6 +140,26 @@
       "use_chat_template": true,
       "trust_remote_code": false
     },
+    "llama3_8b_instruct_local": {
+      "hf_model": "models/Meta-Llama-3-8B-Instruct",
+      "tokenizer": "models/Meta-Llama-3-8B-Instruct",
+      "device": "cuda",
+      "dtype": "bfloat16",
+      "quant": null,
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": true,
+      "trust_remote_code": false
+    },
+    "llama3_2_3b_instruct_local": {
+      "hf_model": "models/Llama-3.2-3B-Instruct",
+      "tokenizer": "models/Meta-Llama-3-8B-Instruct",
+      "device": "cuda",
+      "dtype": "bfloat16",
+      "quant": null,
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": true,
+      "trust_remote_code": false
+    },
     "toy_random": {
       "hf_model": null,
       "device": "cpu",

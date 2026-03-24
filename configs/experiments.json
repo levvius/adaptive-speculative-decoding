@@ -226,6 +226,29 @@
       "target_preset": "gemma2_9b_instruct_local",
       "method_preset": "baseline"
     },
+    "llama3_8b_local_target_3b_local_speculative_k4": {
+      "description": "Llama-3 8B local target with Llama-3.2 3B local draft, speculative k=4.",
+      "target_preset": "llama3_8b_instruct_local",
+      "draft_preset": "llama3_2_3b_instruct_local",
+      "method_preset": "speculative_k4"
+    },
+    "llama3_8b_local_target_3b_local_autojudge_k4": {
+      "description": "Llama-3 8B local target with Llama-3.2 3B local draft, AutoJudge k=4.",
+      "target_preset": "llama3_8b_instruct_local",
+      "draft_preset": "llama3_2_3b_instruct_local",
+      "method_preset": "autojudge_k4"
+    },
+    "llama3_8b_local_target_3b_local_topk_k4": {
+      "description": "Llama-3 8B local target with Llama-3.2 3B local draft, Top-K lossy baseline k=4.",
+      "target_preset": "llama3_8b_instruct_local",
+      "draft_preset": "llama3_2_3b_instruct_local",
+      "method_preset": "topk_k4"
+    },
+    "llama3_8b_local_baseline": {
+      "description": "Llama-3 8B local baseline.",
+      "target_preset": "llama3_8b_instruct_local",
+      "method_preset": "baseline"
+    },
     "llama3_baseline": {
       "description": "Llama-3 8B baseline.",
       "target_preset": "llama3_8b_instruct",

@@ -203,6 +203,7 @@ All JSON, no code:
 - `run_local_7b_1p5b_eval.sh` — orchestrates local Qwen2.5 7B/1.5B GSM8K + LiveCodeBench eval
 - `run_gemma2_9b_2b_eval.sh` — thin wrapper over local eval script with Gemma-2 9B/2B defaults
 - `run_mistral3_8b_3b_eval.sh` — thin wrapper over local eval script with Mistral-3 8B/3B defaults
+- `run_llama3_8b_3b_eval.sh` — thin wrapper over local eval script with Llama-3 8B/3B defaults
 - `report_autojudge_paper.py` — aggregates raw JSONL into `.md/.csv/.json` reports in `reports/`
 - `report_yandex_style.py` — generates Yandex-style threshold/accuracy/speedup report tables
 - `write_run_manifest.py` — writes environment manifest JSON for reproducibility
