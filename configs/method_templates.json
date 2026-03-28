@@ -11,7 +11,7 @@
         "autojudge_train_samples": 4000,
         "autojudge_recall_target": 0.9,
         "autojudge_train_split": 0.9,
-        "autojudge_c_grid": "1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0,1e1,1e2",
+        "autojudge_c_grid": "1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0",
         "use_chat_template": true,
         "system_prompt": null
       },

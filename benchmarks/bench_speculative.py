@@ -772,7 +772,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--autojudge-train-samples", type=int, default=4000, help="Max mined mismatches for AutoJudge training.")
     parser.add_argument("--autojudge-recall-target", type=float, default=0.9, help="Validation recall target for threshold calibration.")
     parser.add_argument("--autojudge-train-split", type=float, default=0.9, help="Train split fraction for AutoJudge classifier calibration.")
-    parser.add_argument("--autojudge-c-grid", type=str, default=None, help="Comma-separated C values for LogisticRegression grid search (e.g. 1e-7,1e-6,...,1e2).")
+    parser.add_argument("--autojudge-c-grid", type=str, default=None, help="Comma-separated C values for LogisticRegression grid search (e.g. 1e-7,1e-6,...,1e0).")
     parser.add_argument("--autojudge-train-steps", type=int, default=None, help="Deprecated and ignored.")
     parser.add_argument("--autojudge-train-batch-size", type=int, default=None, help="Deprecated and ignored.")
     parser.add_argument("--autojudge-train-lr", type=float, default=None, help="Deprecated and ignored.")
