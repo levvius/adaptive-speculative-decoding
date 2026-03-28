@@ -48,6 +48,13 @@ features, or behaviors are added.
 - `Dockerfile`, `Dockerfile.gpu`: CPU/GPU containers.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
 
+## Recent Changes (2026-03-28)
+- Documentation refresh for day-to-day work:
+  - `README.MD` reduced to a compact, task-first guide (quick start, key commands, and minimal constraints).
+  - `CLAUDE.md` updated with explicit local Llama eval command and paper-aligned AutoJudge C-grid policy (`1e-7..1e0`, 8 values).
+- Long-run operations guidance now uses `PYTORCH_ALLOC_CONF=expandable_segments:True` (replaces deprecated `PYTORCH_CUDA_ALLOC_CONF`).
+- Added practical monitoring command set for long Llama/GSM8K/LiveCodeBench sweeps (log tail, GPU telemetry, output growth checks).
+
 ## Recent Changes (2026-03-10)
 - Documentation-only operational update (no API/algorithm changes):
   - `CLAUDE.md` now includes a canonical 24-48h runbook using `tmux + staged AutoJudge profile`.

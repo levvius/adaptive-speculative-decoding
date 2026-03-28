@@ -48,6 +48,9 @@ make paper-eval
 
 # Run local Qwen2.5 7B/1.5B eval (GSM8K + LiveCodeBench) with Yandex-style reports
 make local-eval
+
+# Run local Llama-3 8B/3B eval (GSM8K + LiveCodeBench)
+bash scripts/run_llama3_8b_3b_eval.sh
 ```
 
 ## Long-Run Operations (24-48h)
@@ -70,7 +73,7 @@ tmux new -s aj48h
 cd /home/robot/Project/adaptive-speculative-decoding
 mkdir -p logs datasets reports
 export HF_HUB_DISABLE_XET=1
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export PYTORCH_ALLOC_CONF=expandable_segments:True
 ```
 
 Detach: `Ctrl-b d`  
@@ -157,7 +160,7 @@ DATE_TAG="$(date +%F)"
 
 - Run only one GPU-heavy job at a time (single-job rule).
 - Reuse the same `OUT_GSM8K` file to benefit from benchmark resume mode (`resume_key` skip).
-- Keep `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` for long sessions to reduce fragmentation-related OOM risk.
+- Keep `PYTORCH_ALLOC_CONF=expandable_segments:True` for long sessions to reduce fragmentation-related OOM risk.
 - Optional VRAM reduction for the sweep script (if quantized runtime is available):
   - `QUANT=8bit DRAFT_QUANT=8bit bash scripts/run_autojudge_topk_gsm8k_bg.sh`
   - Increase preflight gate if needed: `MIN_FREE_VRAM_MIB=22000`.
@@ -218,6 +221,7 @@ Tests live at the top of `tests/` (not under `sp_samp/`). Coverage: `test_sampli
 - **Tokenizer compatibility**: Draft and target models must share an identical vocabulary mapping for speculative, AutoJudge, Top-K, and SpecExec. The `Qwen2.5-0.5B → 7B` legacy pair violates this; use `0.5B → 3B` instead. The local `1.5B → 7B` pair has confirmed identical tokenizers.
 - **Local models**: Pre-downloaded models go in `models/` (gitignored). Presets `qwen25_7b_instruct_local` and `qwen25_1p5b_instruct_local` point to `models/qwen2.5-7b-Instruct-model` and `models/qwen2.5-1.5b-Instruct-model`.
 - **AutoJudge training**: Only valid with GSM8K-format datasets (`question` + `answer` fields). MT-Bench JSONL will fail fast with an actionable error.
+- **AutoJudge C-grid policy**: Keep paper-aligned C-grid `1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0` (8 values). Do not use out-of-paper values `1e1` or `1e2` in config overrides.
 - **AutoJudge checkpoint versioning**: Checkpoint format v2 (`autojudge_version=2`). Loading a v1 checkpoint triggers retraining.
 - **Benchmark resume**: Re-running with the same `--out` file skips completed `resume_key` entries automatically.
 - **GPU checks**: Use `make docker-gpu-check` / `make docker-gpu-check-image` before long runs. RTX 50xx (Blackwell/sm_120) requires `torch==2.9.1+cu128`.
