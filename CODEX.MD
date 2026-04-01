@@ -28,6 +28,13 @@ features, or behaviors are added.
 - `.python-version`: Recommended local Python runtime version.
 - `datasets/.gitkeep`: Repository placeholder for local dataset directory (`datasets/`).
 - `README.MD`: Project overview, usage, and examples.
+- `CONTRIBUTING.md`: Contributor workflow, checks, and benchmark artifact policy.
+- `CODE_OF_CONDUCT.md`: Collaboration and community behavior expectations.
+- `.github/pull_request_template.md`: Pull request template with validation checklist.
+- `.github/ISSUE_TEMPLATE/`: Structured issue templates for bugs and feature requests.
+- `docs/RESULTS.md`: Curated benchmark snapshot and reproducibility commands.
+- `docs/ROADMAP.md`: Near-term and mid-term engineering roadmap.
+- `docs/GITHUB_SETUP.md`: Practical checklist for GitHub About/topics/social preview setup.
 - `sp_samp/autojudge.py`: Paper-aligned AutoJudge implementation (Algorithm 1 token mining, LogisticRegression training, and verification-stage decoding override).
 - `sp_samp/gsm8k.py`: GSM8K utilities (dataset loading, final-answer extraction, and equivalence checks).
 - `sp_samp/specexec.py`: CPU SpecExec implementation (exact target sampling with draft-tree cache prefill and pruning).
@@ -47,6 +54,13 @@ features, or behaviors are added.
 - `tests/test_livecodebench.py`: Unit tests for LiveCodeBench loader.
 - `Dockerfile`, `Dockerfile.gpu`: CPU/GPU containers.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
+
+## Recent Changes (2026-04-01)
+- GitHub-facing presentation pass for external reviewers:
+  - rewrote `README.MD` as a repository landing page (positioning, method matrix, benchmark snapshot, quickstart);
+  - added contributor-facing docs: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `docs/RESULTS.md`, `docs/ROADMAP.md`;
+  - added GitHub collaboration templates: `.github/pull_request_template.md` and `.github/ISSUE_TEMPLATE/*`;
+  - added maintainer checklist for repository presentation: `docs/GITHUB_SETUP.md`.
 
 ## Recent Changes (2026-03-28)
 - Documentation refresh for day-to-day work:

@@ -1,0 +1,62 @@
+name: Bug report
+description: Report a reproducible bug in code, configs, or benchmark flow.
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is broken?
+      placeholder: Briefly describe the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include exact commands and preset names.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / traceback
+      description: Paste error output or attach relevant log snippets.
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: GPU, torch version, Python version, OS.
+      placeholder: |
+        GPU:
+        torch:
+        python:
+        OS:
+
+  - type: input
+    id: commit
+    attributes:
+      label: Git commit SHA
+      placeholder: e.g. 694e397

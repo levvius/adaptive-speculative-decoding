@@ -1,94 +1,122 @@
 # Adaptive Speculative Decoding
 
-Research playground for LLM inference acceleration and paper-style benchmarking.
+[![CI](https://github.com/levvius/adaptive-speculative-decoding/actions/workflows/ci.yml/badge.svg)](https://github.com/levvius/adaptive-speculative-decoding/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](.python-version)
 
-Implemented methods:
-- Baseline decoding
-- Speculative Sampling (exact)
-- AutoJudge (paper-aligned mining + LogisticRegression)
-- Top-K verification baseline (lossy)
-- SpecExec (exact, branch-KV reuse)
+Pet project and research playground for LLM decoding acceleration.
 
-## Quick Start
+This repository compares exact and approximate decoding strategies under a single benchmark harness, with reproducible configs, JSONL outputs, and report scripts.
+
+## Why This Project
+
+- Side-by-side comparison of Baseline, Speculative Sampling, AutoJudge, Top-K, and SpecExec.
+- Paper-aligned AutoJudge implementation (GSM8K label mining + LogisticRegression calibration).
+- Long-run friendly workflow (resume keys, checkpoints, strict result schema validation).
+- Real benchmark reports are versioned in `reports/`.
+
+## Implemented Methods
+
+| Method | Exact vs target distribution | Main idea |
+|---|---|---|
+| `baseline` | exact | Target-only decoding |
+| `speculative` | exact | Draft proposes, target verifies |
+| `autojudge` | approximate | Judge can accept some mismatches |
+| `topk` | approximate | Accept mismatch if target token in top-k |
+| `specexec` | exact | Parallel speculative branches + cache reuse |
+
+## Latest Benchmark Snapshot
+
+Latest full Llama run: `2026-03-28-llama-48h-cgrid8` on RTX 5090.
+
+Source reports:
+- `reports/yandex_llama3_8b_3b_2026-03-28-llama-48h-cgrid8-gsm8k.md`
+- `reports/yandex_llama3_8b_3b_2026-03-28-llama-48h-cgrid8-livecodebench.md`
+
+GSM8K highlights (k=4):
+
+| Method | Accuracy (%) | Speed (tok/s) |
+|---|---:|---:|
+| Baseline | 70.89 | 72.68 |
+| Speculative | 71.89 | 40.68 |
+| AutoJudge (t=0.14) | 78.67 | 45.98 |
+| Top-K (all) | 75.67 | 59.29 |
+
+LiveCodeBench highlights (throughput only):
+
+| Method | Speed (tok/s) |
+|---|---:|
+| Baseline | 71.52 |
+| Speculative | 34.80 |
+| AutoJudge (t=1.0) | 29.27 |
+| Top-K (all) | 36.53 |
+
+More context and historical runs: `docs/RESULTS.md`.
+
+## Quick Start (5 Minutes)
 
 ```bash
 make setup
 make check
 make test
+make bench-toy OUT=/tmp/bench_toy.jsonl
 ```
 
-## Most Used Commands
+Optional tiny HF smoke:
 
 ```bash
-# List presets
-make list-presets
+make smoke-hf OUT=/tmp/smoke_hf.jsonl
+```
 
-# Paper-style Qwen2.5 sweep (GSM8K)
+## Reproduce Main Runs
+
+Paper-style Qwen sweep:
+
+```bash
 make paper-eval
+```
 
-# Local Qwen2.5 7B/1.5B sweep (GSM8K + LiveCodeBench)
+Local Qwen 7B/1.5B sweep:
+
+```bash
 make local-eval
+```
 
-# Local Llama-3 8B/3B sweep (GSM8K + LiveCodeBench)
+Local Llama 8B/3B sweep:
+
+```bash
 bash scripts/run_llama3_8b_3b_eval.sh
 ```
 
-## Llama 48h Run (Recommended Pattern)
-
-Use unique artifacts for each run (checkpoint + outputs + report prefix).
+Validate any JSONL output:
 
 ```bash
-DATE_TAG="$(date +%F)-llama-48h-cgrid8"
-LOG_PATH="logs/llama3_48h_${DATE_TAG}.log"
-
-CHECKPOINT_PATH="datasets/autojudge_llama3_3b_to_8b_${DATE_TAG}.pt" \
-OUT_GSM8K="datasets/results_llama3_8b_3b_gsm8k_${DATE_TAG}.jsonl" \
-OUT_LCB="datasets/results_llama3_8b_3b_lcb_${DATE_TAG}.jsonl" \
-REPORT_PREFIX="reports/yandex_llama3_8b_3b_${DATE_TAG}" \
-MANIFEST_PATH="reports/llama3_8b_3b_run_manifest_${DATE_TAG}.json" \
-bash scripts/run_llama3_8b_3b_eval.sh | tee "${LOG_PATH}"
+.venv/bin/python scripts/validate_results_jsonl.py --path datasets/results.jsonl --strict
 ```
 
-## Monitoring Commands
+## Project Structure
 
-```bash
-# Live log
-tail -f "${LOG_PATH}"
+- `sp_samp/` core implementations and HF adapters
+- `benchmarks/` benchmark entrypoint and result logging
+- `configs/` model, method, and experiment presets
+- `scripts/` orchestration, validation, and report generation
+- `tests/` unit tests
+- `reports/` tracked benchmark artifacts
+- `datasets/` local datasets and run outputs (gitignored)
 
-# Ensure paper-aligned AutoJudge grid was used (must show C-grid 1/8 ... 8/8)
-grep -n "\[autojudge-train\] C-grid" "${LOG_PATH}"
+## Constraints and Repro Notes
 
-# GPU memory/utilization
-watch -n 10 'nvidia-smi --query-gpu=memory.used,memory.free,utilization.gpu --format=csv,noheader'
+- Draft and target must use tokenizer-compatible vocab mapping.
+- AutoJudge paper C-grid policy is `1e-7..1e0` (8 values).
+- Reusing the same output file enables automatic resume by `resume_key`.
 
-# Active GPU processes
-watch -n 10 'nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory --format=csv,noheader'
+## For Reviewers and Contributors
 
-# Growth of output JSONL files
-watch -n 60 "wc -l ${OUT_GSM8K} ${OUT_LCB}"
-```
+- Contribution guide: `CONTRIBUTING.md`
+- Open issues and feature proposals: GitHub issue templates
+- Current priorities: `docs/ROADMAP.md`
+- Repository presentation checklist: `docs/GITHUB_SETUP.md`
 
-## Validate Outputs
+## License
 
-```bash
-.venv/bin/python scripts/validate_results_jsonl.py --path "${OUT_GSM8K}" --strict
-.venv/bin/python scripts/validate_results_jsonl.py --path "${OUT_LCB}" --strict
-```
-
-## Key Constraints
-
-- Draft and target must have tokenizer/vocab compatibility.
-- AutoJudge C-grid policy is paper-aligned only:
-  - `1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0`
-  - do not use `1e1` or `1e2` in overrides.
-- Reusing the same `--out` enables resume mode by `resume_key`.
-
-## Repo Layout
-
-- `sp_samp/` - core methods and HF adapters
-- `benchmarks/` - benchmark runner
-- `configs/` - model/method/experiment presets
-- `scripts/` - eval orchestration, validation, report generation
-- `tests/` - unit tests
-- `reports/` - tracked summary artifacts
-- `datasets/` - local run outputs (gitignored)
+MIT. See `LICENSE`.
