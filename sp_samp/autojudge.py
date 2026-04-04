@@ -14,25 +14,34 @@ from .gsm8k import generations_equivalent
 from .hf_adapter import HFModel
 
 try:
+    from sklearn.ensemble import HistGradientBoostingClassifier
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import recall_score, roc_auc_score
     from sklearn.preprocessing import StandardScaler
 except ModuleNotFoundError:
+    HistGradientBoostingClassifier = None
     LogisticRegression = None
     StandardScaler = None
     recall_score = None
     roc_auc_score = None
 
 
-def _require_sklearn() -> None:
-    if (
-        LogisticRegression is None
-        or StandardScaler is None
-        or recall_score is None
-        or roc_auc_score is None
-    ):
+def _require_sklearn_common() -> None:
+    if StandardScaler is None or recall_score is None or roc_auc_score is None:
         raise RuntimeError(
             "AutoJudge requires scikit-learn. Install project requirements first."
+        )
+
+
+def _require_sklearn_backend(backend: str) -> None:
+    _require_sklearn_common()
+    if backend == "logreg" and LogisticRegression is None:
+        raise RuntimeError(
+            "AutoJudge 'logreg' backend requires scikit-learn LogisticRegression."
+        )
+    if backend == "hgbt" and HistGradientBoostingClassifier is None:
+        raise RuntimeError(
+            "AutoJudge 'hgbt' backend requires HistGradientBoostingClassifier."
         )
 
 
@@ -56,6 +65,16 @@ def parse_c_grid(spec: Optional[str]) -> Tuple[float, ...]:
     return tuple(values)
 
 
+def normalize_classifier_backend(spec: Optional[str]) -> str:
+    raw = str(spec or "logreg").strip().lower()
+    if raw in {"logreg", "hgbt"}:
+        return raw
+    raise ValueError(
+        f"Unsupported AutoJudge classifier backend: {spec!r}. "
+        "Expected one of: logreg, hgbt."
+    )
+
+
 @dataclass
 class AutoJudgeTrainConfig:
     task: str = "gsm8k"
@@ -65,6 +84,7 @@ class AutoJudgeTrainConfig:
     train_split: float = 0.9
     recall_target: float = 0.9
     c_grid: Tuple[float, ...] = _default_c_grid()
+    classifier: str = "logreg"
     seed: int = 123
 
 
@@ -114,20 +134,27 @@ class AutoJudgeStats:
 
 @dataclass
 class AutoJudgeClassifier:
-    scaler: object
+    scaler: Optional[object]
     model: object
     threshold: float
     feature_dim: int
     task: str = "gsm8k"
+    classifier_backend: str = "logreg"
     c_selected: float = 0.0
     val_auc: float = 0.0
     val_recall: float = 0.0
+    model_label: str = ""
 
     def predict_important_prob(self, x: np.ndarray) -> np.ndarray:
         if x.ndim == 1:
             x = x.reshape(1, -1)
-        x_scaled = self.scaler.transform(x)
-        return self.model.predict_proba(x_scaled)[:, 1]
+        x_in = self.scaler.transform(x) if self.scaler is not None else x
+        probs = self.model.predict_proba(x_in)
+        if probs.ndim == 1:
+            return probs.astype(np.float64)
+        if probs.shape[1] == 1:
+            return probs[:, 0].astype(np.float64)
+        return probs[:, 1].astype(np.float64)
 
 
 # Backward-compatible export name used by older code paths.
@@ -419,7 +446,12 @@ def train_autojudge_logreg(
     # Paper: Section 3.2 — StandardScaler + LogisticRegression classifier with
     # C-grid cross-validation and recall-target threshold calibration on val split;
     # final model retrained on full dataset using best C.
-    _require_sklearn()
+    backend = normalize_classifier_backend(cfg.classifier)
+    if backend != "logreg":
+        raise ValueError(
+            f"train_autojudge_logreg received unsupported backend={backend!r}."
+        )
+    _require_sklearn_backend("logreg")
 
     if x.ndim != 2 or y.ndim != 2:
         raise ValueError("x and y must be 2D tensors.")
@@ -492,9 +524,116 @@ def train_autojudge_logreg(
         threshold=best_threshold,
         feature_dim=int(x_np.shape[1]),
         task=cfg.task,
+        classifier_backend="logreg",
         c_selected=best_c,
         val_auc=max(best_auc, 0.0),
         val_recall=max(best_recall, 0.0),
+        model_label="logreg",
+    )
+    return classifier, classifier.val_auc
+
+
+def train_autojudge_hgbt(
+    x: torch.Tensor,
+    y: torch.Tensor,
+    cfg: AutoJudgeTrainConfig,
+) -> Tuple[AutoJudgeClassifier, float]:
+    backend = normalize_classifier_backend(cfg.classifier)
+    if backend != "hgbt":
+        raise ValueError(
+            f"train_autojudge_hgbt received unsupported backend={backend!r}."
+        )
+    _require_sklearn_backend("hgbt")
+
+    if x.ndim != 2 or y.ndim != 2:
+        raise ValueError("x and y must be 2D tensors.")
+    if x.shape[0] != y.shape[0]:
+        raise ValueError("x and y must have the same number of rows.")
+    if x.shape[0] < 2:
+        raise ValueError("Need at least two AutoJudge training examples.")
+
+    x_np = x.detach().cpu().numpy().astype(np.float32)
+    y_np = y.detach().cpu().numpy().reshape(-1).astype(np.int64)
+
+    if len(np.unique(y_np)) < 2:
+        raise ValueError("AutoJudge mined labels contain a single class; cannot train classifier.")
+
+    train_idx, val_idx = _split_indices(x_np.shape[0], cfg.train_split, cfg.seed)
+    x_train = x_np[train_idx]
+    x_val = x_np[val_idx]
+    y_train = y_np[train_idx]
+    y_val = y_np[val_idx]
+
+    candidates = [
+        {"max_depth": 3, "learning_rate": 0.05},
+        {"max_depth": 3, "learning_rate": 0.10},
+        {"max_depth": 5, "learning_rate": 0.05},
+        {"max_depth": 5, "learning_rate": 0.10},
+    ]
+    n_models = len(candidates)
+    best_auc = -1.0
+    best_threshold = 0.5
+    best_recall = 0.0
+    best_params = dict(candidates[0])
+
+    for i, params in enumerate(candidates):
+        model = HistGradientBoostingClassifier(
+            max_depth=int(params["max_depth"]),
+            learning_rate=float(params["learning_rate"]),
+            max_iter=300,
+            min_samples_leaf=20,
+            random_state=cfg.seed,
+        )
+        model.fit(x_train, y_train)
+        val_probs = model.predict_proba(x_val)[:, 1]
+
+        if len(np.unique(y_val)) < 2:
+            val_auc = 0.0
+        else:
+            val_auc = float(roc_auc_score(y_val, val_probs))
+
+        thr, rec = _threshold_for_recall(
+            probs=val_probs,
+            labels=y_val,
+            recall_target=cfg.recall_target,
+        )
+
+        print(
+            f"[{datetime.now():%H:%M:%S}] [autojudge-train]"
+            f" HGBT {i + 1}/{n_models}: depth={params['max_depth']},"
+            f" lr={params['learning_rate']:.2f}"
+            f" → val_AUC={val_auc:.4f}, recall={rec:.3f}",
+            flush=True,
+        )
+
+        if val_auc > best_auc:
+            best_auc = val_auc
+            best_threshold = thr
+            best_recall = rec
+            best_params = dict(params)
+
+    model_full = HistGradientBoostingClassifier(
+        max_depth=int(best_params["max_depth"]),
+        learning_rate=float(best_params["learning_rate"]),
+        max_iter=300,
+        min_samples_leaf=20,
+        random_state=cfg.seed,
+    )
+    model_full.fit(x_np, y_np)
+
+    classifier = AutoJudgeClassifier(
+        scaler=None,
+        model=model_full,
+        threshold=best_threshold,
+        feature_dim=int(x_np.shape[1]),
+        task=cfg.task,
+        classifier_backend="hgbt",
+        c_selected=0.0,
+        val_auc=max(best_auc, 0.0),
+        val_recall=max(best_recall, 0.0),
+        model_label=(
+            f"hgbt(depth={best_params['max_depth']},lr={best_params['learning_rate']:.2f})"
+        ),
     )
     return classifier, classifier.val_auc
 
@@ -506,7 +645,13 @@ def train_judge_classifier(
 ) -> Tuple[AutoJudgeClassifier, float]:
     if cfg is None:
         cfg = AutoJudgeTrainConfig()
-    return train_autojudge_logreg(x=x, y=y, cfg=cfg)
+    backend = normalize_classifier_backend(cfg.classifier)
+    cfg.classifier = backend
+    if backend == "logreg":
+        return train_autojudge_logreg(x=x, y=y, cfg=cfg)
+    if backend == "hgbt":
+        return train_autojudge_hgbt(x=x, y=y, cfg=cfg)
+    raise ValueError(f"Unsupported AutoJudge classifier backend: {backend}")
 
 
 def build_autojudge_classifier(
@@ -528,7 +673,7 @@ def build_autojudge_classifier(
         eos_id=eos_id,
         mining_cache_path=mining_cache_path,
     )
-    classifier, val_auc = train_autojudge_logreg(x=x, y=y, cfg=cfg)
+    classifier, val_auc = train_judge_classifier(x=x, y=y, cfg=cfg)
     return classifier, int(x.shape[0]), float(val_auc)
 
 
@@ -659,7 +804,7 @@ def autojudge_sample_hf(
 
 def warn_deprecated_autojudge_args() -> None:
     warnings.warn(
-        "AutoJudge now uses paper-aligned LogisticRegression training. "
+        "AutoJudge now uses sklearn-based classifier training (logreg/hgbt). "
         "Legacy args (--autojudge-train-steps, --autojudge-train-batch-size, "
         "--autojudge-train-lr, --autojudge-audit-ratio) are ignored.",
         RuntimeWarning,

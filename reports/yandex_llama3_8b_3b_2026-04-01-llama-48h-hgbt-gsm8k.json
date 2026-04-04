@@ -1,0 +1,165 @@
+{
+  "generated_at": "2026-04-03T21:27:50.837815",
+  "inputs": [
+    "datasets/results_llama3_8b_3b_gsm8k_2026-04-01-llama-48h-hgbt.jsonl"
+  ],
+  "manifest": {
+    "generated_at": "2026-04-01T22:27:00.040119",
+    "platform": "Linux-6.17.0-19-generic-x86_64-with-glibc2.39",
+    "python": "Python 3.12.3",
+    "kernel": "Linux robot-To-Be-Filled-By-O-E-M 6.17.0-19-generic #19~24.04.2-Ubuntu SMP PREEMPT_DYNAMIC Fri Mar  6 23:08:46 UTC 2 x86_64 x86_64 x86_64 GNU/Linux",
+    "git_sha": "7a5112ddead657b153c1b27b00d602c998e62433",
+    "git_branch": "main",
+    "nvidia_smi": "NVIDIA GeForce RTX 5090, 590.48.01, 32607 MiB, 31528 MiB",
+    "torch_version": "2.9.1+cu128",
+    "cuda_runtime": "12.8",
+    "cuda_available": true,
+    "cuda_device_name": "NVIDIA GeForce RTX 5090"
+  },
+  "rows": [
+    {
+      "method": "baseline",
+      "setting": "default",
+      "threshold": null,
+      "accuracy_pct": 70.88888888888889,
+      "speed_tps": 72.71633274244645,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 1.7874095803084669
+    },
+    {
+      "method": "speculative",
+      "setting": "default",
+      "threshold": null,
+      "accuracy_pct": 71.88888888888889,
+      "speed_tps": 40.68252377269749,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 1.0
+    },
+    {
+      "method": "autojudge",
+      "setting": "threshold=0.005",
+      "threshold": 0.005,
+      "accuracy_pct": 74.66666666666667,
+      "speed_tps": 40.180661483422384,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 0.9876639342219984
+    },
+    {
+      "method": "autojudge",
+      "setting": "threshold=0.01",
+      "threshold": 0.01,
+      "accuracy_pct": 74.66666666666667,
+      "speed_tps": 40.17197086018232,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 0.9874503136686468
+    },
+    {
+      "method": "autojudge",
+      "setting": "threshold=0.03",
+      "threshold": 0.03,
+      "accuracy_pct": 74.0,
+      "speed_tps": 40.24927746371722,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 0.9893505547639837
+    },
+    {
+      "method": "autojudge",
+      "setting": "threshold=0.05",
+      "threshold": 0.05,
+      "accuracy_pct": 73.33333333333333,
+      "speed_tps": 41.05222589159424,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 1.0090874922352988
+    },
+    {
+      "method": "autojudge",
+      "setting": "threshold=0.09",
+      "threshold": 0.09,
+      "accuracy_pct": 74.33333333333333,
+      "speed_tps": 43.127323594705246,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 1.0600945957941892
+    },
+    {
+      "method": "autojudge",
+      "setting": "threshold=0.14",
+      "threshold": 0.14,
+      "accuracy_pct": 73.33333333333333,
+      "speed_tps": 45.33761991799819,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 1.114424959752
+    },
+    {
+      "method": "autojudge",
+      "setting": "threshold=0.23",
+      "threshold": 0.23,
+      "accuracy_pct": 73.0,
+      "speed_tps": 47.913510304518304,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 1.1777418375571285
+    },
+    {
+      "method": "autojudge",
+      "setting": "threshold=1",
+      "threshold": 1.0,
+      "accuracy_pct": 75.66666666666667,
+      "speed_tps": 48.90805276915966,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 1.202188267434441
+    },
+    {
+      "method": "topk",
+      "setting": "topk_rank=16",
+      "threshold": null,
+      "accuracy_pct": 76.0,
+      "speed_tps": 59.2671879976938,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 1.456821811961152
+    },
+    {
+      "method": "topk",
+      "setting": "topk_rank=2",
+      "threshold": null,
+      "accuracy_pct": 73.33333333333333,
+      "speed_tps": 56.2962689754997,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 1.3837949014677593
+    },
+    {
+      "method": "topk",
+      "setting": "topk_rank=32",
+      "threshold": null,
+      "accuracy_pct": 76.33333333333333,
+      "speed_tps": 59.27231480824991,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 1.4569478319343658
+    },
+    {
+      "method": "topk",
+      "setting": "topk_rank=4",
+      "threshold": null,
+      "accuracy_pct": 73.66666666666667,
+      "speed_tps": 58.621908169478054,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 1.4409604600002688
+    },
+    {
+      "method": "topk",
+      "setting": "topk_rank=8",
+      "threshold": null,
+      "accuracy_pct": 76.33333333333333,
+      "speed_tps": 59.18646696221468,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 1.45483764215079
+    },
+    {
+      "method": "topk",
+      "setting": "topk_rank=all",
+      "threshold": null,
+      "accuracy_pct": 75.66666666666667,
+      "speed_tps": 59.30066657546454,
+      "speculative_tps": 40.68252377269749,
+      "speedup_ours": 1.4576447347954822
+    }
+  ]
+}

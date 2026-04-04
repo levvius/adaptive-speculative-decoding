@@ -111,6 +111,7 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--add-special-tokens", action="store_true")
     parser.add_argument("--autojudge-threshold", type=float, default=None)
     parser.add_argument("--autojudge-task", type=str, default=None)
+    parser.add_argument("--autojudge-classifier", type=str, default=None)
     parser.add_argument("--autojudge-train-dataset", type=str, default=None)
     parser.add_argument("--autojudge-train-samples", type=int, default=None)
     parser.add_argument("--autojudge-recall-target", type=float, default=None)
@@ -325,6 +326,8 @@ def _handle_bench(args: argparse.Namespace) -> int:
         bench_args.autojudge_threshold = args.autojudge_threshold
     if args.autojudge_task is not None:
         bench_args.autojudge_task = args.autojudge_task
+    if args.autojudge_classifier is not None:
+        bench_args.autojudge_classifier = args.autojudge_classifier
     if args.autojudge_train_dataset is not None:
         bench_args.autojudge_train_dataset = args.autojudge_train_dataset
     if args.autojudge_train_samples is not None:

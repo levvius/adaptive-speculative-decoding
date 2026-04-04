@@ -25,6 +25,7 @@ CHECKPOINT_PATH="${CHECKPOINT_PATH:-datasets/autojudge_qwen25_1p5b_to_7b.pt}"
 SPEC_EXPERIMENT="${SPEC_EXPERIMENT:-qwen25_7b_local_target_1p5b_local_speculative_k4}"
 AUTOJUDGE_EXPERIMENT="${AUTOJUDGE_EXPERIMENT:-qwen25_7b_local_target_1p5b_local_autojudge_k4}"
 TOPK_EXPERIMENT="${TOPK_EXPERIMENT:-qwen25_7b_local_target_1p5b_local_topk_k4}"
+AUTOJUDGE_CLASSIFIER="${AUTOJUDGE_CLASSIFIER:-logreg}"
 
 MAX_SAMPLES="${MAX_SAMPLES:-300}"
 RUNS="${RUNS:-3}"
@@ -151,6 +152,7 @@ for threshold in "${threshold_values[@]}"; do
     --experiment "${AUTOJUDGE_EXPERIMENT}" \
     --method autojudge \
     --autojudge-checkpoint "${CHECKPOINT_PATH}" \
+    --autojudge-classifier "${AUTOJUDGE_CLASSIFIER}" \
     --autojudge-train-dataset "${TRAIN_DATASET}" \
     --autojudge-threshold "${threshold}" \
     "${GSM8K_COMMON_ARGS[@]}" \
@@ -206,6 +208,7 @@ for threshold in "${threshold_values[@]}"; do
     --experiment "${AUTOJUDGE_EXPERIMENT}" \
     --method autojudge \
     --autojudge-checkpoint "${CHECKPOINT_PATH}" \
+    --autojudge-classifier "${AUTOJUDGE_CLASSIFIER}" \
     --autojudge-train-dataset "${TRAIN_DATASET}" \
     --autojudge-threshold "${threshold}" \
     "${LCB_COMMON_ARGS[@]}" \

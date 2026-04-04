@@ -11,6 +11,7 @@ from sp_samp.autojudge import (
     autojudge_sample_hf,
     mine_important_tokens_gsm8k,
     parse_c_grid,
+    train_judge_classifier,
     train_autojudge_logreg,
 )
 from sp_samp.gsm8k import answers_equivalent, extract_final_answer
@@ -131,6 +132,27 @@ def test_train_autojudge_logreg_recall_target():
         seed=0,
     )
     clf, auc = train_autojudge_logreg(x=x, y=y, cfg=cfg)
+    probs = clf.predict_important_prob(x.numpy())
+    preds = (probs >= clf.threshold).astype(np.int64)
+    y_true = y.numpy().reshape(-1).astype(np.int64)
+    positives = y_true == 1
+    recall = float((preds[positives] == 1).mean())
+    assert recall >= 0.9
+    assert auc >= 0.5
+
+
+def test_train_autojudge_hgbt_recall_target():
+    torch.manual_seed(0)
+    x = torch.randn(600, 8)
+    y = ((x[:, 0] + x[:, 1]) > 0).float().unsqueeze(-1)
+    cfg = AutoJudgeTrainConfig(
+        recall_target=0.9,
+        train_split=0.9,
+        classifier="hgbt",
+        seed=0,
+    )
+    clf, auc = train_judge_classifier(x=x, y=y, cfg=cfg)
+    assert clf.classifier_backend == "hgbt"
     probs = clf.predict_important_prob(x.numpy())
     preds = (probs >= clf.threshold).astype(np.int64)
     y_true = y.numpy().reshape(-1).astype(np.int64)

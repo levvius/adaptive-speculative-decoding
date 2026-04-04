@@ -48,6 +48,7 @@ OPTIONAL_BASE_FIELDS = {
     "autojudge_threshold_used",
     "autojudge_threshold_calibrated",
     "autojudge_task",
+    "autojudge_classifier",
     "autojudge_train_dataset",
     "autojudge_recall_target",
     "autojudge_train_split",
@@ -292,6 +293,7 @@ def _validate_record(
             "gsm8k_eval_mode",
             "topk_rank",
             "topk_grid",
+            "autojudge_classifier",
         }:
             _check_type(record, key, "string", errors, ctx, allow_none=True)
         elif key in {

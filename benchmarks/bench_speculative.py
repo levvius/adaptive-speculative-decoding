@@ -463,6 +463,7 @@ def _base_record_fields(
         "autojudge_threshold_used": resolved_autojudge_threshold_used,
         "autojudge_threshold_calibrated": resolved_autojudge_threshold_calibrated,
         "autojudge_task": args.autojudge_task,
+        "autojudge_classifier": args.autojudge_classifier,
         "autojudge_train_dataset": args.autojudge_train_dataset,
         "autojudge_recall_target": args.autojudge_recall_target,
         "autojudge_train_split": args.autojudge_train_split,
@@ -533,6 +534,7 @@ def _record_resume_key(record: Dict[str, object]) -> Optional[str]:
         "autojudge_threshold_used",
         "autojudge_threshold_calibrated",
         "autojudge_task",
+        "autojudge_classifier",
         "autojudge_train_dataset",
         "autojudge_recall_target",
         "autojudge_train_split",
@@ -768,6 +770,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--draft-bnb-compute-dtype", type=str, default=None, help="Compute dtype override for draft 4-bit quantization.")
     parser.add_argument("--autojudge-threshold", type=float, default=None, help="Decision threshold override for judge acceptance. If unset, calibrated threshold is used.")
     parser.add_argument("--autojudge-task", type=str, default="gsm8k", choices=["gsm8k"], help="AutoJudge training/equivalence task mode.")
+    parser.add_argument(
+        "--autojudge-classifier",
+        type=str,
+        default="logreg",
+        choices=["logreg", "hgbt"],
+        help="AutoJudge classifier backend.",
+    )
     parser.add_argument("--autojudge-train-dataset", type=str, default=None, help="Optional dataset path for AutoJudge training. Defaults to --dataset.")
     parser.add_argument("--autojudge-train-samples", type=int, default=4000, help="Max mined mismatches for AutoJudge training.")
     parser.add_argument("--autojudge-recall-target", type=float, default=0.9, help="Validation recall target for threshold calibration.")
@@ -1032,6 +1041,14 @@ def run_with_args(args: argparse.Namespace) -> None:
             raise SystemExit("--autojudge-train-split must be in (0,1).")
         if not (0.0 < float(args.autojudge_recall_target) <= 1.0):
             raise SystemExit("--autojudge-recall-target must be in (0,1].")
+        requested_autojudge_classifier = str(
+            getattr(args, "autojudge_classifier", "logreg")
+        ).strip().lower()
+        if requested_autojudge_classifier not in {"logreg", "hgbt"}:
+            raise SystemExit(
+                "--autojudge-classifier must be one of: logreg, hgbt."
+            )
+        args.autojudge_classifier = requested_autojudge_classifier
 
         should_train = True
         checkpoint_path = Path(args.autojudge_checkpoint) if args.autojudge_checkpoint else None
@@ -1039,11 +1056,20 @@ def run_with_args(args: argparse.Namespace) -> None:
             payload = _torch_load_checkpoint(checkpoint_path)
             classifier = payload.get("classifier") if isinstance(payload, dict) else None
             version = payload.get("autojudge_version") if isinstance(payload, dict) else None
+            payload_classifier_backend = "logreg"
+            if isinstance(payload, dict):
+                payload_classifier_backend = str(
+                    payload.get(
+                        "classifier_backend",
+                        getattr(classifier, "classifier_backend", "logreg"),
+                    )
+                ).strip().lower()
             if (
                 version == 2
                 and classifier is not None
                 and hasattr(classifier, "predict_important_prob")
                 and hasattr(classifier, "threshold")
+                and payload_classifier_backend == requested_autojudge_classifier
             ):
                 autojudge_model = classifier
                 autojudge_train_samples = int(payload.get("train_samples", 0))
@@ -1054,8 +1080,18 @@ def run_with_args(args: argparse.Namespace) -> None:
                 )
                 should_train = False
             else:
+                reason = "legacy/unsupported checkpoint"
+                if (
+                    version == 2
+                    and classifier is not None
+                    and payload_classifier_backend != requested_autojudge_classifier
+                ):
+                    reason = (
+                        f"classifier mismatch ckpt={payload_classifier_backend} "
+                        f"requested={requested_autojudge_classifier}"
+                    )
                 print(
-                    f"[WARN] Legacy/unsupported AutoJudge checkpoint at {checkpoint_path}; retraining paper-aligned head."
+                    f"[WARN] {reason} at {checkpoint_path}; retraining AutoJudge head."
                 )
 
         if should_train:
@@ -1102,6 +1138,7 @@ def run_with_args(args: argparse.Namespace) -> None:
                 train_split=args.autojudge_train_split,
                 recall_target=args.autojudge_recall_target,
                 c_grid=parse_c_grid(args.autojudge_c_grid),
+                classifier=requested_autojudge_classifier,
                 seed=args.seed,
             )
 
@@ -1132,6 +1169,10 @@ def run_with_args(args: argparse.Namespace) -> None:
                         "val_auc": autojudge_val_auc,
                         "val_recall": autojudge_val_recall,
                         "threshold_selected": autojudge_threshold_calibrated,
+                        "classifier_backend": requested_autojudge_classifier,
+                        "classifier_model_label": getattr(
+                            autojudge_model, "model_label", requested_autojudge_classifier
+                        ),
                         "created_at": datetime.now().isoformat(),
                     },
                     checkpoint_path,
