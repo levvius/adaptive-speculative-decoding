@@ -86,6 +86,7 @@ class AutoJudgeTrainConfig:
     c_grid: Tuple[float, ...] = _default_c_grid()
     classifier: str = "logreg"
     seed: int = 123
+    use_dist_features: bool = False
 
 
 @dataclass
@@ -144,6 +145,7 @@ class AutoJudgeClassifier:
     val_auc: float = 0.0
     val_recall: float = 0.0
     model_label: str = ""
+    use_dist_features: bool = False
 
     def predict_important_prob(self, x: np.ndarray) -> np.ndarray:
         if x.ndim == 1:
@@ -232,19 +234,52 @@ def _draft_argmax_tokens_for_target_response(
     return logits[0, start:stop, :].argmax(dim=-1).tolist()
 
 
+def _distributional_features(
+    target_logits_row: torch.Tensor,
+    draft_logits_row: torch.Tensor,
+    draft_token: int,
+    common_vocab_n: int,
+) -> torch.Tensor:
+    """5 scalar features: log-probs, entropies, KL divergence. Shape: (5,)."""
+    t = target_logits_row[:common_vocab_n].to(torch.float32)
+    d = draft_logits_row[:common_vocab_n].to(torch.float32)
+    log_p_t = torch.log_softmax(t, dim=-1)
+    log_p_d = torch.log_softmax(d, dim=-1)
+    p_t = log_p_t.exp()
+    p_d = log_p_d.exp()
+    log_p_target_draft = log_p_t[draft_token]
+    log_p_draft_draft = log_p_d[draft_token]
+    entropy_t = -(p_t * log_p_t).sum()
+    entropy_d = -(p_d * log_p_d).sum()
+    kl_d2t = (p_d * (log_p_d - log_p_t)).sum().clamp(min=0.0)
+    return torch.stack([log_p_target_draft, log_p_draft_draft, entropy_t, entropy_d, kl_d2t])
+
+
 def _feature_for_mismatch(
     target_model: HFModel,
     draft_model: HFModel,
     prompt_tokens: Sequence[int],
     target_prefix_tokens: Sequence[int],
     draft_token: int,
+    use_dist_features: bool = False,
+    common_vocab_n: int = 0,
 ) -> torch.Tensor:
     prefix_with_draft = list(prompt_tokens) + list(target_prefix_tokens) + [int(draft_token)]
-    _, draft_hidden = draft_model.logits_and_last_hidden(prefix_with_draft)
-    _, target_hidden = target_model.logits_and_last_hidden(prefix_with_draft)
+    draft_logits, draft_hidden = draft_model.logits_and_last_hidden(prefix_with_draft)
+    target_logits, target_hidden = target_model.logits_and_last_hidden(prefix_with_draft)
     draft_vec = draft_hidden[0, -1, :].detach().to(torch.float32).cpu()
     target_vec = target_hidden[0, -1, :].detach().to(torch.float32).cpu()
-    return torch.cat([draft_vec, target_vec], dim=0)
+    hidden_feat = torch.cat([draft_vec, target_vec], dim=0)
+    if not use_dist_features:
+        return hidden_feat
+    vocab_n = common_vocab_n if common_vocab_n > 0 else draft_logits.shape[-1]
+    dist_feat = _distributional_features(
+        target_logits_row=target_logits[0, -1, :].detach().cpu(),
+        draft_logits_row=draft_logits[0, -1, :].detach().cpu(),
+        draft_token=int(draft_token),
+        common_vocab_n=vocab_n,
+    )
+    return torch.cat([hidden_feat, dist_feat], dim=0)
 
 
 def mine_important_tokens_gsm8k(
@@ -254,6 +289,7 @@ def mine_important_tokens_gsm8k(
     cfg: AutoJudgeTrainConfig,
     eos_id: Optional[int] = None,
     mining_cache_path: Optional[str] = None,
+    common_vocab_n: int = 0,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     # Paper: Algorithm 1 — important-token label mining for AutoJudge training.
     if cfg.task != "gsm8k":
@@ -326,6 +362,8 @@ def mine_important_tokens_gsm8k(
                 prompt_tokens=prompt,
                 target_prefix_tokens=current[:t],
                 draft_token=draft_token,
+                use_dist_features=cfg.use_dist_features,
+                common_vocab_n=common_vocab_n,
             )
 
             replacement_prefix = prompt + current[:t] + [draft_token]
@@ -529,6 +567,7 @@ def train_autojudge_logreg(
         val_auc=max(best_auc, 0.0),
         val_recall=max(best_recall, 0.0),
         model_label="logreg",
+        use_dist_features=cfg.use_dist_features,
     )
     return classifier, classifier.val_auc
 
@@ -634,6 +673,7 @@ def train_autojudge_hgbt(
         model_label=(
             f"hgbt(depth={best_params['max_depth']},lr={best_params['learning_rate']:.2f})"
         ),
+        use_dist_features=cfg.use_dist_features,
     )
     return classifier, classifier.val_auc
 
@@ -665,6 +705,7 @@ def build_autojudge_classifier(
 ) -> Tuple[AutoJudgeClassifier, int, float]:
     del device  # sklearn-based classifier is CPU-side.
 
+    common_vocab_n = _common_vocab_size(target_model, draft_model)
     x, y = mine_important_tokens_gsm8k(
         target_model=target_model,
         draft_model=draft_model,
@@ -672,8 +713,10 @@ def build_autojudge_classifier(
         cfg=cfg,
         eos_id=eos_id,
         mining_cache_path=mining_cache_path,
+        common_vocab_n=common_vocab_n,
     )
     classifier, val_auc = train_judge_classifier(x=x, y=y, cfg=cfg)
+    classifier.use_dist_features = cfg.use_dist_features
     return classifier, int(x.shape[0]), float(val_auc)
 
 
@@ -734,7 +777,7 @@ def autojudge_sample_hf(
 
         full_seq = prefix + draft_tokens
         target_logits, target_hidden = target_model.logits_and_last_hidden(full_seq)
-        _, draft_hidden = draft_model.logits_and_last_hidden(full_seq)
+        draft_logits, draft_hidden = draft_model.logits_and_last_hidden(full_seq)
         stats.target_calls += 1
 
         accepted_tokens: List[int] = []
@@ -753,13 +796,23 @@ def autojudge_sample_hf(
             # Paper: Section 3 — judge called only on mismatches for efficiency.
             stats.judge_total += 1
             abs_idx = len(prefix) + i
-            feat = torch.cat(
+            hidden_feat = torch.cat(
                 [
                     draft_hidden[0, abs_idx, :].to(torch.float32),
                     target_hidden[0, abs_idx, :].to(torch.float32),
                 ],
                 dim=0,
             )
+            if getattr(judge_model, "use_dist_features", False):
+                dist_feat = _distributional_features(
+                    target_logits_row=target_logits[0, start + i, :].detach().cpu(),
+                    draft_logits_row=draft_logits[0, start + i, :].detach().cpu(),
+                    draft_token=int(draft_token),
+                    common_vocab_n=common_vocab_n,
+                )
+                feat = torch.cat([hidden_feat, dist_feat], dim=0)
+            else:
+                feat = hidden_feat
             prob_important = float(
                 judge_model.predict_important_prob(feat.cpu().numpy().reshape(1, -1))[0]
             )

@@ -464,6 +464,7 @@ def _base_record_fields(
         "autojudge_threshold_calibrated": resolved_autojudge_threshold_calibrated,
         "autojudge_task": args.autojudge_task,
         "autojudge_classifier": args.autojudge_classifier,
+        "autojudge_features": getattr(args, "autojudge_features", "hidden"),
         "autojudge_train_dataset": args.autojudge_train_dataset,
         "autojudge_recall_target": args.autojudge_recall_target,
         "autojudge_train_split": args.autojudge_train_split,
@@ -535,6 +536,7 @@ def _record_resume_key(record: Dict[str, object]) -> Optional[str]:
         "autojudge_threshold_calibrated",
         "autojudge_task",
         "autojudge_classifier",
+        "autojudge_features",
         "autojudge_train_dataset",
         "autojudge_recall_target",
         "autojudge_train_split",
@@ -1050,6 +1052,15 @@ def run_with_args(args: argparse.Namespace) -> None:
             )
         args.autojudge_classifier = requested_autojudge_classifier
 
+        requested_autojudge_features = str(
+            getattr(args, "autojudge_features", "hidden") or "hidden"
+        ).strip().lower()
+        if requested_autojudge_features not in {"hidden", "dist"}:
+            raise SystemExit(
+                "--autojudge-features must be one of: hidden, dist."
+            )
+        args.autojudge_features = requested_autojudge_features
+
         should_train = True
         checkpoint_path = Path(args.autojudge_checkpoint) if args.autojudge_checkpoint else None
         if checkpoint_path is not None and checkpoint_path.exists():
@@ -1064,12 +1075,18 @@ def run_with_args(args: argparse.Namespace) -> None:
                         getattr(classifier, "classifier_backend", "logreg"),
                     )
                 ).strip().lower()
+            payload_features = "hidden"
+            if isinstance(payload, dict):
+                payload_features = str(
+                    payload.get("autojudge_features", "hidden")
+                ).strip().lower()
             if (
                 version == 2
                 and classifier is not None
                 and hasattr(classifier, "predict_important_prob")
                 and hasattr(classifier, "threshold")
                 and payload_classifier_backend == requested_autojudge_classifier
+                and payload_features == requested_autojudge_features
             ):
                 autojudge_model = classifier
                 autojudge_train_samples = int(payload.get("train_samples", 0))
@@ -1081,15 +1098,17 @@ def run_with_args(args: argparse.Namespace) -> None:
                 should_train = False
             else:
                 reason = "legacy/unsupported checkpoint"
-                if (
-                    version == 2
-                    and classifier is not None
-                    and payload_classifier_backend != requested_autojudge_classifier
-                ):
-                    reason = (
-                        f"classifier mismatch ckpt={payload_classifier_backend} "
-                        f"requested={requested_autojudge_classifier}"
-                    )
+                if version == 2 and classifier is not None:
+                    if payload_classifier_backend != requested_autojudge_classifier:
+                        reason = (
+                            f"classifier mismatch ckpt={payload_classifier_backend} "
+                            f"requested={requested_autojudge_classifier}"
+                        )
+                    elif payload_features != requested_autojudge_features:
+                        reason = (
+                            f"features mismatch ckpt={payload_features} "
+                            f"requested={requested_autojudge_features}"
+                        )
                 print(
                     f"[WARN] {reason} at {checkpoint_path}; retraining AutoJudge head."
                 )
@@ -1140,6 +1159,7 @@ def run_with_args(args: argparse.Namespace) -> None:
                 c_grid=parse_c_grid(args.autojudge_c_grid),
                 classifier=requested_autojudge_classifier,
                 seed=args.seed,
+                use_dist_features=(requested_autojudge_features == "dist"),
             )
 
             training_prompts = [encode_fn(sample.question) for sample in gsm_samples]
@@ -1170,6 +1190,7 @@ def run_with_args(args: argparse.Namespace) -> None:
                         "val_recall": autojudge_val_recall,
                         "threshold_selected": autojudge_threshold_calibrated,
                         "classifier_backend": requested_autojudge_classifier,
+                        "autojudge_features": requested_autojudge_features,
                         "classifier_model_label": getattr(
                             autojudge_model, "model_label", requested_autojudge_classifier
                         ),

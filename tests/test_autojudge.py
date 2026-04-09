@@ -6,8 +6,10 @@ import numpy as np
 import torch
 
 from sp_samp.autojudge import (
+    AutoJudgeClassifier,
     AutoJudgeTrainConfig,
     _default_c_grid,
+    _distributional_features,
     autojudge_sample_hf,
     mine_important_tokens_gsm8k,
     parse_c_grid,
@@ -308,3 +310,45 @@ def test_autojudge_sample_hf_handles_padded_vocab_mismatch():
     assert out[0] == 2
     assert max(out) < 4
     assert stats.target_fallbacks >= 1
+
+
+def test_distributional_features_shape_and_finite():
+    vocab = 8
+    target_logits = torch.randn(vocab)
+    draft_logits = torch.randn(vocab)
+    feat = _distributional_features(target_logits, draft_logits, draft_token=2, common_vocab_n=vocab)
+    assert feat.shape == (5,), f"Expected shape (5,), got {feat.shape}"
+    assert torch.all(torch.isfinite(feat)), f"Expected all finite, got {feat}"
+    # KL divergence must be non-negative
+    assert feat[4].item() >= 0.0, "KL divergence must be >= 0"
+
+
+def test_autojudge_sample_hf_with_dist_features():
+    """autojudge_sample_hf works with use_dist_features=True (judge_model.use_dist_features)."""
+    tokenizer = _FakeTokenizer("same")
+    target_transition = {(0,): 2, (0, 1): 2, (0, 1, 2): 2}
+    draft_transition = {(0,): 1, (0, 1): 2, (0, 1, 2): 2}
+    target = _FakeHFModel(target_transition, tokenizer=tokenizer, vocab_size=6, hidden_offset=10.0)
+    draft = _FakeHFModel(draft_transition, tokenizer=tokenizer, vocab_size=6, hidden_offset=20.0)
+
+    # Use a constant judge that always says unimportant; feature dim = hidden*2+5 = 2*2+5 = 9
+    class _DistJudge:
+        threshold = 0.5
+        use_dist_features = True
+        def predict_important_prob(self, x):
+            assert x.shape[1] == 9, f"Expected feature dim 9 (4 hidden + 5 dist), got {x.shape[1]}"
+            return np.zeros(x.shape[0], dtype=np.float64)
+
+    out, stats = autojudge_sample_hf(
+        target_model=target,
+        draft_model=draft,
+        judge_model=_DistJudge(),
+        prompt_tokens=[0],
+        max_new_tokens=3,
+        k=2,
+        threshold=None,
+        eos_id=None,
+        seed=0,
+    )
+    assert len(out) > 0
+    assert stats.judge_total >= 1
