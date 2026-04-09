@@ -57,11 +57,29 @@ def _apply_draft_preset(args: argparse.Namespace, preset: Dict) -> None:
         args.trust_remote_code = True
 
 
+def _apply_draft2_preset(args: argparse.Namespace, preset: Dict) -> None:
+    if "hf_model" in preset and preset["hf_model"] is not None:
+        args.hf_draft2_model = preset["hf_model"]
+    if "tokenizer" in preset and preset["tokenizer"] is not None:
+        args.draft2_tokenizer = preset["tokenizer"]
+    if "device" in preset and preset["device"] is not None:
+        args.draft2_device = preset["device"]
+    if "dtype" in preset and preset["dtype"] is not None:
+        args.draft2_dtype = preset["dtype"]
+    if "quant" in preset:
+        args.draft2_quant = preset["quant"]
+    if "bnb_compute_dtype" in preset and preset["bnb_compute_dtype"] is not None:
+        args.draft2_bnb_compute_dtype = preset["bnb_compute_dtype"]
+    if preset.get("trust_remote_code"):
+        args.trust_remote_code = True
+
+
 def _add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--config-dir", type=str, default="configs")
     parser.add_argument("--experiment", type=str, default=None)
     parser.add_argument("--model-preset", type=str, default=None)
     parser.add_argument("--draft-preset", type=str, default=None)
+    parser.add_argument("--draft2-preset", type=str, default=None)
     parser.add_argument("--method-preset", type=str, default=None)
     parser.add_argument("--dataset", type=str, default=None)
     parser.add_argument("--out", type=str, default=None)
@@ -73,6 +91,7 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
             "baseline",
             "speculative",
             "autojudge",
+            "consensus_autojudge",
             "topk",
             "specexec",
             "both",
@@ -105,6 +124,12 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--draft-dtype", type=str, default=None)
     parser.add_argument("--draft-quant", type=str, default=None)
     parser.add_argument("--draft-bnb-compute-dtype", type=str, default=None)
+    parser.add_argument("--hf-draft2-model", type=str, default=None)
+    parser.add_argument("--draft2-tokenizer", type=str, default=None)
+    parser.add_argument("--draft2-device", type=str, default=None)
+    parser.add_argument("--draft2-dtype", type=str, default=None)
+    parser.add_argument("--draft2-quant", type=str, default=None)
+    parser.add_argument("--draft2-bnb-compute-dtype", type=str, default=None)
     parser.add_argument("--trust-remote-code", action="store_true")
     parser.add_argument("--use-chat-template", action="store_true")
     parser.add_argument("--system-prompt", type=str, default=None)
@@ -124,6 +149,25 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--autojudge-train-lr", type=float, default=None)
     parser.add_argument("--autojudge-audit-ratio", type=float, default=None)
     parser.add_argument("--autojudge-checkpoint", type=str, default=None)
+    parser.add_argument(
+        "--consensus-gate",
+        type=str,
+        default=None,
+        help="Consensus gate mode: learned or rule.",
+    )
+    parser.add_argument(
+        "--consensus-features",
+        type=str,
+        default=None,
+        help="Consensus feature set: ensemble (default) or d1_only.",
+    )
+    parser.add_argument("--consensus-train-dataset", type=str, default=None)
+    parser.add_argument("--consensus-train-samples", type=int, default=None)
+    parser.add_argument("--consensus-train-split", type=float, default=None)
+    parser.add_argument("--consensus-fallback-threshold", type=float, default=None)
+    parser.add_argument("--consensus-checkpoint", type=str, default=None)
+    parser.add_argument("--consensus-top-m", type=int, default=None)
+    parser.add_argument("--consensus-disable-escalation", action="store_true")
     parser.add_argument("--topk-rank", type=str, default=None)
     parser.add_argument("--topk-grid", type=str, default=None)
     parser.add_argument("--parallel-branches", type=int, default=None)
@@ -192,6 +236,7 @@ def _handle_bench(args: argparse.Namespace) -> int:
         experiment = experiments[args.experiment]
         target_preset = experiment.get("target_preset")
         draft_preset = experiment.get("draft_preset")
+        draft2_preset = experiment.get("draft2_preset")
         method_preset = experiment.get("method_preset")
         if target_preset:
             if target_preset not in model_presets:
@@ -209,6 +254,14 @@ def _handle_bench(args: argparse.Namespace) -> int:
                 )
                 return 2
             _apply_draft_preset(bench_args, model_presets[draft_preset])
+        if draft2_preset:
+            if draft2_preset not in model_presets:
+                print(
+                    f"Unknown second draft preset in experiment: {draft2_preset}",
+                    file=sys.stderr,
+                )
+                return 2
+            _apply_draft2_preset(bench_args, model_presets[draft2_preset])
         if method_preset:
             if method_preset not in method_presets:
                 print(
@@ -222,6 +275,7 @@ def _handle_bench(args: argparse.Namespace) -> int:
                 "baseline",
                 "speculative",
                 "autojudge",
+                "consensus_autojudge",
                 "topk",
                 "specexec",
                 "both",
@@ -247,6 +301,12 @@ def _handle_bench(args: argparse.Namespace) -> int:
             return 2
         _apply_draft_preset(bench_args, model_presets[args.draft_preset])
 
+    if args.draft2_preset:
+        if args.draft2_preset not in model_presets:
+            print(f"Unknown second draft preset: {args.draft2_preset}", file=sys.stderr)
+            return 2
+        _apply_draft2_preset(bench_args, model_presets[args.draft2_preset])
+
     if args.method_preset:
         if args.method_preset not in method_presets:
             print(f"Unknown method preset: {args.method_preset}", file=sys.stderr)
@@ -257,6 +317,7 @@ def _handle_bench(args: argparse.Namespace) -> int:
             "baseline",
             "speculative",
             "autojudge",
+            "consensus_autojudge",
             "topk",
             "specexec",
             "both",
@@ -316,6 +377,18 @@ def _handle_bench(args: argparse.Namespace) -> int:
         bench_args.draft_quant = args.draft_quant
     if args.draft_bnb_compute_dtype is not None:
         bench_args.draft_bnb_compute_dtype = args.draft_bnb_compute_dtype
+    if args.hf_draft2_model is not None:
+        bench_args.hf_draft2_model = args.hf_draft2_model
+    if args.draft2_tokenizer is not None:
+        bench_args.draft2_tokenizer = args.draft2_tokenizer
+    if args.draft2_device is not None:
+        bench_args.draft2_device = args.draft2_device
+    if args.draft2_dtype is not None:
+        bench_args.draft2_dtype = args.draft2_dtype
+    if args.draft2_quant is not None:
+        bench_args.draft2_quant = args.draft2_quant
+    if args.draft2_bnb_compute_dtype is not None:
+        bench_args.draft2_bnb_compute_dtype = args.draft2_bnb_compute_dtype
     if args.trust_remote_code:
         bench_args.trust_remote_code = True
     if args.use_chat_template:
@@ -352,6 +425,24 @@ def _handle_bench(args: argparse.Namespace) -> int:
         bench_args.autojudge_audit_ratio = args.autojudge_audit_ratio
     if args.autojudge_checkpoint is not None:
         bench_args.autojudge_checkpoint = args.autojudge_checkpoint
+    if args.consensus_gate is not None:
+        bench_args.consensus_gate = args.consensus_gate
+    if args.consensus_features is not None:
+        bench_args.consensus_features = args.consensus_features
+    if args.consensus_train_dataset is not None:
+        bench_args.consensus_train_dataset = args.consensus_train_dataset
+    if args.consensus_train_samples is not None:
+        bench_args.consensus_train_samples = args.consensus_train_samples
+    if args.consensus_train_split is not None:
+        bench_args.consensus_train_split = args.consensus_train_split
+    if args.consensus_fallback_threshold is not None:
+        bench_args.consensus_fallback_threshold = args.consensus_fallback_threshold
+    if args.consensus_checkpoint is not None:
+        bench_args.consensus_checkpoint = args.consensus_checkpoint
+    if args.consensus_top_m is not None:
+        bench_args.consensus_top_m = args.consensus_top_m
+    if args.consensus_disable_escalation:
+        bench_args.consensus_disable_escalation = True
     if args.topk_rank is not None:
         bench_args.topk_rank = args.topk_rank
     if args.topk_grid is not None:

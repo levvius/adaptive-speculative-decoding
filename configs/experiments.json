@@ -144,6 +144,13 @@
       "draft_preset": "qwen25_0p5b_instruct_compat",
       "method_preset": "autojudge_k4"
     },
+    "qwen25_3b_target_qwen25_0p5b_1p5b_consensus_autojudge_k4": {
+      "description": "Qwen2.5 3B target with Qwen2.5 0.5B draft and 1.5B second draft, Consensus AutoJudge k=4.",
+      "target_preset": "qwen25_3b_instruct",
+      "draft_preset": "qwen25_0p5b_instruct_compat",
+      "draft2_preset": "qwen25_1p5b_instruct_compat",
+      "method_preset": "consensus_autojudge_k4"
+    },
     "qwen25_3b_target_qwen25_0p5b_topk_k4": {
       "description": "Qwen2.5 3B target with Qwen2.5 0.5B draft (compat tokenizer), Top-K lossy baseline k=4.",
       "target_preset": "qwen25_3b_instruct",

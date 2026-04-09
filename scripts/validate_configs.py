@@ -11,6 +11,7 @@ BENCH_METHODS = {
     "baseline",
     "speculative",
     "autojudge",
+    "consensus_autojudge",
     "topk",
     "both",
     "all",
@@ -20,6 +21,7 @@ BENCH_METHODS = {
 DRAFT_REQUIRED_METHODS = {
     "speculative",
     "autojudge",
+    "consensus_autojudge",
     "topk",
     "both",
     "all",
@@ -99,6 +101,7 @@ def validate_config_dir(config_dir: Path) -> Tuple[List[str], List[str], Dict[st
     for exp_name, exp in experiments.items():
         target_preset = exp.get("target_preset")
         draft_preset = exp.get("draft_preset")
+        draft2_preset = exp.get("draft2_preset")
         method_preset = exp.get("method_preset")
 
         if not target_preset:
@@ -130,6 +133,12 @@ def validate_config_dir(config_dir: Path) -> Tuple[List[str], List[str], Dict[st
             )
             continue
 
+        if method == "consensus_autojudge" and not draft2_preset:
+            errors.append(
+                f"experiments.{exp_name}: method '{method}' requires draft2_preset."
+            )
+            continue
+
         if draft_preset:
             if draft_preset not in models:
                 errors.append(
@@ -141,26 +150,63 @@ def validate_config_dir(config_dir: Path) -> Tuple[List[str], List[str], Dict[st
                     f"experiments.{exp_name}: draft_preset is ignored for baseline method."
                 )
 
+        if draft2_preset:
+            if draft2_preset not in models:
+                errors.append(
+                    f"experiments.{exp_name}: draft2_preset '{draft2_preset}' not found in models."
+                )
+                continue
+            if method != "consensus_autojudge":
+                warnings.append(
+                    f"experiments.{exp_name}: draft2_preset is ignored for method '{method}'."
+                )
+
         if method in DRAFT_REQUIRED_METHODS and draft_preset:
             target = models[target_preset]
             draft = models[draft_preset]
+            draft2 = models[draft2_preset] if draft2_preset in models else None
 
             target_tokenizer = target.get("tokenizer")
             draft_tokenizer = draft.get("tokenizer")
+            draft2_tokenizer = draft2.get("tokenizer") if draft2 is not None else None
             if target_tokenizer and draft_tokenizer and target_tokenizer != draft_tokenizer:
                 errors.append(
                     f"experiments.{exp_name}: tokenizer mismatch "
                     f"('{target_tokenizer}' vs '{draft_tokenizer}')."
                 )
+            if (
+                method == "consensus_autojudge"
+                and target_tokenizer
+                and draft2_tokenizer
+                and target_tokenizer != draft2_tokenizer
+            ):
+                errors.append(
+                    f"experiments.{exp_name}: tokenizer mismatch "
+                    f"('{target_tokenizer}' vs '{draft2_tokenizer}')."
+                )
             if not target_tokenizer or not draft_tokenizer:
                 warnings.append(
                     f"experiments.{exp_name}: tokenizer missing for target or draft preset."
+                )
+            if method == "consensus_autojudge" and not draft2_tokenizer:
+                warnings.append(
+                    f"experiments.{exp_name}: tokenizer missing for second draft preset."
                 )
 
             if target_preset == draft_preset:
                 warnings.append(
                     f"experiments.{exp_name}: target and draft use the same preset "
                     f"('{target_preset}'); speedup may be limited."
+                )
+            if method == "consensus_autojudge" and target_preset == draft2_preset:
+                warnings.append(
+                    f"experiments.{exp_name}: target and second draft use the same preset "
+                    f"('{target_preset}'); ensemble benefit may be limited."
+                )
+            if method == "consensus_autojudge" and draft_preset == draft2_preset:
+                warnings.append(
+                    f"experiments.{exp_name}: draft and second draft use the same preset "
+                    f"('{draft_preset}'); consensus signal may collapse."
                 )
 
     stats = {

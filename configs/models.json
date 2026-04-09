@@ -30,6 +30,16 @@
       "use_chat_template": true,
       "trust_remote_code": false
     },
+    "qwen25_1p5b_instruct_compat": {
+      "hf_model": "Qwen/Qwen2.5-1.5B-Instruct",
+      "tokenizer": "Qwen/Qwen2.5-0.5B-Instruct",
+      "device": "cuda",
+      "dtype": "bfloat16",
+      "quant": null,
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": true,
+      "trust_remote_code": false
+    },
     "qwen25_7b_instruct": {
       "hf_model": "Qwen/Qwen2.5-7B-Instruct",
       "tokenizer": "Qwen/Qwen2.5-7B-Instruct",

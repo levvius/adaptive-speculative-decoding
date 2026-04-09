@@ -39,6 +39,11 @@ parse_c_grid = None
 warn_deprecated_autojudge_args = None
 AutoJudgeStats = None
 autojudge_sample_hf = None
+ConsensusGateClassifier = None
+ConsensusAutoJudgeTrainConfig = None
+ConsensusAutoJudgeStats = None
+build_consensus_gate_classifier = None
+consensus_autojudge_sample_hf = None
 sample_baseline_hf = None
 speculative_sample_hf = None
 specexec_sample_hf = None
@@ -54,6 +59,13 @@ if torch is not None:
         build_autojudge_classifier,
         parse_c_grid,
         warn_deprecated_autojudge_args,
+    )
+    from sp_samp.consensus_autojudge import (
+        ConsensusAutoJudgeStats,
+        ConsensusAutoJudgeTrainConfig,
+        ConsensusGateClassifier,
+        build_consensus_gate_classifier,
+        consensus_autojudge_sample_hf,
     )
     from sp_samp.hf_adapter import HFModel
     from sp_samp.hf_sampling import sample_baseline_hf, speculative_sample_hf
@@ -120,6 +132,12 @@ def _accumulate_stats(total, stats) -> None:
     if hasattr(total, "max_active_branches") and hasattr(stats, "max_active_branches"):
         total.max_active_branches = max(total.max_active_branches, stats.max_active_branches)
     extra_fields = [
+        "gate_total",
+        "gate_accept_d1",
+        "gate_escalate_d2",
+        "gate_fallback",
+        "accepted_d1",
+        "accepted_d2",
         "judge_total",
         "judge_accepted",
         "judge_rejected",
@@ -129,6 +147,8 @@ def _accumulate_stats(total, stats) -> None:
         "target_fallbacks",
         "draft_calls",
         "draft_prefills",
+        "draft2_calls",
+        "draft2_prefills",
         "target_prefills",
         "branches_total",
         "branches_kept",
@@ -147,6 +167,7 @@ def _run_once(
     decode_fn: Optional[Callable[[List[int]], str]],
     target_model,
     draft_model,
+    draft2_model,
     method: str,
     eval_task: str,
     max_new_tokens: int,
@@ -154,6 +175,12 @@ def _run_once(
     seed: int,
     autojudge_model=None,
     autojudge_threshold: Optional[float] = None,
+    consensus_gate_model=None,
+    consensus_gate_mode: str = "learned",
+    consensus_fallback_threshold: Optional[float] = None,
+    consensus_top_m: int = 8,
+    consensus_feature_mode: str = "ensemble",
+    consensus_disable_escalation: bool = False,
     topk_rank: Optional[int] = 4,
     specexec_parallel_branches: int = 8,
     specexec_branch_prune_threshold: float = 0.0,
@@ -169,6 +196,10 @@ def _run_once(
         if AutoJudgeStats is None:
             raise RuntimeError("AutoJudge requires torch dependencies.")
         total_stats = AutoJudgeStats()
+    elif method == "consensus_autojudge":
+        if ConsensusAutoJudgeStats is None:
+            raise RuntimeError("Consensus AutoJudge requires torch dependencies.")
+        total_stats = ConsensusAutoJudgeStats()
     elif method == "topk":
         if TopKStats is None:
             raise RuntimeError("Top-k HF method requires torch dependencies.")
@@ -216,6 +247,27 @@ def _run_once(
                         threshold=autojudge_threshold,
                         eos_id=target_model.eos_token_id,
                         seed=seed,
+                    )
+                elif method == "consensus_autojudge":
+                    if consensus_autojudge_sample_hf is None:
+                        raise RuntimeError("Consensus AutoJudge HF implementation is unavailable.")
+                    if draft2_model is None:
+                        raise ValueError("Second draft model is required for consensus_autojudge.")
+                    generated, stats = consensus_autojudge_sample_hf(
+                        target_model=target_model,
+                        draft_model=draft_model,
+                        draft2_model=draft2_model,
+                        gate_model=consensus_gate_model,
+                        gate_mode=consensus_gate_mode,
+                        prompt_tokens=prompt_tokens,
+                        max_new_tokens=max_new_tokens,
+                        k=k,
+                        fallback_threshold=consensus_fallback_threshold,
+                        eos_id=target_model.eos_token_id,
+                        seed=seed,
+                        top_m=consensus_top_m,
+                        feature_mode=consensus_feature_mode,
+                        disable_escalation=consensus_disable_escalation,
                     )
                 elif method == "topk":
                     if topk_sample_hf is None:
@@ -268,6 +320,8 @@ def _run_once(
                     )
                 elif method == "autojudge":
                     raise ValueError("AutoJudge is currently supported only for HF models.")
+                elif method == "consensus_autojudge":
+                    raise ValueError("consensus_autojudge is currently supported only for HF models.")
                 elif method == "topk":
                     raise ValueError("Top-k is currently supported only for HF models.")
                 elif method == "specexec":
@@ -420,26 +474,38 @@ def _base_record_fields(
     backend: str,
     resolved_target_model: str,
     resolved_draft_model: str,
+    resolved_draft2_model: Optional[str],
     resolved_target_tokenizer: str,
     resolved_draft_tokenizer: str,
+    resolved_draft2_tokenizer: Optional[str],
     args: argparse.Namespace,
     resolved_draft_device: str,
     resolved_draft_dtype: str,
     resolved_draft_quant: Optional[str],
     resolved_draft_bnb_compute_dtype: Optional[str],
+    resolved_draft2_device: Optional[str],
+    resolved_draft2_dtype: Optional[str],
+    resolved_draft2_quant: Optional[str],
+    resolved_draft2_bnb_compute_dtype: Optional[str],
     resolved_autojudge_threshold_used: float,
     resolved_autojudge_threshold_calibrated: float,
     autojudge_train_samples: int,
     autojudge_val_auc: float,
     autojudge_val_recall: float,
+    resolved_consensus_fallback_threshold_used: Optional[float],
+    consensus_train_samples: int,
+    consensus_val_accuracy: float,
+    consensus_val_macro_f1: float,
 ) -> Dict[str, object]:
     return {
         "method": method,
         "backend": backend,
         "target_model": resolved_target_model,
         "draft_model": resolved_draft_model,
+        "draft2_model": resolved_draft2_model,
         "tokenizer": resolved_target_tokenizer,
         "draft_tokenizer": resolved_draft_tokenizer,
+        "draft2_tokenizer": resolved_draft2_tokenizer,
         "device": args.device,
         "dtype": args.dtype,
         "quant": args.quant,
@@ -448,6 +514,10 @@ def _base_record_fields(
         "draft_dtype": resolved_draft_dtype,
         "draft_quant": resolved_draft_quant,
         "draft_bnb_compute_dtype": resolved_draft_bnb_compute_dtype,
+        "draft2_device": resolved_draft2_device,
+        "draft2_dtype": resolved_draft2_dtype,
+        "draft2_quant": resolved_draft2_quant,
+        "draft2_bnb_compute_dtype": resolved_draft2_bnb_compute_dtype,
         "use_chat_template": args.use_chat_template,
         "system_prompt": args.system_prompt,
         "k": args.k,
@@ -476,6 +546,19 @@ def _base_record_fields(
         # Legacy alias kept for backward compatibility.
         "autojudge_threshold_selected": resolved_autojudge_threshold_calibrated,
         "autojudge_checkpoint": args.autojudge_checkpoint,
+        "consensus_gate": getattr(args, "consensus_gate", "learned"),
+        "consensus_features": getattr(args, "consensus_features", "ensemble"),
+        "consensus_train_dataset": getattr(args, "consensus_train_dataset", None),
+        "consensus_train_samples": consensus_train_samples,
+        "consensus_train_split": getattr(args, "consensus_train_split", None),
+        "consensus_fallback_threshold": resolved_consensus_fallback_threshold_used,
+        "consensus_checkpoint": getattr(args, "consensus_checkpoint", None),
+        "consensus_top_m": getattr(args, "consensus_top_m", None),
+        "consensus_disable_escalation": bool(
+            getattr(args, "consensus_disable_escalation", False)
+        ),
+        "consensus_val_accuracy": consensus_val_accuracy,
+        "consensus_val_macro_f1": consensus_val_macro_f1,
         "parallel_branches": args.parallel_branches,
         "branch_prune_threshold": args.branch_prune_threshold,
     }
@@ -510,8 +593,10 @@ def _record_resume_key(record: Dict[str, object]) -> Optional[str]:
         "backend",
         "target_model",
         "draft_model",
+        "draft2_model",
         "tokenizer",
         "draft_tokenizer",
+        "draft2_tokenizer",
         "device",
         "dtype",
         "quant",
@@ -520,6 +605,10 @@ def _record_resume_key(record: Dict[str, object]) -> Optional[str]:
         "draft_dtype",
         "draft_quant",
         "draft_bnb_compute_dtype",
+        "draft2_device",
+        "draft2_dtype",
+        "draft2_quant",
+        "draft2_bnb_compute_dtype",
         "use_chat_template",
         "system_prompt",
         "k",
@@ -547,6 +636,17 @@ def _record_resume_key(record: Dict[str, object]) -> Optional[str]:
         "autojudge_val_recall",
         "autojudge_threshold_selected",
         "autojudge_checkpoint",
+        "consensus_gate",
+        "consensus_features",
+        "consensus_train_dataset",
+        "consensus_train_samples",
+        "consensus_train_split",
+        "consensus_fallback_threshold",
+        "consensus_checkpoint",
+        "consensus_top_m",
+        "consensus_disable_escalation",
+        "consensus_val_accuracy",
+        "consensus_val_macro_f1",
         "parallel_branches",
         "branch_prune_threshold",
         "run",
@@ -600,6 +700,17 @@ def _tokenizers_compatible(target_tokenizer, draft_tokenizer) -> bool:
     except Exception:
         return False
     return target_vocab == draft_vocab
+
+
+def _all_tokenizers_compatible(*tokenizers) -> bool:
+    filtered = [tokenizer for tokenizer in tokenizers if tokenizer is not None]
+    if len(filtered) <= 1:
+        return True
+    base = filtered[0]
+    for tokenizer in filtered[1:]:
+        if not _tokenizers_compatible(base, tokenizer):
+            return False
+    return True
 
 
 def _uses_native_quantized_checkpoint(model_name: Optional[str]) -> bool:
@@ -671,6 +782,12 @@ def _stats_record_fields(stats) -> dict:
     }
     if hasattr(stats, "judge_accept_rate"):
         record["judge_accept_rate"] = stats.judge_accept_rate
+    if hasattr(stats, "gate_accept_d1_rate"):
+        record["gate_accept_d1_rate"] = stats.gate_accept_d1_rate
+    if hasattr(stats, "gate_escalate_rate"):
+        record["gate_escalate_rate"] = stats.gate_escalate_rate
+    if hasattr(stats, "gate_fallback_rate"):
+        record["gate_fallback_rate"] = stats.gate_fallback_rate
     if hasattr(stats, "topk_accept_rate"):
         record["topk_accept_rate"] = stats.topk_accept_rate
     if hasattr(stats, "target_fallback_rate"):
@@ -679,6 +796,8 @@ def _stats_record_fields(stats) -> dict:
         record["target_calls_per_token"] = stats.target_calls_per_token
     if hasattr(stats, "draft_calls_per_token"):
         record["draft_calls_per_token"] = stats.draft_calls_per_token
+    if hasattr(stats, "draft2_calls_per_token"):
+        record["draft2_calls_per_token"] = stats.draft2_calls_per_token
     if hasattr(stats, "branch_prune_rate"):
         record["branch_prune_rate"] = stats.branch_prune_rate
     if hasattr(stats, "effective_parallelism"):
@@ -689,10 +808,18 @@ def _stats_record_fields(stats) -> dict:
         "judge_total",
         "judge_accepted",
         "judge_rejected",
+        "gate_total",
+        "gate_accept_d1",
+        "gate_escalate_d2",
+        "gate_fallback",
+        "accepted_d1",
+        "accepted_d2",
         "target_calls",
         "target_fallbacks",
         "draft_calls",
         "draft_prefills",
+        "draft2_calls",
+        "draft2_prefills",
         "target_prefills",
         "branches_total",
         "branches_kept",
@@ -704,7 +831,10 @@ def _stats_record_fields(stats) -> dict:
         "train_loss",
         "val_auc",
         "val_recall",
+        "val_accuracy",
+        "val_macro_f1",
         "threshold_selected",
+        "fallback_threshold_selected",
         "topk_rank_effective",
         "topk_mismatches",
         "topk_accepted_mismatches",
@@ -730,6 +860,7 @@ def build_parser() -> argparse.ArgumentParser:
             "baseline",
             "speculative",
             "autojudge",
+            "consensus_autojudge",
             "topk",
             "specexec",
             "both",
@@ -756,20 +887,26 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=123)
     parser.add_argument("--hf-model", type=str, default=None, help="HF model name/path for target.")
     parser.add_argument("--hf-draft-model", type=str, default=None, help="HF model name/path for draft.")
+    parser.add_argument("--hf-draft2-model", type=str, default=None, help="HF model name/path for second draft.")
     parser.add_argument("--tokenizer", type=str, default=None, help="Tokenizer name/path.")
     parser.add_argument("--draft-tokenizer", type=str, default=None, help="Tokenizer name/path for draft model.")
+    parser.add_argument("--draft2-tokenizer", type=str, default=None, help="Tokenizer name/path for second draft model.")
     parser.add_argument("--device", type=str, default="cpu", help="Device: cpu/cuda/mps.")
     parser.add_argument("--draft-device", type=str, default=None, help="Device override for draft model.")
+    parser.add_argument("--draft2-device", type=str, default=None, help="Device override for second draft model.")
     parser.add_argument("--dtype", type=str, default="auto", help="Torch dtype: auto/float16/bfloat16/float32.")
     parser.add_argument("--draft-dtype", type=str, default=None, help="Torch dtype override for draft model.")
+    parser.add_argument("--draft2-dtype", type=str, default=None, help="Torch dtype override for second draft model.")
     parser.add_argument("--trust-remote-code", action="store_true", help="Allow remote code for HF models.")
     parser.add_argument("--add-special-tokens", action="store_true", help="Use tokenizer special tokens for prompts.")
     parser.add_argument("--use-chat-template", action="store_true", help="Apply tokenizer chat template to prompts.")
     parser.add_argument("--system-prompt", type=str, default=None, help="Optional system prompt for chat template.")
     parser.add_argument("--quant", type=str, default=None, choices=["8bit", "4bit"], help="Quantization for HF models.")
     parser.add_argument("--draft-quant", type=str, default=None, choices=["8bit", "4bit"], help="Quantization override for draft model.")
+    parser.add_argument("--draft2-quant", type=str, default=None, choices=["8bit", "4bit"], help="Quantization override for second draft model.")
     parser.add_argument("--bnb-compute-dtype", type=str, default="bfloat16", help="Compute dtype for 4-bit quantization.")
     parser.add_argument("--draft-bnb-compute-dtype", type=str, default=None, help="Compute dtype override for draft 4-bit quantization.")
+    parser.add_argument("--draft2-bnb-compute-dtype", type=str, default=None, help="Compute dtype override for second draft 4-bit quantization.")
     parser.add_argument("--autojudge-threshold", type=float, default=None, help="Decision threshold override for judge acceptance. If unset, calibrated threshold is used.")
     parser.add_argument("--autojudge-task", type=str, default="gsm8k", choices=["gsm8k"], help="AutoJudge training/equivalence task mode.")
     parser.add_argument(
@@ -789,6 +926,27 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--autojudge-train-lr", type=float, default=None, help="Deprecated and ignored.")
     parser.add_argument("--autojudge-audit-ratio", type=float, default=None, help="Deprecated and ignored.")
     parser.add_argument("--autojudge-checkpoint", type=str, default=None, help="Path to save/load judge checkpoint (.pt).")
+    parser.add_argument(
+        "--consensus-gate",
+        type=str,
+        default="learned",
+        choices=["learned", "rule"],
+        help="Consensus AutoJudge gate mode.",
+    )
+    parser.add_argument(
+        "--consensus-features",
+        type=str,
+        default="ensemble",
+        choices=["ensemble", "d1_only"],
+        help="Consensus AutoJudge feature set.",
+    )
+    parser.add_argument("--consensus-train-dataset", type=str, default=None, help="Optional dataset path for consensus gate training. Defaults to --dataset.")
+    parser.add_argument("--consensus-train-samples", type=int, default=4000, help="Max mined token decisions for consensus gate training.")
+    parser.add_argument("--consensus-train-split", type=float, default=0.9, help="Train split fraction for consensus gate validation.")
+    parser.add_argument("--consensus-fallback-threshold", type=float, default=0.5, help="Fallback probability threshold for learned consensus gate.")
+    parser.add_argument("--consensus-checkpoint", type=str, default=None, help="Path to save/load consensus gate checkpoint (.pt).")
+    parser.add_argument("--consensus-top-m", type=int, default=8, help="Top-m support used by consensus features and divergence estimates.")
+    parser.add_argument("--consensus-disable-escalation", action="store_true", help="Disable ACCEPT_D2 / escalation path and force a 2-way accept-or-fallback policy at runtime.")
     parser.add_argument(
         "--topk-rank",
         type=str,
@@ -810,7 +968,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run_with_args(args: argparse.Namespace) -> None:
     methods = _resolve_methods(args.method)
-    needs_draft = any(m in {"speculative", "autojudge", "topk", "specexec"} for m in methods)
+    needs_draft = any(
+        m in {"speculative", "autojudge", "consensus_autojudge", "topk", "specexec"}
+        for m in methods
+    )
+    needs_draft2 = "consensus_autojudge" in methods
     try:
         resolved_topk_rank = _parse_topk_rank(args.topk_rank)
     except ValueError as exc:
@@ -825,6 +987,16 @@ def run_with_args(args: argparse.Namespace) -> None:
 
     if "topk" in methods and not args.hf_model:
         raise SystemExit("Top-k method currently requires HF models.")
+
+    if "consensus_autojudge" in methods:
+        if not args.hf_model:
+            raise SystemExit(
+                "consensus_autojudge requires HF models. Set --hf-model, --hf-draft-model, and --hf-draft2-model."
+            )
+        if not args.hf_draft_model or not args.hf_draft2_model:
+            raise SystemExit(
+                "consensus_autojudge requires both --hf-draft-model and --hf-draft2-model."
+            )
 
     if args.eval_task == "gsm8k":
         if not args.hf_model:
@@ -863,7 +1035,9 @@ def run_with_args(args: argparse.Namespace) -> None:
 
     target_has_native_quant = _uses_native_quantized_checkpoint(args.hf_model)
     draft_has_native_quant = _uses_native_quantized_checkpoint(args.hf_draft_model)
+    draft2_has_native_quant = _uses_native_quantized_checkpoint(args.hf_draft2_model)
     draft_disable_inherited_quant = False
+    draft2_disable_inherited_quant = False
 
     if target_has_native_quant and args.quant in {"4bit", "8bit"}:
         print(
@@ -885,12 +1059,29 @@ def run_with_args(args: argparse.Namespace) -> None:
         )
         draft_disable_inherited_quant = True
 
+    if draft2_has_native_quant and args.draft2_quant in {"4bit", "8bit"}:
+        print(
+            "[WARN] Second draft model provides native quantization config. "
+            "Ignoring --draft2-quant override to avoid config conflicts."
+        )
+        args.draft2_quant = None
+    if draft2_has_native_quant and args.draft2_quant is None and args.quant in {"4bit", "8bit"}:
+        print(
+            "[WARN] Second draft model provides native quantization config. "
+            "Second draft will not inherit --quant override."
+        )
+        draft2_disable_inherited_quant = True
+
     resolved_target_tokenizer = args.tokenizer
     resolved_draft_tokenizer = args.draft_tokenizer
+    resolved_draft2_tokenizer = args.draft2_tokenizer
     resolved_target_model = args.hf_model or "toy_random"
     resolved_draft_model = args.hf_draft_model or args.hf_model or "toy_noisy"
+    resolved_draft2_model = args.hf_draft2_model or args.hf_draft_model or args.hf_model
     resolved_draft_device = args.draft_device or args.device
     resolved_draft_dtype = args.draft_dtype or args.dtype
+    resolved_draft2_device = args.draft2_device or args.device
+    resolved_draft2_dtype = args.draft2_dtype or args.dtype
     decode_fn: Optional[Callable[[List[int]], str]] = None
     if draft_disable_inherited_quant:
         resolved_draft_quant = args.draft_quant
@@ -899,6 +1090,15 @@ def run_with_args(args: argparse.Namespace) -> None:
     resolved_draft_bnb_compute_dtype = (
         args.draft_bnb_compute_dtype
         if args.draft_bnb_compute_dtype is not None
+        else args.bnb_compute_dtype
+    )
+    if draft2_disable_inherited_quant:
+        resolved_draft2_quant = args.draft2_quant
+    else:
+        resolved_draft2_quant = args.draft2_quant if args.draft2_quant is not None else args.quant
+    resolved_draft2_bnb_compute_dtype = (
+        args.draft2_bnb_compute_dtype
+        if args.draft2_bnb_compute_dtype is not None
         else args.bnb_compute_dtype
     )
 
@@ -918,8 +1118,14 @@ def run_with_args(args: argparse.Namespace) -> None:
                 "Draft CUDA device requested but unavailable in this runtime. "
                 "Check Docker GPU runtime and nvidia-container-toolkit setup."
             )
+        if _is_cuda_device(args.draft2_device) and not torch.cuda.is_available():
+            raise SystemExit(
+                "Second draft CUDA device requested but unavailable in this runtime. "
+                "Check Docker GPU runtime and nvidia-container-toolkit setup."
+            )
         _validate_torch_cuda_arch_support(args.device)
         _validate_torch_cuda_arch_support(args.draft_device)
+        _validate_torch_cuda_arch_support(args.draft2_device)
         target_tokenizer_name = args.tokenizer or args.hf_model
         resolved_target_tokenizer = target_tokenizer_name
         target_model = HFModel(
@@ -965,6 +1171,51 @@ def run_with_args(args: argparse.Namespace) -> None:
             resolved_draft_model = args.hf_model
             resolved_draft_tokenizer = target_tokenizer_name
 
+        if needs_draft2:
+            draft2_name = args.hf_draft2_model or args.hf_draft_model or args.hf_model
+            resolved_draft2_model = draft2_name
+            draft2_tokenizer_name = (
+                args.draft2_tokenizer
+                or args.tokenizer
+                or args.hf_draft2_model
+                or args.hf_draft_model
+                or args.hf_model
+            )
+            resolved_draft2_tokenizer = draft2_tokenizer_name
+            draft2_model = HFModel(
+                draft2_name,
+                device=resolved_draft2_device,
+                dtype=resolved_draft2_dtype,
+                trust_remote_code=args.trust_remote_code,
+                tokenizer_name=draft2_tokenizer_name,
+                quantization=resolved_draft2_quant,
+                bnb_compute_dtype=resolved_draft2_bnb_compute_dtype,
+            )
+            if not _all_tokenizers_compatible(
+                target_model.tokenizer,
+                draft_model.tokenizer,
+                draft2_model.tokenizer,
+            ):
+                raise SystemExit(
+                    "Target, draft, and second draft tokenizers are incompatible. "
+                    "Use models sharing identical token-id mapping."
+                )
+            vocab_sizes = (target_model.vocab_size, draft_model.vocab_size, draft2_model.vocab_size)
+            if len(set(vocab_sizes)) > 1:
+                print(
+                    "[WARN] Target/draft/draft2 config vocab sizes differ "
+                    f"{vocab_sizes}. Tokenizers are compatible; difference is padding. "
+                    f"Using min vocab_size={min(vocab_sizes)}."
+                )
+        else:
+            draft2_model = draft_model
+            resolved_draft2_model = resolved_draft_model
+            resolved_draft2_tokenizer = resolved_draft_tokenizer
+            resolved_draft2_device = resolved_draft_device
+            resolved_draft2_dtype = resolved_draft_dtype
+            resolved_draft2_quant = resolved_draft_quant
+            resolved_draft2_bnb_compute_dtype = resolved_draft_bnb_compute_dtype
+
         hf_tokenizer = target_model.tokenizer
 
         def encode_fn(text: str) -> List[int]:
@@ -1006,12 +1257,25 @@ def run_with_args(args: argparse.Namespace) -> None:
         draft_model = (
             NoisyModel(target_model, noise=args.draft_noise) if needs_draft else target_model
         )
+        draft2_model = draft_model
         resolved_draft_model = "toy_noisy" if needs_draft else "toy_random"
+        resolved_draft2_model = resolved_draft_model
         resolved_target_tokenizer = f"hash:{args.vocab_size}"
         resolved_draft_tokenizer = f"hash:{args.vocab_size}"
+        resolved_draft2_tokenizer = f"hash:{args.vocab_size}"
+        resolved_draft2_device = args.device
+        resolved_draft2_dtype = args.dtype
+        resolved_draft2_quant = args.quant
+        resolved_draft2_bnb_compute_dtype = args.bnb_compute_dtype
 
     if "autojudge" in methods and (HFModel is None or not isinstance(target_model, HFModel)):
         raise SystemExit("AutoJudge requires HF models. Set --hf-model and --hf-draft-model.")
+    if "consensus_autojudge" in methods and (
+        HFModel is None or not isinstance(target_model, HFModel)
+    ):
+        raise SystemExit(
+            "consensus_autojudge requires HF models. Set --hf-model, --hf-draft-model, and --hf-draft2-model."
+        )
 
     autojudge_model = None
     autojudge_train_samples = 0
@@ -1206,6 +1470,138 @@ def run_with_args(args: argparse.Namespace) -> None:
     )
     resolved_autojudge_threshold_calibrated = float(autojudge_threshold_calibrated)
 
+    consensus_gate_model = None
+    consensus_train_samples = 0
+    consensus_val_accuracy = 0.0
+    consensus_val_macro_f1 = 0.0
+    resolved_consensus_fallback_threshold_used = float(args.consensus_fallback_threshold)
+    if "consensus_autojudge" in methods:
+        if (
+            ConsensusGateClassifier is None
+            or ConsensusAutoJudgeTrainConfig is None
+            or build_consensus_gate_classifier is None
+            or consensus_autojudge_sample_hf is None
+            or torch is None
+        ):
+            raise SystemExit(
+                "Consensus AutoJudge dependencies are missing (torch/transformers/scikit-learn)."
+            )
+        if not (0.0 < float(args.consensus_train_split) < 1.0):
+            raise SystemExit("--consensus-train-split must be in (0,1).")
+        if int(args.consensus_top_m) <= 0:
+            raise SystemExit("--consensus-top-m must be positive.")
+        if not (0.0 <= float(args.consensus_fallback_threshold) <= 1.0):
+            raise SystemExit("--consensus-fallback-threshold must be in [0,1].")
+
+        requested_consensus_gate = str(getattr(args, "consensus_gate", "learned") or "learned").strip().lower()
+        if requested_consensus_gate not in {"learned", "rule"}:
+            raise SystemExit("--consensus-gate must be one of: learned, rule.")
+        args.consensus_gate = requested_consensus_gate
+
+        requested_consensus_features = str(
+            getattr(args, "consensus_features", "ensemble") or "ensemble"
+        ).strip().lower()
+        if requested_consensus_features not in {"ensemble", "d1_only"}:
+            raise SystemExit("--consensus-features must be one of: ensemble, d1_only.")
+        args.consensus_features = requested_consensus_features
+
+        if requested_consensus_gate == "learned":
+            should_train = True
+            checkpoint_path = Path(args.consensus_checkpoint) if args.consensus_checkpoint else None
+            if checkpoint_path is not None and checkpoint_path.exists():
+                payload = _torch_load_checkpoint(checkpoint_path)
+                classifier = payload.get("classifier") if isinstance(payload, dict) else None
+                version = payload.get("consensus_autojudge_version") if isinstance(payload, dict) else None
+                payload_features = None if not isinstance(payload, dict) else payload.get("consensus_features")
+                payload_top_m = None if not isinstance(payload, dict) else payload.get("consensus_top_m")
+                if (
+                    version == 1
+                    and classifier is not None
+                    and hasattr(classifier, "predict_action_probs")
+                    and str(payload_features) == requested_consensus_features
+                    and int(payload_top_m) == int(args.consensus_top_m)
+                ):
+                    consensus_gate_model = classifier
+                    consensus_train_samples = int(payload.get("train_samples", 0))
+                    consensus_val_accuracy = float(payload.get("val_accuracy", 0.0))
+                    consensus_val_macro_f1 = float(payload.get("val_macro_f1", 0.0))
+                    should_train = False
+                else:
+                    print(
+                        f"[WARN] legacy/unsupported checkpoint at {checkpoint_path}; retraining consensus gate."
+                    )
+
+            if should_train:
+                train_dataset = args.consensus_train_dataset or args.dataset
+                if not train_dataset:
+                    raise SystemExit(
+                        "Consensus AutoJudge training requires a GSM8K train dataset when checkpoint is absent."
+                    )
+                train_dataset_path = Path(train_dataset)
+                if not train_dataset_path.exists():
+                    raise SystemExit(
+                        f"Consensus AutoJudge train dataset path not found: {train_dataset_path}."
+                    )
+                try:
+                    gsm_train_samples = load_gsm8k(
+                        path=str(train_dataset_path),
+                        max_samples=args.consensus_train_samples,
+                    )
+                except Exception as exc:
+                    raise SystemExit(
+                        f"Failed to load consensus train dataset from {train_dataset_path}: {exc}"
+                    ) from exc
+                if not gsm_train_samples:
+                    raise SystemExit(
+                        "Consensus AutoJudge training dataset is not GSM8K-compatible. "
+                        "Expected records with 'question' and 'answer' fields."
+                    )
+
+                train_cfg = ConsensusAutoJudgeTrainConfig(
+                    task="gsm8k",
+                    max_train_samples=args.consensus_train_samples,
+                    max_new_tokens=args.max_new_tokens,
+                    k=args.k,
+                    train_split=args.consensus_train_split,
+                    seed=args.seed,
+                    top_m=args.consensus_top_m,
+                    feature_mode=requested_consensus_features,
+                    fallback_threshold=float(args.consensus_fallback_threshold),
+                )
+                training_prompts = [encode_fn(sample.question) for sample in gsm_train_samples]
+                (
+                    consensus_gate_model,
+                    consensus_train_samples,
+                    consensus_val_accuracy,
+                    consensus_val_macro_f1,
+                ) = build_consensus_gate_classifier(
+                    target_model=target_model,
+                    draft_model=draft_model,
+                    draft2_model=draft2_model,
+                    prompts=training_prompts,
+                    cfg=train_cfg,
+                    eos_id=target_model.eos_token_id,
+                    device="cpu",
+                )
+                if checkpoint_path is not None:
+                    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+                    torch.save(
+                        {
+                            "consensus_autojudge_version": 1,
+                            "classifier": consensus_gate_model,
+                            "train_samples": consensus_train_samples,
+                            "val_accuracy": consensus_val_accuracy,
+                            "val_macro_f1": consensus_val_macro_f1,
+                            "fallback_threshold": resolved_consensus_fallback_threshold_used,
+                            "consensus_features": requested_consensus_features,
+                            "consensus_top_m": int(args.consensus_top_m),
+                            "created_at": datetime.now().isoformat(),
+                        },
+                        checkpoint_path,
+                    )
+        else:
+            resolved_consensus_fallback_threshold_used = float(args.consensus_fallback_threshold)
+
     system_metadata = _collect_system_metadata(require_headless=args.require_headless)
     out_path = _resolve_out_path(args.out)
     completed_run_keys = _load_completed_run_keys(out_path)
@@ -1222,24 +1618,37 @@ def run_with_args(args: argparse.Namespace) -> None:
             backend=backend,
             resolved_target_model=resolved_target_model,
             resolved_draft_model=resolved_draft_model,
+            resolved_draft2_model=resolved_draft2_model,
             resolved_target_tokenizer=resolved_target_tokenizer,
             resolved_draft_tokenizer=resolved_draft_tokenizer,
+            resolved_draft2_tokenizer=resolved_draft2_tokenizer,
             args=args,
             resolved_draft_device=resolved_draft_device,
             resolved_draft_dtype=resolved_draft_dtype,
             resolved_draft_quant=resolved_draft_quant,
             resolved_draft_bnb_compute_dtype=resolved_draft_bnb_compute_dtype,
+            resolved_draft2_device=resolved_draft2_device,
+            resolved_draft2_dtype=resolved_draft2_dtype,
+            resolved_draft2_quant=resolved_draft2_quant,
+            resolved_draft2_bnb_compute_dtype=resolved_draft2_bnb_compute_dtype,
             resolved_autojudge_threshold_used=resolved_autojudge_threshold_used,
             resolved_autojudge_threshold_calibrated=resolved_autojudge_threshold_calibrated,
             autojudge_train_samples=autojudge_train_samples,
             autojudge_val_auc=autojudge_val_auc,
             autojudge_val_recall=autojudge_val_recall,
+            resolved_consensus_fallback_threshold_used=resolved_consensus_fallback_threshold_used,
+            consensus_train_samples=consensus_train_samples,
+            consensus_val_accuracy=consensus_val_accuracy,
+            consensus_val_macro_f1=consensus_val_macro_f1,
         )
 
         results = []
         acceptance_rates = []
         avg_tokens_per_step = []
         judge_accept_rates = []
+        gate_accept_d1_rates = []
+        gate_escalate_rates = []
+        gate_fallback_rates = []
         topk_accept_rates = []
         fallback_rates = []
         cache_hit_rates = []
@@ -1274,6 +1683,7 @@ def run_with_args(args: argparse.Namespace) -> None:
                     decode_fn=decode_fn,
                     target_model=target_model,
                     draft_model=draft_model,
+                    draft2_model=draft2_model,
                     method=method,
                     eval_task=args.eval_task,
                     max_new_tokens=args.max_new_tokens,
@@ -1281,6 +1691,12 @@ def run_with_args(args: argparse.Namespace) -> None:
                     seed=args.seed + run,
                     autojudge_model=autojudge_model,
                     autojudge_threshold=resolved_autojudge_threshold_used,
+                    consensus_gate_model=consensus_gate_model,
+                    consensus_gate_mode=args.consensus_gate,
+                    consensus_fallback_threshold=resolved_consensus_fallback_threshold_used,
+                    consensus_top_m=args.consensus_top_m,
+                    consensus_feature_mode=args.consensus_features,
+                    consensus_disable_escalation=args.consensus_disable_escalation,
                     topk_rank=resolved_topk_rank,
                     specexec_parallel_branches=args.parallel_branches,
                     specexec_branch_prune_threshold=args.branch_prune_threshold,
@@ -1306,20 +1722,35 @@ def run_with_args(args: argparse.Namespace) -> None:
             successful_runs += 1
 
             if hasattr(stats, "train_samples"):
-                stats.train_samples = autojudge_train_samples
+                if method == "consensus_autojudge":
+                    stats.train_samples = consensus_train_samples
+                else:
+                    stats.train_samples = autojudge_train_samples
             if hasattr(stats, "train_loss"):
                 stats.train_loss = 0.0
             if hasattr(stats, "val_auc"):
                 stats.val_auc = autojudge_val_auc
             if hasattr(stats, "val_recall"):
                 stats.val_recall = autojudge_val_recall
+            if hasattr(stats, "val_accuracy"):
+                stats.val_accuracy = consensus_val_accuracy
+            if hasattr(stats, "val_macro_f1"):
+                stats.val_macro_f1 = consensus_val_macro_f1
             if hasattr(stats, "threshold_selected"):
                 stats.threshold_selected = resolved_autojudge_threshold_calibrated
+            if hasattr(stats, "fallback_threshold_selected"):
+                stats.fallback_threshold_selected = resolved_consensus_fallback_threshold_used
             results.append(tps)
             acceptance_rates.append(stats.acceptance_rate)
             avg_tokens_per_step.append(stats.avg_tokens_per_step)
             if hasattr(stats, "judge_accept_rate"):
                 judge_accept_rates.append(stats.judge_accept_rate)
+            if hasattr(stats, "gate_accept_d1_rate"):
+                gate_accept_d1_rates.append(stats.gate_accept_d1_rate)
+            if hasattr(stats, "gate_escalate_rate"):
+                gate_escalate_rates.append(stats.gate_escalate_rate)
+            if hasattr(stats, "gate_fallback_rate"):
+                gate_fallback_rates.append(stats.gate_fallback_rate)
             if hasattr(stats, "topk_accept_rate"):
                 topk_accept_rates.append(stats.topk_accept_rate)
             if hasattr(stats, "target_fallback_rate"):
@@ -1366,6 +1797,12 @@ def run_with_args(args: argparse.Namespace) -> None:
                     f", judge_accept={stats.judge_accept_rate:.3f}, "
                     f"fallback={stats.target_fallback_rate:.3f}"
                 )
+            if hasattr(stats, "gate_accept_d1_rate"):
+                msg += (
+                    f", gate_accept_d1={stats.gate_accept_d1_rate:.3f}, "
+                    f"gate_escalate={stats.gate_escalate_rate:.3f}, "
+                    f"gate_fallback={stats.gate_fallback_rate:.3f}"
+                )
             if hasattr(stats, "cache_hit_rate"):
                 msg += (
                     f", cache_hit={stats.cache_hit_rate:.3f}, "
@@ -1396,6 +1833,15 @@ def run_with_args(args: argparse.Namespace) -> None:
             median_judge_accept = (
                 statistics.median(judge_accept_rates) if judge_accept_rates else None
             )
+            median_gate_accept_d1 = (
+                statistics.median(gate_accept_d1_rates) if gate_accept_d1_rates else None
+            )
+            median_gate_escalate = (
+                statistics.median(gate_escalate_rates) if gate_escalate_rates else None
+            )
+            median_gate_fallback = (
+                statistics.median(gate_fallback_rates) if gate_fallback_rates else None
+            )
             median_topk_accept = (
                 statistics.median(topk_accept_rates) if topk_accept_rates else None
             )
@@ -1406,6 +1852,12 @@ def run_with_args(args: argparse.Namespace) -> None:
             summary_record["avg_tokens_per_step_median"] = median_tps_step
             if median_judge_accept is not None:
                 summary_record["judge_accept_rate_median"] = median_judge_accept
+            if median_gate_accept_d1 is not None:
+                summary_record["gate_accept_d1_rate_median"] = median_gate_accept_d1
+            if median_gate_escalate is not None:
+                summary_record["gate_escalate_rate_median"] = median_gate_escalate
+            if median_gate_fallback is not None:
+                summary_record["gate_fallback_rate_median"] = median_gate_fallback
             if median_topk_accept is not None:
                 summary_record["topk_accept_rate_median"] = median_topk_accept
             if median_fallback is not None:
@@ -1433,6 +1885,16 @@ def run_with_args(args: argparse.Namespace) -> None:
                 msg += (
                     f", judge_accept={median_judge_accept:.3f}, "
                     f"fallback={median_fallback:.3f}"
+                )
+            if (
+                median_gate_accept_d1 is not None
+                and median_gate_escalate is not None
+                and median_gate_fallback is not None
+            ):
+                msg += (
+                    f", gate_accept_d1={median_gate_accept_d1:.3f}, "
+                    f"gate_escalate={median_gate_escalate:.3f}, "
+                    f"gate_fallback={median_gate_fallback:.3f}"
                 )
             if median_topk_accept is not None:
                 msg += f", topk_accept={median_topk_accept:.3f}"

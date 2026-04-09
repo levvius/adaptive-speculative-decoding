@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set
 
 
-METHODS = {"baseline", "speculative", "autojudge", "topk", "specexec"}
+METHODS = {"baseline", "speculative", "autojudge", "consensus_autojudge", "topk", "specexec"}
 STATUSES = {"ok", "error", "skipped"}
 
 BASE_FIELDS = {
@@ -41,6 +41,12 @@ BASE_FIELDS = {
 }
 
 OPTIONAL_BASE_FIELDS = {
+    "draft2_model",
+    "draft2_tokenizer",
+    "draft2_device",
+    "draft2_dtype",
+    "draft2_quant",
+    "draft2_bnb_compute_dtype",
     "eval_task",
     "gsm8k_eval_mode",
     "topk_rank",
@@ -49,6 +55,7 @@ OPTIONAL_BASE_FIELDS = {
     "autojudge_threshold_calibrated",
     "autojudge_task",
     "autojudge_classifier",
+    "autojudge_features",
     "autojudge_train_dataset",
     "autojudge_recall_target",
     "autojudge_train_split",
@@ -56,6 +63,17 @@ OPTIONAL_BASE_FIELDS = {
     "autojudge_val_auc",
     "autojudge_val_recall",
     "autojudge_threshold_selected",
+    "consensus_gate",
+    "consensus_features",
+    "consensus_train_dataset",
+    "consensus_train_samples",
+    "consensus_train_split",
+    "consensus_fallback_threshold",
+    "consensus_checkpoint",
+    "consensus_top_m",
+    "consensus_disable_escalation",
+    "consensus_val_accuracy",
+    "consensus_val_macro_f1",
 }
 
 SYSTEM_FIELDS = {
@@ -97,6 +115,32 @@ AUTOJUDGE_OK_FIELDS = {
     "val_auc",
     "val_recall",
     "threshold_selected",
+}
+
+CONSENSUS_OK_FIELDS = {
+    "gate_accept_d1_rate",
+    "gate_escalate_rate",
+    "gate_fallback_rate",
+    "target_fallback_rate",
+    "target_calls_per_token",
+    "draft_calls_per_token",
+    "draft2_calls_per_token",
+    "gate_total",
+    "gate_accept_d1",
+    "gate_escalate_d2",
+    "gate_fallback",
+    "accepted_d1",
+    "accepted_d2",
+    "target_calls",
+    "target_fallbacks",
+    "draft_calls",
+    "draft_prefills",
+    "draft2_calls",
+    "draft2_prefills",
+    "train_samples",
+    "val_accuracy",
+    "val_macro_f1",
+    "fallback_threshold_selected",
 }
 
 SPECEXEC_OK_FIELDS = {
@@ -148,6 +192,9 @@ SUMMARY_MEDIAN_FIELDS = {
 
 SUMMARY_OPTIONAL_FIELDS = {
     "judge_accept_rate_median",
+    "gate_accept_d1_rate_median",
+    "gate_escalate_rate_median",
+    "gate_fallback_rate_median",
     "topk_accept_rate_median",
     "target_fallback_rate_median",
     "cache_hit_rate_median",
@@ -173,6 +220,7 @@ ALLOWED_FIELDS = (
     | SYSTEM_FIELDS
     | COMMON_OK_FIELDS
     | AUTOJUDGE_OK_FIELDS
+    | CONSENSUS_OK_FIELDS
     | TOPK_OK_FIELDS
     | SPECEXEC_OK_FIELDS
     | GSM8K_FIELDS
@@ -294,6 +342,17 @@ def _validate_record(
             "topk_rank",
             "topk_grid",
             "autojudge_classifier",
+            "autojudge_features",
+            "draft2_model",
+            "draft2_tokenizer",
+            "draft2_device",
+            "draft2_dtype",
+            "draft2_quant",
+            "draft2_bnb_compute_dtype",
+            "consensus_gate",
+            "consensus_features",
+            "consensus_train_dataset",
+            "consensus_checkpoint",
         }:
             _check_type(record, key, "string", errors, ctx, allow_none=True)
         elif key in {
@@ -304,8 +363,16 @@ def _validate_record(
             "autojudge_val_auc",
             "autojudge_val_recall",
             "autojudge_threshold_selected",
+            "consensus_train_samples",
+            "consensus_train_split",
+            "consensus_fallback_threshold",
+            "consensus_top_m",
+            "consensus_val_accuracy",
+            "consensus_val_macro_f1",
         }:
             _check_type(record, key, "number", errors, ctx, allow_none=True)
+        elif key == "consensus_disable_escalation":
+            _check_type(record, key, "bool", errors, ctx, allow_none=True)
         else:
             _check_type(record, key, "string", errors, ctx, allow_none=True)
 
@@ -342,6 +409,10 @@ def _validate_record(
         if method == "autojudge":
             _require_keys(record, AUTOJUDGE_OK_FIELDS, errors, ctx)
             for key in AUTOJUDGE_OK_FIELDS:
+                _check_type(record, key, "number", errors, ctx)
+        if method == "consensus_autojudge":
+            _require_keys(record, CONSENSUS_OK_FIELDS, errors, ctx)
+            for key in CONSENSUS_OK_FIELDS:
                 _check_type(record, key, "number", errors, ctx)
         if method == "topk":
             _require_keys(record, TOPK_OK_FIELDS, errors, ctx)

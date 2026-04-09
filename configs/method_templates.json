@@ -52,6 +52,38 @@
       ],
       "notes": "Template for SpecExec configuration and emitted metrics."
     },
+    "consensus_autojudge": {
+      "method": "consensus_autojudge",
+      "parameters": {
+        "max_new_tokens": 128,
+        "k": 4,
+        "consensus_gate": "learned",
+        "consensus_features": "ensemble",
+        "consensus_train_dataset": null,
+        "consensus_train_samples": 2000,
+        "consensus_train_split": 0.9,
+        "consensus_fallback_threshold": 0.5,
+        "consensus_checkpoint": null,
+        "consensus_top_m": 8,
+        "consensus_disable_escalation": false,
+        "use_chat_template": true,
+        "system_prompt": null
+      },
+      "metrics": [
+        "tokens_per_sec",
+        "acceptance_rate",
+        "avg_tokens_per_step",
+        "gate_accept_d1_rate",
+        "gate_escalate_rate",
+        "gate_fallback_rate",
+        "target_fallback_rate",
+        "target_calls_per_token",
+        "draft2_calls_per_token",
+        "consensus_val_accuracy",
+        "consensus_val_macro_f1"
+      ],
+      "notes": "Template for disagreement-aware two-draft approximate decoding with a learned or rule-based gate."
+    },
     "topk": {
       "method": "topk",
       "parameters": {

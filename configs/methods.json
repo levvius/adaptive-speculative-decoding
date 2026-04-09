@@ -44,6 +44,24 @@
       "autojudge_train_split": 0.9,
       "autojudge_c_grid": "1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e0"
     },
+    "consensus_autojudge_k4": {
+      "method": "consensus_autojudge",
+      "k": 4,
+      "max_new_tokens": 128,
+      "runs": 5,
+      "max_samples": 50,
+      "turn_index": 0,
+      "consensus_gate": "learned",
+      "consensus_features": "ensemble",
+      "consensus_train_dataset": null,
+      "consensus_train_samples": 2000,
+      "consensus_train_split": 0.9,
+      "consensus_fallback_threshold": 0.5,
+      "consensus_checkpoint": null,
+      "consensus_top_m": 8,
+      "consensus_disable_escalation": false,
+      "add_special_tokens": false
+    },
     "topk_k4": {
       "method": "topk",
       "k": 4,

@@ -88,6 +88,18 @@ def _setting_key(record: Dict[str, Any]) -> Tuple[str, str]:
         if threshold is None:
             return method, "threshold=calibrated"
         return method, f"threshold={threshold:g}"
+    if method == "consensus_autojudge":
+        gate = str(record.get("consensus_gate", "learned"))
+        threshold = _safe_float(record.get("consensus_fallback_threshold"))
+        features = str(record.get("consensus_features", "ensemble"))
+        escalation = "off" if bool(record.get("consensus_disable_escalation")) else "on"
+        if gate == "rule":
+            return method, f"gate=rule,features={features},escalate={escalation}"
+        if threshold is None:
+            return method, f"gate=learned,features={features},escalate={escalation}"
+        return method, (
+            f"gate=learned,fallback={threshold:g},features={features},escalate={escalation}"
+        )
     if method == "topk":
         rank = record.get("topk_rank", "4")
         return method, f"topk_rank={rank}"
@@ -138,6 +150,8 @@ def build_yandex_report(
             threshold = _safe_float(
                 group[0].get("autojudge_threshold_used", group[0].get("autojudge_threshold"))
             )
+        if method == "consensus_autojudge":
+            threshold = _safe_float(group[0].get("consensus_fallback_threshold"))
 
         row = YandexRow(
             method=method,
@@ -159,7 +173,7 @@ def build_yandex_report(
 
     rows.sort(
         key=lambda r: (
-            {"baseline": 0, "speculative": 1, "autojudge": 2, "topk": 3, "specexec": 4}.get(
+            {"baseline": 0, "speculative": 1, "autojudge": 2, "consensus_autojudge": 3, "topk": 4, "specexec": 5}.get(
                 r.method, 99
             ),
             r.setting,
@@ -173,6 +187,18 @@ def _param_display(row: YandexRow) -> str:
     """Display the method-specific parameter (threshold for AJ, rank for Top-K)."""
     if row.method == "autojudge" and row.threshold is not None:
         return _fmt(row.threshold)
+    if row.method == "consensus_autojudge":
+        if row.setting.startswith("gate=rule"):
+            return "rule"
+        suffixes: List[str] = []
+        if "features=d1_only" in row.setting:
+            suffixes.append("d1_only")
+        if "escalate=off" in row.setting:
+            suffixes.append("no_esc")
+        base = _fmt(row.threshold) if row.threshold is not None else "learned"
+        if suffixes:
+            return f"{base}/{'/'.join(suffixes)}"
+        return base
     if row.method == "topk" and row.setting.startswith("topk_rank="):
         return row.setting.split("=", 1)[1]
     return "-"
@@ -261,11 +287,17 @@ def write_outputs(
     lines.append("")
 
     autojudge_rows = [row for row in rows if row.method == "autojudge"]
+    consensus_rows = [row for row in rows if row.method == "consensus_autojudge"]
     topk_rows = [row for row in rows if row.method == "topk"]
     if autojudge_rows:
         lines.append("## AutoJudge threshold sweep")
         lines.append("")
         lines.append(_to_markdown_table(autojudge_rows))
+        lines.append("")
+    if consensus_rows:
+        lines.append("## Consensus AutoJudge sweep")
+        lines.append("")
+        lines.append(_to_markdown_table(consensus_rows))
         lines.append("")
     if topk_rows:
         lines.append("## Top-K sweep")

@@ -10,7 +10,7 @@ This repository compares exact and approximate decoding strategies under a singl
 
 ## Why This Project
 
-- Side-by-side comparison of Baseline, Speculative Sampling, AutoJudge, Top-K, and SpecExec.
+- Side-by-side comparison of Baseline, Speculative Sampling, AutoJudge, Consensus AutoJudge, Top-K, and SpecExec.
 - Paper-aligned AutoJudge implementation (GSM8K label mining + LogisticRegression calibration).
 - Long-run friendly workflow (resume keys, checkpoints, strict result schema validation).
 - Real benchmark reports are versioned in `reports/`.
@@ -22,6 +22,7 @@ This repository compares exact and approximate decoding strategies under a singl
 | `baseline` | exact | Target-only decoding |
 | `speculative` | exact | Draft proposes, target verifies |
 | `autojudge` | approximate | Judge can accept some mismatches |
+| `consensus_autojudge` | approximate | Two drafts + consensus gate decide accept / escalate / fallback |
 | `topk` | approximate | Accept mismatch if target token in top-k |
 | `specexec` | exact | Parallel speculative branches + cache reuse |
 
@@ -103,6 +104,10 @@ Validate any JSONL output:
 - `tests/` unit tests
 - `reports/` tracked benchmark artifacts
 - `datasets/` local datasets and run outputs (gitignored)
+
+Method design notes:
+
+- `docs/CONSENSUS_AUTOJUDGE.md` - disagreement-aware two-draft approximate decoding design
 
 ## Constraints and Repro Notes
 

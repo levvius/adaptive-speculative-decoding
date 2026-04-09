@@ -59,3 +59,28 @@ try:
     ]
 except ModuleNotFoundError:
     pass
+
+try:
+    from .consensus_autojudge import (
+        ACTION_ACCEPT_D1,
+        ACTION_ESCALATE_TO_D2,
+        ACTION_FALLBACK_TO_TARGET,
+        ConsensusAutoJudgeStats,
+        ConsensusAutoJudgeTrainConfig,
+        ConsensusGateClassifier,
+        build_consensus_gate_classifier,
+        consensus_autojudge_sample_hf,
+    )
+
+    __all__ += [
+        "ACTION_ACCEPT_D1",
+        "ACTION_ESCALATE_TO_D2",
+        "ACTION_FALLBACK_TO_TARGET",
+        "ConsensusAutoJudgeStats",
+        "ConsensusAutoJudgeTrainConfig",
+        "ConsensusGateClassifier",
+        "build_consensus_gate_classifier",
+        "consensus_autojudge_sample_hf",
+    ]
+except ModuleNotFoundError:
+    pass
