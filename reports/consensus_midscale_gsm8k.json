@@ -1,0 +1,72 @@
+{
+  "generated_at": "2026-04-09T20:43:31.956607",
+  "inputs": [
+    "datasets/results_consensus_midscale_gsm8k.jsonl"
+  ],
+  "manifest": null,
+  "rows": [
+    {
+      "method": "autojudge",
+      "setting": "threshold=0.29062",
+      "threshold": 0.29062026031094895,
+      "accuracy_pct": 0.0,
+      "speed_tps": 51.220900563908586,
+      "speculative_tps": null,
+      "speedup_ours": null
+    },
+    {
+      "method": "consensus_autojudge",
+      "setting": "gate=learned,fallback=0.5,features=d1_only,escalate=on",
+      "threshold": 0.5,
+      "accuracy_pct": 0.0,
+      "speed_tps": 53.02231814166213,
+      "speculative_tps": null,
+      "speedup_ours": null
+    },
+    {
+      "method": "consensus_autojudge",
+      "setting": "gate=learned,fallback=0.5,features=ensemble,escalate=off",
+      "threshold": 0.5,
+      "accuracy_pct": 2.0,
+      "speed_tps": 42.79216965066577,
+      "speculative_tps": null,
+      "speedup_ours": null
+    },
+    {
+      "method": "consensus_autojudge",
+      "setting": "gate=learned,fallback=0.5,features=ensemble,escalate=on",
+      "threshold": 0.5,
+      "accuracy_pct": 4.0,
+      "speed_tps": 51.2546737123649,
+      "speculative_tps": null,
+      "speedup_ours": null
+    },
+    {
+      "method": "consensus_autojudge",
+      "setting": "gate=learned,fallback=0.65,features=ensemble,escalate=on",
+      "threshold": 0.65,
+      "accuracy_pct": 2.0,
+      "speed_tps": 52.43588064352989,
+      "speculative_tps": null,
+      "speedup_ours": null
+    },
+    {
+      "method": "consensus_autojudge",
+      "setting": "gate=learned,fallback=0.8,features=ensemble,escalate=on",
+      "threshold": 0.8,
+      "accuracy_pct": 0.0,
+      "speed_tps": 54.05822242691484,
+      "speculative_tps": null,
+      "speedup_ours": null
+    },
+    {
+      "method": "consensus_autojudge",
+      "setting": "gate=rule,features=ensemble,escalate=on",
+      "threshold": 0.5,
+      "accuracy_pct": 2.0,
+      "speed_tps": 48.93774372157397,
+      "speculative_tps": null,
+      "speedup_ours": null
+    }
+  ]
+}

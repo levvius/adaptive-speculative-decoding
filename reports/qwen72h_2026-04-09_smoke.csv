@@ -1,0 +1,8 @@
+method,setting,threshold,accuracy_pct,speed_tps,speculative_tps,speedup_ours
+autojudge,threshold=0.155168,0.15516763278352447,0.0,40.50206336821112,,
+consensus_autojudge,"gate=learned,fallback=0.5,features=d1_only,escalate=on",0.5,0.0,44.65915882026747,,
+consensus_autojudge,"gate=learned,fallback=0.5,features=ensemble,escalate=off",0.5,0.0,39.22452417178621,,
+consensus_autojudge,"gate=learned,fallback=0.5,features=ensemble,escalate=on",0.5,0.0,48.603992915002934,,
+consensus_autojudge,"gate=learned,fallback=0.65,features=ensemble,escalate=on",0.65,0.0,51.893558676607874,,
+consensus_autojudge,"gate=learned,fallback=0.8,features=ensemble,escalate=on",0.8,0.0,51.95695960489825,,
+consensus_autojudge,"gate=rule,features=ensemble,escalate=on",0.5,0.0,45.77137614705148,,
