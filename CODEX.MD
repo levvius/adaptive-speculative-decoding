@@ -10,11 +10,20 @@ features, or behaviors are added.
 ## Structure
 - `Makefile`: Unified entrypoints for checks, preset listing, local benchmarks, AutoJudge runs, and Docker CPU/GPU flows.
 - `benchmarks/bench_speculative.py`: Benchmark runner for baseline, speculative, AutoJudge, Top-K, and SpecExec methods. Supports HF models, KV cache, quantization, GSM8K/MT-Bench eval modes, resume mode, enriched JSONL logging, and per-run error persistence.
+- `jointadaspec/`: JointAdaSpec implementation with MDP state/action spaces, trace collection, sparse value iteration, inference-time policy lookup, baseline decoders, metrics, and utility loaders.
 - `sp_samp/hf_topk.py`: HF Top-K lossy verification baseline and runtime stats.
+- `configs/datasets/`: Hydra dataset configs for the `jointadaspec/` pipeline (`gsm8k`, `livecodebench`, `mtbench`).
+- `configs/model_pairs/`: Hydra model-pair configs for JointAdaSpec experiments, including the ungated Qwen2.5 `7B -> 1.5B` pair and the gated Llama placeholder pair.
+- `configs/experiments/`: Hydra experiment configs for JointAdaSpec defaults, sweeps, and dataset-specific profiles.
+- `configs/mdp_default.yaml`: Central JointAdaSpec MDP hyperparameters (grid, thresholds, reward weights, VI controls).
 - `configs/models.json`: Model presets (target/draft HF models, device, dtype, quantization, tokenizer, chat template).
 - `configs/methods.json`: Method presets (baseline/speculative/autojudge/topk/specexec/all/all_paper).
 - `configs/experiments.json`: Target/draft pairing presets for common comparisons.
 - `configs/method_templates.json`: Templates for AutoJudge and SpecExec configs with parameters/metrics.
+- `scripts/01_collect_traces.py`: JointAdaSpec stage 1, exploratory one-step trace collection into Parquet.
+- `scripts/02_solve_mdp.py`: JointAdaSpec stage 2, smoothed MDP estimation and sparse value iteration over a `kappa` sweep.
+- `scripts/03_benchmark.py`: JointAdaSpec stage 3, benchmark runner for `jointadaspec`, `vanilla_ar`, `fixed_sd`, `fuzzy_sd`, and `specdecpp`.
+- `scripts/run_jointadaspec_qwen_longrun.sh`: Staged orchestration script for the ungated Qwen2.5 `7B -> 1.5B` JointAdaSpec profile on GSM8K + LiveCodeBench.
 - `scripts/validate_configs.py`: Static validator for configs (cross-file references, method constraints, tokenizer compatibility for target/draft pair methods).
 - `scripts/validate_results_jsonl.py`: JSONL schema/type validator for benchmark outputs (strict mode supported).
 - `scripts/run_autojudge_paper_eval.sh`: Orchestrates paper-style GSM8K sweeps (AutoJudge thresholds + Top-K grid) for Qwen2.5.
@@ -35,6 +44,7 @@ features, or behaviors are added.
 - `docs/RESULTS.md`: Curated benchmark snapshot and reproducibility commands.
 - `docs/ROADMAP.md`: Near-term and mid-term engineering roadmap.
 - `docs/GITHUB_SETUP.md`: Practical checklist for GitHub About/topics/social preview setup.
+- `reports/jointadaspec_qwen_7b_1p5b_2026-04-14.md`: Curated markdown report for the first real JointAdaSpec Qwen `7B -> 1.5B` run.
 - `sp_samp/autojudge.py`: Paper-aligned AutoJudge implementation (Algorithm 1 token mining, LogisticRegression training, and verification-stage decoding override).
 - `sp_samp/gsm8k.py`: GSM8K utilities (dataset loading, final-answer extraction, and equivalence checks).
 - `sp_samp/specexec.py`: CPU SpecExec implementation (exact target sampling with draft-tree cache prefill and pruning).
@@ -52,8 +62,25 @@ features, or behaviors are added.
 - `tests/test_specexec.py`: Unit tests for SpecExec behavior and stats.
 - `tests/test_topk.py`: Unit tests for Top-K mismatch acceptance/rejection behavior.
 - `tests/test_livecodebench.py`: Unit tests for LiveCodeBench loader.
+- `tests/test_features.py`, `tests/test_verification.py`, `tests/test_mdp_solver.py`, `tests/test_inference.py`, `tests/test_end_to_end.py`: JointAdaSpec unit and toy end-to-end coverage.
 - `Dockerfile`, `Dockerfile.gpu`: CPU/GPU containers.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
+
+## Recent Changes (2026-04-14)
+- Added the first complete JointAdaSpec implementation:
+  - new `jointadaspec/` package with core verification logic, feature extraction, tabular MDP spaces, trace collection, sparse MDP estimation, value iteration, inference-time policy lookup, baseline decoders, metrics, and utility loaders;
+  - new stage-based scripts `scripts/01_collect_traces.py`, `scripts/02_solve_mdp.py`, `scripts/03_benchmark.py`;
+  - new Hydra configs under `configs/datasets/`, `configs/model_pairs/`, `configs/experiments/`, plus `configs/mdp_default.yaml`.
+- Added JointAdaSpec documentation and experiment workflow:
+  - updated `README.MD` and `docs/RESULTS.md` with JointAdaSpec positioning and result snapshots;
+  - added `reports/jointadaspec_qwen_7b_1p5b_2026-04-14.md`;
+  - added `scripts/run_jointadaspec_qwen_longrun.sh` for reproducible Qwen `7B -> 1.5B` runs.
+- Added JointAdaSpec test coverage:
+  - feature, verification, solver, inference, and toy end-to-end tests under `tests/test_*`.
+- Ran the first real JointAdaSpec HF profile on the ungated Qwen2.5 `7B -> 1.5B` pair:
+  - `3000` traces, `479880` one-step transitions;
+  - saved policy sweep for `kappa = 0.0, 0.5, 1.0, 2.0, 5.0`;
+  - benchmarked on GSM8K and LiveCodeBench with tracked outputs under `outputs/jointadaspec_qwen_2026-04-14/`.
 
 ## Recent Changes (2026-04-01)
 - GitHub-facing presentation pass for external reviewers:

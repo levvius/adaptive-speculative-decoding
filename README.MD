@@ -12,8 +12,9 @@ This repository compares exact and approximate decoding strategies under a singl
 
 ## Why This Project
 
-- Side-by-side comparison of Baseline, Speculative Sampling, AutoJudge, Consensus AutoJudge, Top-K, and SpecExec.
+- Side-by-side comparison of Baseline, Speculative Sampling, AutoJudge, Consensus AutoJudge, Top-K, SpecExec, and JointAdaSpec.
 - Paper-aligned AutoJudge implementation (GSM8K label mining + LogisticRegression calibration).
+- New `jointadaspec/` stack for joint adaptive control of draft length and verification threshold via a tabular MDP.
 - Long-run friendly workflow (resume keys, checkpoints, strict result schema validation).
 - Real benchmark reports are versioned in `reports/`.
 
@@ -27,6 +28,7 @@ This repository compares exact and approximate decoding strategies under a singl
 | `consensus_autojudge` | approximate | Two drafts + consensus gate decide accept / escalate / fallback |
 | `topk` | approximate | Accept mismatch if target token in top-k |
 | `specexec` | exact | Parallel speculative branches + cache reuse |
+| `jointadaspec` | approximate | Policy jointly chooses draft stop/continue and fuzzy verification threshold |
 
 ## JointAdaSpec
 
@@ -58,7 +60,51 @@ The new pipeline is stage-based:
 
 ## Latest Benchmark Snapshot
 
-Latest full Llama run: `2026-03-28-llama-48h-cgrid8` on RTX 5090.
+### Latest JointAdaSpec Run
+
+Latest real `jointadaspec/` run: `2026-04-14`, Qwen2.5 `7B -> 1.5B`, RTX 5090.
+
+Artifacts:
+- `reports/jointadaspec_qwen_7b_1p5b_2026-04-14.md`
+- `outputs/jointadaspec_qwen_2026-04-14/01_traces_gsm8k/`
+- `outputs/jointadaspec_qwen_2026-04-14/02_solve/`
+- `outputs/jointadaspec_qwen_2026-04-14/03_bench_gsm8k/`
+- `outputs/jointadaspec_qwen_2026-04-14/04_bench_livecodebench/`
+
+Trace and solve snapshot:
+- `3000` collected traces
+- `479880` one-step transition records
+- `kappa` sweep: `0.0, 0.5, 1.0, 2.0, 5.0`
+- value iteration converged for all saved policies
+
+GSM8K throughput snapshot (`100` prompts, throughput + acceptance only):
+
+| Method | Speed (tok/s) | Acceptance | vs Vanilla |
+|---|---:|---:|---:|
+| Vanilla AR | 29.38 | 0.000 | 1.000 |
+| Fixed SD | 17.26 | 0.801 | 0.588 |
+| Fuzzy SD (`T=4.0`) | 19.09 | 0.915 | 0.650 |
+| JointAdaSpec | 18.99 | 0.951 | 0.646 |
+| SpecDecPP | 17.81 | 0.835 | 0.606 |
+
+LiveCodeBench throughput snapshot (`100` prompts):
+
+| Method | Speed (tok/s) | Acceptance | vs Vanilla |
+|---|---:|---:|---:|
+| Vanilla AR | 14.36 | 0.000 | 1.000 |
+| Fixed SD | 8.05 | 0.659 | 0.560 |
+| Fuzzy SD (`T=4.0`) | 9.62 | 0.843 | 0.670 |
+| JointAdaSpec | 10.34 | 0.890 | 0.720 |
+| SpecDecPP | 9.04 | 0.763 | 0.629 |
+
+Current interpretation:
+- `JointAdaSpec` is now end-to-end operational on a real HF model pair and both benchmark datasets.
+- On this single-GPU Qwen `7B -> 1.5B` profile it improves acceptance over fixed-window baselines, but it does not yet outperform target-only decoding in throughput.
+- `scripts/03_benchmark.py` currently reports throughput and acceptance metrics only; task-level GSM8K accuracy for the `jointadaspec/` stack is still a follow-up item.
+
+### Historical `sp_samp` Snapshot
+
+Latest historical `sp_samp/` full Llama run: `2026-03-28-llama-48h-cgrid8` on RTX 5090.
 
 Source reports:
 - `reports/yandex_llama3_8b_3b_2026-03-28-llama-48h-cgrid8-gsm8k.md`
