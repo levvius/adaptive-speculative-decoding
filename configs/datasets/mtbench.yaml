@@ -1,0 +1,10 @@
+# MT-Bench dataset configuration
+name: mtbench
+path: "datasets/mt_bench.jsonl"
+train_path: null
+
+train_max_samples: 200
+test_max_samples: 80
+turn_index: 0
+eval_mode: "throughput_only"
+max_new_tokens: 256

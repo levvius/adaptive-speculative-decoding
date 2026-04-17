@@ -1,0 +1,35 @@
+# MDP hyperparameters — §2 of thesis. All constants live here; no magic numbers in code.
+
+# State space grid
+H_max: 6.0          # max entropy (nats) for quantisation grid
+K_max: 8.0          # max KL-divergence (nats) for quantisation grid
+gamma_max: 8        # maximum draft window length (k ∈ {0, …, gamma_max})
+N_H: 20             # number of bins along H axis  → |S| = N_H * N_K * (gamma_max+1)
+N_K: 20             # number of bins along K axis
+
+# Action space — verification threshold geometric grid on [1.0, 4.0]
+T_levels:           # |A_verif| = 8 per a_length ∈ {stop, continue}
+  - 1.00
+  - 1.22
+  - 1.49
+  - 1.82
+  - 2.22
+  - 2.71
+  - 3.30
+  - 4.00
+
+# Value iteration (Algorithm 4)
+lambda_discount: 0.99      # γ in Bellman equation (paper uses λ to avoid clash with draft length)
+epsilon_convergence: 1.0e-4  # stop when max|V_{t+1} - V_t| < ε
+max_vi_iterations: 10000   # safety cap
+
+# Reward function weights
+kappa: 1.0          # Lagrange multiplier: trade-off speed vs quality (D)
+c_time: 0.01        # weight of wall-clock step cost in reward
+
+# MDP parameter estimation (Algorithm 3)
+alpha_smooth: 1.0   # Laplace additive smoothing count
+nu_min: 5           # min visits below which Laplace prior is used
+
+# Inference (Algorithm 5)
+K_init: 0.0         # initial K_prev before first verification phase (optimistic)

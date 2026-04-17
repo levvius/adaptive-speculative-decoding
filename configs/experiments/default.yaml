@@ -1,0 +1,30 @@
+# Default experiment: LLaMA-3-8B/1B + GSM8K + MDP defaults
+# @package _global_
+
+defaults:
+  - /model_pairs: llama3_8b_1b
+  - /datasets: gsm8k
+  - /mdp_default
+  - _self_
+
+experiment_name: "llama3_default"
+output_root: "outputs"
+output_dir: null
+seed: 0
+traces_path: null
+policy_path: null
+
+# Trace collection (01_collect_traces.py)
+n_traces: 2000
+
+# Benchmark (03_benchmark.py)
+baselines:
+  - vanilla_ar
+  - fixed_sd         # gamma=4, T=1
+  - fuzzy_sd         # gamma=4, T grid
+  - specdecpp        # adaptive gamma, T=1
+
+fixed_sd_gamma: 4
+fuzzy_sd_gamma: 4
+fuzzy_sd_T_grid: [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
+specdecpp_entropy_threshold: 2.0

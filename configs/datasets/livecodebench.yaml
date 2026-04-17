@@ -1,0 +1,10 @@
+# LiveCodeBench dataset configuration
+name: livecodebench
+path: "datasets/livecodebench.jsonl"
+train_path: null   # no separate train split; use first N for traces
+
+train_max_samples: 500
+test_max_samples: 100
+
+eval_mode: "throughput_only"
+max_new_tokens: 512

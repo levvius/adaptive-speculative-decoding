@@ -1,0 +1,9 @@
+# JointAdaSpec benchmark config on Qwen2.5 7B/1.5B for LiveCodeBench.
+# @package _global_
+
+defaults:
+  - qwen25_7b_1p5b_jointadaspec
+  - override /datasets: livecodebench
+  - _self_
+
+experiment_name: "qwen25_7b_1p5b_jointadaspec_livecodebench"

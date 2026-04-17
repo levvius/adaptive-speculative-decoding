@@ -1,0 +1,9 @@
+# Reproducible JointAdaSpec experiment on the ungated Qwen2.5 7B/1.5B pair.
+# @package _global_
+
+defaults:
+  - default
+  - override /model_pairs: qwen25_7b_1p5b
+  - _self_
+
+experiment_name: "qwen25_7b_1p5b_jointadaspec"

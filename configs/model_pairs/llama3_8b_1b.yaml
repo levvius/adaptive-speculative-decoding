@@ -1,0 +1,22 @@
+# Model pair: LLaMA-3-8B (target) + LLaMA-3-1B (draft)
+# Default pair for JointAdaSpec experiments (Chapter 4)
+
+target:
+  hf_model: "meta-llama/Meta-Llama-3-8B-Instruct"
+  tokenizer: "meta-llama/Meta-Llama-3-8B-Instruct"
+  device: "cuda"
+  dtype: "bfloat16"
+  quant: null
+  bnb_compute_dtype: "bfloat16"
+  use_fast_tokenizer: true
+  trust_remote_code: false
+
+draft:
+  hf_model: "meta-llama/Llama-3.2-1B-Instruct"
+  tokenizer: "meta-llama/Meta-Llama-3-8B-Instruct"
+  device: "cuda"
+  dtype: "bfloat16"
+  quant: null
+  bnb_compute_dtype: "bfloat16"
+  use_fast_tokenizer: true
+  trust_remote_code: false

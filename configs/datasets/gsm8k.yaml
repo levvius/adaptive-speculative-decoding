@@ -1,0 +1,12 @@
+# GSM8K dataset configuration
+name: gsm8k
+path: "datasets/gsm8k_test.jsonl"
+train_path: "datasets/gsm8k_train.jsonl"
+
+# Strict train/test split enforced at runtime
+# Traces are collected on 'train' split; benchmark runs on 'test' split.
+train_max_samples: 1000   # prompts used for trace collection
+test_max_samples: 200     # prompts used for benchmarking
+
+eval_mode: "zero_shot_cot"
+max_new_tokens: 256
