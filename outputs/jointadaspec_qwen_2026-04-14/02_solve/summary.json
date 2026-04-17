@@ -1,0 +1,13 @@
+{
+  "git_commit_hash": "0bcce61e5eaee58f5ff0af7ad6c4680c112fcc4d",
+  "policy_paths": [
+    "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen_2026-04-14/02_solve/policy_kappa_0.npz",
+    "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen_2026-04-14/02_solve/policy_kappa_0.5.npz",
+    "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen_2026-04-14/02_solve/policy_kappa_1.npz",
+    "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen_2026-04-14/02_solve/policy_kappa_2.npz",
+    "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen_2026-04-14/02_solve/policy_kappa_5.npz"
+  ],
+  "stage": "solve_mdp",
+  "timestamp": "2026-04-14T22:42:47.599787+00:00",
+  "traces_path": "outputs/jointadaspec_qwen_2026-04-14/01_traces_gsm8k/traces.parquet"
+}

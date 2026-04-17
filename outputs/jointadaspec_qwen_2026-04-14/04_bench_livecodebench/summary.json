@@ -1,0 +1,8 @@
+{
+  "benchmark_path": "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen_2026-04-14/04_bench_livecodebench/benchmark.csv",
+  "git_commit_hash": "0bcce61e5eaee58f5ff0af7ad6c4680c112fcc4d",
+  "num_records": 1100,
+  "stage": "benchmark",
+  "summary_path": "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen_2026-04-14/04_bench_livecodebench/summary.csv",
+  "timestamp": "2026-04-15T02:52:15.447012+00:00"
+}
