@@ -77,7 +77,7 @@ class JointAdaSpecPolicy:
         action = self.action_space.decode(int(self.pi_star[state_idx]))
         return action.length_action, action.threshold
 
-    def export_surface(self, k_fixed: int) -> np.ndarray:
+    def export_threshold_surface(self, k_fixed: int) -> np.ndarray:
         surface = np.full((self.config.N_H, self.config.N_K), np.nan, dtype=np.float64)
         for i_H in range(self.config.N_H):
             for i_K in range(self.config.N_K):
@@ -87,3 +87,17 @@ class JointAdaSpecPolicy:
                 action = self.action_space.decode(int(self.pi_star[state_idx]))
                 surface[i_H, i_K] = action.threshold
         return surface
+
+    def export_length_surface(self, k_fixed: int) -> np.ndarray:
+        surface = np.full((self.config.N_H, self.config.N_K), np.nan, dtype=np.float64)
+        for i_H in range(self.config.N_H):
+            for i_K in range(self.config.N_K):
+                H = (i_H + 0.5) * self.config.H_max / self.config.N_H
+                K = (i_K + 0.5) * self.config.K_max / self.config.N_K
+                state_idx = self.state_space.encode(H=H, K=K, k=k_fixed)
+                action = self.action_space.decode(int(self.pi_star[state_idx]))
+                surface[i_H, i_K] = 1.0 if action.length_action == "continue" else 0.0
+        return surface
+
+    def export_surface(self, k_fixed: int) -> np.ndarray:
+        return self.export_threshold_surface(k_fixed)
