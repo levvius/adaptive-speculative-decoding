@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import UTC, datetime
+import json
 from pathlib import Path
 import sys
 
@@ -10,6 +11,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from jointadaspec.analysis import evaluate_conditions
+from jointadaspec.utils.manifest import write_manifest
 
 
 def _status_tag(passed: bool) -> str:
@@ -26,6 +28,24 @@ def main() -> int:
     args = parser.parse_args()
 
     out_path = Path(args.out) if args.out else Path("reports") / f"conditions_{datetime.now(UTC).date().isoformat()}.json"
+    manifest_path = Path("reports") / "manifests" / f"{out_path.stem}.json"
+    write_manifest(
+        out_path=manifest_path,
+        resolved_config_yaml=json.dumps(
+            {
+                "traces": args.traces,
+                "policy": args.policy,
+                "out": str(out_path),
+                "bootstrap_resamples": int(args.bootstrap_resamples),
+                "seed": int(args.seed),
+            },
+            indent=2,
+        ),
+        seed_list=[int(args.seed)],
+        traces_path=Path(args.traces),
+        policy_path=Path(args.policy),
+        start_timestamp=datetime.now(UTC).isoformat(),
+    )
     try:
         report = evaluate_conditions(
             traces_path=Path(args.traces),

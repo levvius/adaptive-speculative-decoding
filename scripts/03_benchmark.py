@@ -18,8 +18,9 @@ if str(REPO_ROOT) not in sys.path:
 import hydra
 from hydra.utils import get_original_cwd
 import numpy as np
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 import pandas as pd
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 import torch
 
 from jointadaspec.baselines import (
@@ -30,6 +31,7 @@ from jointadaspec.baselines import (
     VanillaARDecoder,
 )
 from jointadaspec.inference import JointAdaSpecDecoder, JointAdaSpecPolicy
+from jointadaspec.utils.manifest import write_manifest
 from jointadaspec.utils import ExperimentLogger, load_model_pair
 from sp_samp.gsm8k import answers_equivalent, extract_final_answer, extract_reference_answer, load_gsm8k
 from sp_samp.livecodebench import load_livecodebench
@@ -503,6 +505,16 @@ def main(cfg: DictConfig) -> None:
     samples = _load_eval_samples(exp_cfg.datasets)
     n_seeds = int(exp_cfg.get("n_seeds", 3))
     seeds = _seed_list(n_seeds)
+    start_timestamp = datetime.now(UTC).isoformat()
+    manifest_path = Path(get_original_cwd()) / "reports" / "manifests" / f"{output_dir.name}.json"
+    write_manifest(
+        out_path=manifest_path,
+        resolved_config_yaml=OmegaConf.to_yaml(cfg),
+        seed_list=seeds,
+        traces_path=None if not exp_cfg.traces_path else Path(str(exp_cfg.traces_path)),
+        policy_path=None if not exp_cfg.policy_path else Path(str(exp_cfg.policy_path)),
+        start_timestamp=start_timestamp,
+    )
 
     joint_policy = JointAdaSpecPolicy.load(Path(exp_cfg.policy_path)) if exp_cfg.policy_path else None
     decoders = _build_decoders(exp_cfg, joint_policy, target_model, draft_model)
@@ -642,6 +654,7 @@ def main(cfg: DictConfig) -> None:
             "results_path": str(results_path),
             "num_records": len(all_non_summary),
             "n_seeds": n_seeds,
+            "manifest_path": str(manifest_path),
         }
     )
     print(results_path)
