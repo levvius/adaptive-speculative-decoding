@@ -14,8 +14,24 @@ def solve_mdp(
     transitions: sparse.csr_matrix,
     rewards: np.ndarray,
     config: MDPConfig,
+    action_mask: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
-    """Solve the tabular MDP with sparse value iteration."""
+    """Solve the tabular MDP with sparse value iteration.
+
+    Parameters
+    ----------
+    transitions:
+        Sparse transition matrix with shape ``(S * A, S)``.
+    rewards:
+        Dense reward table with shape ``(S, A)``.
+    config:
+        MDP discretisation and solver parameters.
+    action_mask:
+        Optional boolean mask with shape ``(S, A)`` where ``True`` marks
+        actions that are allowed during optimisation. When ``None``, the
+        solver uses the full action space subject only to the built-in
+        ``gamma_max`` validity rules.
+    """
     S = config.num_states
     A = config.num_actions
     if transitions.shape != (S * A, S):
@@ -24,6 +40,10 @@ def solve_mdp(
         )
     if rewards.shape != (S, A):
         raise ValueError(f"Expected rewards of shape {(S, A)}, got {rewards.shape}.")
+    if action_mask is not None:
+        action_mask = np.asarray(action_mask, dtype=bool)
+        if action_mask.shape != (S, A):
+            raise ValueError(f"Expected action_mask shape {(S, A)}, got {action_mask.shape}.")
 
     action_space = ActionSpace(config)
     state_space = StateSpace(config)
@@ -35,6 +55,8 @@ def solve_mdp(
         valid_actions = set(action_space.valid_action_indices(k))
         for action_idx in range(A):
             invalid_mask[state_idx, action_idx] = action_idx not in valid_actions
+            if action_mask is not None and not bool(action_mask[state_idx, action_idx]):
+                invalid_mask[state_idx, action_idx] = True
 
     Q = np.full((S, A), -np.inf, dtype=np.float64)
 
