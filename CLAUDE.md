@@ -202,6 +202,11 @@ All JSON, no code:
 
 - `validate_configs.py` — cross-file config consistency + tokenizer compatibility checks
 - `validate_results_jsonl.py` — strict JSONL schema validation for benchmark output
+- `01_collect_traces.py` — JointAdaSpec trace collection (Hydra pipeline)
+- `02_solve_mdp.py` — JointAdaSpec joint + cascade policy solve stage
+- `03_benchmark.py` — JointAdaSpec seeded benchmark runner with resume-safe JSONL + legacy prompt logs
+- `04_verify_conditions.py` — empirical C1-C4 / N1-N2 verification + diagnostic plots
+- `05_write_manifest.py` — writes JointAdaSpec reproducibility manifests
 - `run_autojudge_paper_eval.sh` — orchestrates full paper-style GSM8K sweep
 - `run_local_7b_1p5b_eval.sh` — orchestrates local Qwen2.5 7B/1.5B GSM8K + LiveCodeBench eval
 - `run_gemma2_9b_2b_eval.sh` — thin wrapper over local eval script with Gemma-2 9B/2B defaults
@@ -215,6 +220,35 @@ All JSON, no code:
 ### Tests (`tests/`)
 
 Tests live at the top of `tests/` (not under `sp_samp/`). Coverage: `test_sampling.py` (baseline/speculative correctness), `test_autojudge.py` (GSM8K parsing, classifier calibration, mining), `test_specexec.py` (distribution correctness, exactness vs baseline), `test_topk.py` (mismatch accept/reject), `test_livecodebench.py` (JSONL parsing, max_samples, key fallbacks).
+
+## JointAdaSpec
+
+`jointadaspec/` is the thesis-specific stack for Joint Adaptive Speculative Decoding. It learns a joint policy over draft length and fuzzy verification threshold on a discretised `(H, K, k)` state space, benchmarks that policy against fixed and cascade baselines, and checks whether the empirical traces satisfy the monotonicity and supermodularity assumptions used in the thesis theorems.
+
+Pipeline stages:
+- `scripts/01_collect_traces.py` — collect trace parquet from held-out prompts.
+- `scripts/02_solve_mdp.py` — estimate MDP parameters, solve the joint policy, and save both cascade baselines.
+- `scripts/03_benchmark.py` — run seeded benchmarks and write `results.jsonl`, legacy `run.jsonl`, CSV summaries, and manifests.
+- `scripts/04_verify_conditions.py` — compute C1-C4 / N1-N2 diagnostics and save six plots.
+- `reports/templates/*.py` — generate Pareto plots, threshold surfaces, and ablation charts from the saved artifacts.
+
+JointAdaSpec constraints:
+- State grid defaults to `N_H=20`, `N_K=20`, `gamma_max=8`; the condition checker reports over the first `min(gamma_max + 1, 4)` `k` slices for the supermodularity plots.
+- Draft/target tokenizer compatibility is mandatory. Local Qwen `14B/0.5B` and `7B/1.5B` pairs are configured to share tokenizer files.
+- Seed policy is deterministic by default: benchmark runs use `[42, 43, 44, ...]`, set `CUBLAS_WORKSPACE_CONFIG=:4096:8`, and enable `torch.use_deterministic_algorithms(True, warn_only=True)`.
+- Confidence intervals are additive only: the seeded benchmark writes bootstrap 95% CIs for speed, acceptance rate, and GSM8K exact match without breaking the old prompt-level JSONL readers.
+- Reproducibility manifests live under `reports/manifests/` and include git SHA, dirty flag, resolved config YAML, seed list, and SHA256 hashes for trace/policy artifacts.
+
+JointAdaSpec limitations:
+- The Qwen `14B/0.5B` local config assumes the full local checkpoint shards are present under `models/qwen2.5-14b-Instruct-model`; incomplete local weights will block the smoke/full run until those shards exist.
+- Policy transfer between model pairs is untested; solve a fresh policy per target/draft pair.
+- Condition failures in `04_verify_conditions.py` are treated as empirical results, not runtime bugs; the script exits `0` and reports them for thesis discussion.
+
+## Determinism Policy
+
+- Benchmark runs seed Python, NumPy, CPU torch, and CUDA torch RNGs per run.
+- `torch.use_deterministic_algorithms(True, warn_only=True)` is enabled during seeded benchmarks.
+- Some CUDA kernels still warn about CuBLAS/CuDNN reproducibility. Treat the manifests + seeds as the primary reproducibility record; small numeric drift is acceptable when the deterministic warning comes from a vendor kernel.
 
 ## Key Constraints
 

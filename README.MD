@@ -30,16 +30,13 @@ This repository compares exact and approximate decoding strategies under a singl
 | `specexec` | exact | Parallel speculative branches + cache reuse |
 | `jointadaspec` | approximate | Policy jointly chooses draft stop/continue and fuzzy verification threshold |
 
-## JointAdaSpec
+## JointAdaSpec: Joint Adaptive Speculative Decoding
 
-JointAdaSpec models speculative decoding as a finite MDP over the state `s = (H, K, k)`:
+JointAdaSpec formulates speculative decoding control as a finite MDP over the state `s = (H, K, k)` and solves the joint policy by value iteration.
 
 - `H`: entropy of the draft distribution
 - `K`: `KL(q || p)` between draft and target distributions
 - `k`: current position in the draft window
-
-The action is joint:
-
 - `a_length ∈ {stop, continue}`
 - `a_verif ∈ {1.00, 1.22, 1.49, 1.82, 2.22, 2.71, 3.30, 4.00}`
 
@@ -48,15 +45,26 @@ The implementation lives in `jointadaspec/` and is split into:
 - `jointadaspec/core/`: features, verification rules, decoder base classes
 - `jointadaspec/mdp/`: discrete spaces, trace collection, MDP estimation, value iteration
 - `jointadaspec/inference/`: learned policy lookup and online JointAdaSpec decoder
-- `jointadaspec/baselines/`: `vanilla_ar`, `fixed_sd`, `fuzzy_sd`, `specdecpp`
+- `jointadaspec/baselines/`: `target_only`, `speculative`, `fuzzy_sd`, `adaptive_length`, and both cascade baselines
+- `jointadaspec/analysis/`: empirical checks for C1-C4 and N1-N2
 - `jointadaspec/metrics/`: speed, quality, Pareto helpers
-- `jointadaspec/utils/`: model loading, dataset loading, structured JSON logging
+- `jointadaspec/utils/`: model loading, dataset loading, manifests, structured logging
 
-The new pipeline is stage-based:
+The pipeline is stage-based:
 
-1. `scripts/01_collect_traces.py`
-2. `scripts/02_solve_mdp.py`
-3. `scripts/03_benchmark.py`
+1. `scripts/01_collect_traces.py` collects exploratory SD traces on held-out prompts.
+2. `scripts/02_solve_mdp.py` estimates transitions/rewards, solves the joint MDP, and saves both cascade baselines.
+3. `scripts/03_benchmark.py` benchmarks JointAdaSpec against target-only, speculative, fuzzy-SD, adaptive-length, and the two cascades with seeded resume-safe JSONL output.
+4. `scripts/04_verify_conditions.py` checks empirical monotonicity/supermodularity conditions and writes diagnostic plots.
+5. `scripts/05_write_manifest.py` writes reproducibility manifests with git SHA, config YAML, seeds, and artifact hashes.
+
+Minimal reproduction on the Qwen 14B / 0.5B setup:
+
+```bash
+make jointadaspec-full MODEL_PAIR=qwen14b_0p5b JOINTADA_MAX_TRACES=10 JOINTADA_MAX_SAMPLES=10 JOINTADA_N_SEEDS=1
+```
+
+Outputs include traces, policy NPZ files, cascade policies, seeded benchmark JSONL, conditions JSON, manifests, Pareto plots, threshold-surface heatmaps, and ablation charts.
 
 ## Latest Benchmark Snapshot
 
@@ -98,9 +106,9 @@ LiveCodeBench throughput snapshot (`100` prompts):
 | SpecDecPP | 9.04 | 0.763 | 0.629 |
 
 Current interpretation:
-- `JointAdaSpec` is now end-to-end operational on a real HF model pair and both benchmark datasets.
-- On this single-GPU Qwen `7B -> 1.5B` profile it improves acceptance over fixed-window baselines, but it does not yet outperform target-only decoding in throughput.
-- `scripts/03_benchmark.py` currently reports throughput and acceptance metrics only; task-level GSM8K accuracy for the `jointadaspec/` stack is still a follow-up item.
+- `JointAdaSpec` is operational end to end on the Qwen `7B -> 1.5B` profile used for the first thesis traces.
+- On this single-GPU ratio it improves acceptance over the fixed-window baselines, but it does not yet outperform target-only decoding in throughput.
+- The current `jointadaspec/` benchmark path now writes resumable seeded JSONL with bootstrap confidence intervals, plus legacy `run.jsonl` prompt records for backward compatibility.
 
 ### Historical `sp_samp` Snapshot
 
@@ -151,31 +159,10 @@ JointAdaSpec toy validation:
 .venv/bin/python -m pytest tests/test_features.py tests/test_verification.py tests/test_mdp_solver.py tests/test_inference.py tests/test_end_to_end.py -q
 ```
 
-JointAdaSpec short smoke on an ungated remote pair:
+JointAdaSpec short smoke on the staged pipeline:
 
 ```bash
-.venv/bin/python scripts/01_collect_traces.py \
-  --config-name experiments/qwen25_7b_1p5b_jointadaspec \
-  experiments.output_dir=outputs/jointadaspec_smoke/01_traces \
-  experiments.n_traces=2 \
-  experiments.datasets.train_max_samples=2
-
-.venv/bin/python scripts/02_solve_mdp.py \
-  --config-name experiments/qwen25_7b_1p5b_jointadaspec \
-  experiments.output_dir=outputs/jointadaspec_smoke/02_solve \
-  experiments.traces_path=outputs/jointadaspec_smoke/01_traces/traces.parquet
-
-.venv/bin/python scripts/03_benchmark.py \
-  --config-name experiments/qwen25_7b_1p5b_jointadaspec \
-  experiments.output_dir=outputs/jointadaspec_smoke/03_bench \
-  experiments.policy_path=outputs/jointadaspec_smoke/02_solve/policy.npz \
-  experiments.datasets.test_max_samples=2
-
-.venv/bin/python scripts/03_benchmark.py \
-  --config-name experiments/qwen25_7b_1p5b_jointadaspec_livecodebench \
-  experiments.output_dir=outputs/jointadaspec_smoke/04_bench_livecodebench \
-  experiments.policy_path=outputs/jointadaspec_smoke/02_solve/policy.npz \
-  experiments.datasets.test_max_samples=2
+make jointadaspec-full MODEL_PAIR=qwen7b_1p5b JOINTADA_MAX_TRACES=10 JOINTADA_MAX_SAMPLES=10 JOINTADA_N_SEEDS=1
 ```
 
 ## Reproduce Main Runs
