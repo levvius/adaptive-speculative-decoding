@@ -130,6 +130,26 @@
       "use_chat_template": true,
       "trust_remote_code": false
     },
+    "qwen25_14b_instruct_local": {
+      "hf_model": "models/qwen2.5-14b-Instruct-model",
+      "tokenizer": "models/qwen2.5-14b-Instruct-model",
+      "device": "cuda",
+      "dtype": "bfloat16",
+      "quant": null,
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": true,
+      "trust_remote_code": false
+    },
+    "qwen25_0p5b_instruct_local": {
+      "hf_model": "models/qwen2.5-0.5b-Instruct-model",
+      "tokenizer": "models/qwen2.5-14b-Instruct-model",
+      "device": "cuda",
+      "dtype": "bfloat16",
+      "quant": null,
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": true,
+      "trust_remote_code": false
+    },
     "gemma2_9b_instruct_local": {
       "hf_model": "models/gemma-2-9B-it",
       "tokenizer": "models/gemma-2-9B-it",
