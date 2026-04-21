@@ -14,6 +14,7 @@ import hydra
 from hydra.utils import get_original_cwd
 from omegaconf import DictConfig
 
+from jointadaspec.baselines import solve_cascade_length_then_verif, solve_cascade_verif_then_length
 from jointadaspec.inference import JointAdaSpecPolicy
 from jointadaspec.mdp import MDPConfig, estimate_mdp_parameters, solve_mdp
 from jointadaspec.utils import ExperimentLogger
@@ -43,6 +44,7 @@ def main(cfg: DictConfig) -> None:
     base_config = MDPConfig.from_mapping(exp_cfg)
     kappa_values = list(exp_cfg.get("kappa_values", [base_config.kappa]))
     produced_policies: list[str] = []
+    produced_cascade_policies: list[str] = []
 
     for kappa in kappa_values:
         mdp_config = replace(base_config, kappa=float(kappa))
@@ -55,16 +57,45 @@ def main(cfg: DictConfig) -> None:
         policy = JointAdaSpecPolicy(config=mdp_config, pi_star=pi_star, V_star=V_star)
         suffix = f"_kappa_{float(kappa):g}" if len(kappa_values) > 1 else ""
         policy_path = output_dir / f"policy{suffix}.npz"
+        cascade_len_path = output_dir / f"cascade_length_then_verif{suffix}.npz"
+        cascade_verif_path = output_dir / f"cascade_verif_then_length{suffix}.npz"
         solve_log_path = output_dir / f"solve_log{suffix}.json"
+        cascade_solve_log_path = output_dir / f"solve_log_cascades{suffix}.json"
         policy.save(policy_path)
+        _, cascade_len_policy, cascade_len_log = solve_cascade_length_then_verif(
+            estimate.transitions,
+            estimate.rewards,
+            mdp_config,
+        )
+        _, cascade_verif_policy, cascade_verif_log = solve_cascade_verif_then_length(
+            estimate.transitions,
+            estimate.rewards,
+            mdp_config,
+        )
+        cascade_len_policy.save(cascade_len_path)
+        cascade_verif_policy.save(cascade_verif_path)
         solve_log_path.write_text(json.dumps(solve_log, indent=2), encoding="utf-8")
+        cascade_solve_log_path.write_text(
+            json.dumps(
+                {
+                    "length_then_verif": cascade_len_log,
+                    "verif_then_length": cascade_verif_log,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
         produced_policies.append(str(policy_path))
+        produced_cascade_policies.extend([str(cascade_len_path), str(cascade_verif_path)])
         logger.log(
             {
                 "stage": "solve_mdp",
                 "kappa": float(kappa),
                 "policy_path": str(policy_path),
                 "solve_log_path": str(solve_log_path),
+                "cascade_length_then_verif_path": str(cascade_len_path),
+                "cascade_verif_then_length_path": str(cascade_verif_path),
+                "cascade_solve_log_path": str(cascade_solve_log_path),
             }
         )
 
@@ -73,6 +104,7 @@ def main(cfg: DictConfig) -> None:
             "stage": "solve_mdp",
             "traces_path": str(traces_path),
             "policy_paths": produced_policies,
+            "cascade_policy_paths": produced_cascade_policies,
         }
     )
     for policy_path in produced_policies:

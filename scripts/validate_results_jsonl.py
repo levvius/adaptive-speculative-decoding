@@ -7,7 +7,19 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set
 
 
-METHODS = {"baseline", "speculative", "autojudge", "consensus_autojudge", "topk", "specexec"}
+METHODS = {
+    "baseline",
+    "speculative",
+    "autojudge",
+    "consensus_autojudge",
+    "topk",
+    "specexec",
+    "target_only",
+    "adaptive_length",
+    "jointadaspec",
+    "cascade_length_then_verif",
+    "cascade_verif_then_length",
+}
 STATUSES = {"ok", "error", "skipped"}
 
 BASE_FIELDS = {
@@ -41,6 +53,8 @@ BASE_FIELDS = {
 }
 
 OPTIONAL_BASE_FIELDS = {
+    "schema_version",
+    "seed",
     "draft2_model",
     "draft2_tokenizer",
     "draft2_device",
@@ -74,6 +88,22 @@ OPTIONAL_BASE_FIELDS = {
     "consensus_disable_escalation",
     "consensus_val_accuracy",
     "consensus_val_macro_f1",
+}
+
+LEGACY_PROMPT_FIELDS = {
+    "timestamp",
+    "git_commit_hash",
+    "decoder",
+    "run",
+    "seed",
+    "prompt_idx",
+    "n_tokens_generated",
+    "acceptance_rate",
+    "total_time_ms",
+    "tokens_per_sec",
+    "n_target_calls",
+    "n_draft_calls",
+    "gsm8k_exact_match",
 }
 
 SYSTEM_FIELDS = {
@@ -202,6 +232,15 @@ SUMMARY_OPTIONAL_FIELDS = {
     "info_message",
 }
 
+SUMMARY_CI_FIELDS = {
+    "tokens_per_sec_ci_low",
+    "tokens_per_sec_ci_high",
+    "acceptance_rate_ci_low",
+    "acceptance_rate_ci_high",
+    "gsm8k_exact_match_ci_low",
+    "gsm8k_exact_match_ci_high",
+}
+
 GENERAL_FIELDS = {
     "timestamp",
     "status",
@@ -217,6 +256,7 @@ ALLOWED_FIELDS = (
     GENERAL_FIELDS
     | BASE_FIELDS
     | OPTIONAL_BASE_FIELDS
+    | LEGACY_PROMPT_FIELDS
     | SYSTEM_FIELDS
     | COMMON_OK_FIELDS
     | AUTOJUDGE_OK_FIELDS
@@ -227,7 +267,12 @@ ALLOWED_FIELDS = (
     | SUMMARY_FIELDS
     | SUMMARY_MEDIAN_FIELDS
     | SUMMARY_OPTIONAL_FIELDS
+    | SUMMARY_CI_FIELDS
 )
+
+
+def _supports_method(method: Any) -> bool:
+    return isinstance(method, str) and (method in METHODS or method.startswith("fuzzy_sd_T"))
 
 
 def _kind(value: Any) -> str:
@@ -277,6 +322,50 @@ def _check_type(
         )
 
 
+def _validate_legacy_prompt_record(
+    record: Dict[str, Any],
+    line_no: int,
+    errors: List[str],
+    warnings: List[str],
+    strict: bool,
+) -> None:
+    ctx = f"line {line_no}"
+    required = {
+        "timestamp",
+        "decoder",
+        "prompt_idx",
+        "n_tokens_generated",
+        "acceptance_rate",
+        "total_time_ms",
+        "tokens_per_sec",
+        "n_target_calls",
+        "n_draft_calls",
+    }
+    _require_keys(record, required, errors, ctx)
+    _check_type(record, "timestamp", "string", errors, ctx)
+    _check_type(record, "decoder", "string", errors, ctx)
+    _check_type(record, "prompt_idx", "number", errors, ctx)
+    _check_type(record, "n_tokens_generated", "number", errors, ctx)
+    _check_type(record, "acceptance_rate", "number", errors, ctx)
+    _check_type(record, "total_time_ms", "number", errors, ctx)
+    _check_type(record, "tokens_per_sec", "number", errors, ctx)
+    _check_type(record, "n_target_calls", "number", errors, ctx)
+    _check_type(record, "n_draft_calls", "number", errors, ctx)
+    _check_type(record, "run", "number", errors, ctx)
+    _check_type(record, "seed", "number", errors, ctx)
+    _check_type(record, "git_commit_hash", "string", errors, ctx, allow_none=True)
+    if "gsm8k_exact_match" in record:
+        _check_type(record, "gsm8k_exact_match", "number", errors, ctx, allow_none=True)
+
+    unknown = sorted(set(record.keys()) - ALLOWED_FIELDS)
+    if unknown:
+        message = f"{ctx}: unknown field(s): {', '.join(unknown)}"
+        if strict:
+            errors.append(message)
+        else:
+            warnings.append(message)
+
+
 def _validate_record(
     record: Dict[str, Any],
     line_no: int,
@@ -285,6 +374,11 @@ def _validate_record(
     strict: bool,
 ) -> None:
     ctx = f"line {line_no}"
+
+    if "status" not in record and "summary" not in record and "decoder" in record:
+        _validate_legacy_prompt_record(record, line_no, errors, warnings, strict)
+        return
+
     _require_keys(record, {"timestamp", "status", "summary"} | BASE_FIELDS, errors, ctx)
 
     _check_type(record, "timestamp", "string", errors, ctx)
@@ -303,7 +397,7 @@ def _validate_record(
         errors.append(f"{ctx}: unsupported status '{status}'.")
 
     method = record.get("method")
-    if method not in METHODS:
+    if not _supports_method(method):
         errors.append(f"{ctx}: unsupported method '{method}'.")
 
     for key in SYSTEM_FIELDS:
@@ -356,6 +450,8 @@ def _validate_record(
         }:
             _check_type(record, key, "string", errors, ctx, allow_none=True)
         elif key in {
+            "schema_version",
+            "seed",
             "autojudge_threshold_used",
             "autojudge_threshold_calibrated",
             "autojudge_recall_target",
@@ -383,9 +479,12 @@ def _validate_record(
             _check_type(record, key, "number", errors, ctx)
         if record.get("runs_successful", 0) > 0:
             _require_keys(record, SUMMARY_MEDIAN_FIELDS, errors, ctx)
-        for key in SUMMARY_MEDIAN_FIELDS | SUMMARY_OPTIONAL_FIELDS:
+        for key in SUMMARY_MEDIAN_FIELDS | SUMMARY_OPTIONAL_FIELDS | SUMMARY_CI_FIELDS:
             if key in record:
-                _check_type(record, key, "number" if key.endswith("_median") else "string", errors, ctx)
+                if key in SUMMARY_OPTIONAL_FIELDS:
+                    _check_type(record, key, "string", errors, ctx)
+                else:
+                    _check_type(record, key, "number", errors, ctx, allow_none=True)
         for key in GSM8K_FIELDS:
             if key in record:
                 _check_type(

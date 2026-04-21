@@ -11,6 +11,7 @@ experiment_name: "llama3_default"
 output_root: "outputs"
 output_dir: null
 seed: 0
+n_seeds: 3
 traces_path: null
 policy_path: null
 
@@ -23,6 +24,8 @@ baselines:
   - fixed_sd         # gamma=4, T=1
   - fuzzy_sd         # gamma=4, T grid
   - specdecpp        # adaptive gamma, T=1
+  - cascade_length_then_verif
+  - cascade_verif_then_length
 
 fixed_sd_gamma: 4
 fuzzy_sd_gamma: 4
