@@ -32,6 +32,33 @@ LOCAL_EVAL_DATE ?= $(shell date +%F)
 LOCAL_REPORT_PREFIX ?= reports/yandex_local_7b_1p5b_$(LOCAL_EVAL_DATE)
 LOCAL_MANIFEST ?= reports/local_7b_1p5b_run_manifest_$(LOCAL_EVAL_DATE).json
 
+MODEL_PAIR ?= qwen14b_0p5b
+JOINTADA_DATE ?= $(shell date +%F)
+JOINTADA_MAX_TRACES ?= 500
+JOINTADA_MAX_SAMPLES ?= 100
+JOINTADA_MAX_NEW_TOKENS ?= 256
+JOINTADA_N_SEEDS ?= 3
+JOINTADA_OUTPUT_ROOT ?= outputs/jointadaspec_$(MODEL_PAIR)_$(JOINTADA_DATE)
+JOINTADA_TRACE_DIR ?= $(JOINTADA_OUTPUT_ROOT)/01_traces
+JOINTADA_SOLVE_DIR ?= $(JOINTADA_OUTPUT_ROOT)/02_solve
+JOINTADA_BENCH_DIR ?= $(JOINTADA_OUTPUT_ROOT)/03_bench_gsm8k
+JOINTADA_POLICY_PATH ?= $(JOINTADA_SOLVE_DIR)/policy.npz
+JOINTADA_MANIFEST ?= reports/manifests/$(notdir $(JOINTADA_OUTPUT_ROOT))_03_bench_gsm8k.json
+JOINTADA_PARETO ?= reports/pareto_$(MODEL_PAIR)_$(JOINTADA_DATE).pdf
+JOINTADA_ABLATION ?= reports/ablation_$(MODEL_PAIR)_$(JOINTADA_DATE).pdf
+JOINTADA_THRESHOLD_DIR ?= reports/threshold_surface_$(MODEL_PAIR)_$(JOINTADA_DATE)
+JOINTADA_CONDITIONS ?= reports/conditions_$(MODEL_PAIR)_$(JOINTADA_DATE).json
+
+ifeq ($(MODEL_PAIR),qwen14b_0p5b)
+JOINTADA_EXPERIMENT := qwen25_14b_0p5b_jointadaspec
+JOINTADA_LCB_EXPERIMENT := qwen25_14b_0p5b_jointadaspec_livecodebench
+else ifeq ($(MODEL_PAIR),qwen7b_1p5b)
+JOINTADA_EXPERIMENT := qwen25_7b_1p5b_jointadaspec
+JOINTADA_LCB_EXPERIMENT := qwen25_7b_1p5b_jointadaspec_livecodebench
+else
+$(error Unsupported MODEL_PAIR '$(MODEL_PAIR)'; use qwen14b_0p5b or qwen7b_1p5b)
+endif
+
 DATA_DIR ?= $(abspath $(dir $(DATASET)))
 DATASET_IN_CONTAINER ?= /data/$(notdir $(DATASET))
 OUT_IN_CONTAINER ?= /data/$(notdir $(OUT))
@@ -39,6 +66,7 @@ ALLOW_EOL_UBUNTU ?= 0
 ALLOW_EOL_ARG := $(if $(filter 1 true yes,$(ALLOW_EOL_UBUNTU)),--allow-eol-ubuntu,)
 
 .PHONY: help setup setup-gpu check validate-configs validate-results list-presets test bench-toy smoke-hf smoke-hf-gpu bench bench-method autojudge specexec bench-all paper-eval local-eval \
+		jointadaspec-traces jointadaspec-solve jointadaspec-verify jointadaspec-bench jointadaspec-report jointadaspec-full \
 		docker-build docker-build-gpu docker-build-gpu-safe docker-prune-builder docker-gpu-check docker-gpu-check-image docker-test docker-bench docker-autojudge docker-specexec docker-bench-all
 
 help: ## Show available targets
@@ -51,7 +79,7 @@ setup-gpu: ## Install/upgrade required deps including GPU Python extras (bitsand
 	bash scripts/install_dependencies.sh --gpu $(ALLOW_EOL_ARG)
 
 check: ## Run syntax checks (compileall)
-	$(PYTHON) -m compileall sp_samp benchmarks tests
+	$(PYTHON) -m compileall sp_samp benchmarks jointadaspec scripts tests reports/templates
 	$(PYTHON) scripts/validate_configs.py --config-dir $(CONFIG_DIR)
 
 validate-configs: ## Validate model/method/experiment preset consistency
@@ -150,6 +178,47 @@ paper-eval: ## Run paper-style GSM8K sweep (Qwen2.5 0.5B -> 3B) and build report
 
 local-eval: ## Run local Qwen2.5 7B/1.5B eval (GSM8K + LiveCodeBench) and build Yandex-style reports
 	PYTHON_BIN="$(PYTHON)" REPORT_PREFIX="$(LOCAL_REPORT_PREFIX)" MANIFEST_PATH="$(LOCAL_MANIFEST)" scripts/run_local_7b_1p5b_eval.sh
+
+jointadaspec-traces: ## Collect JointAdaSpec traces for MODEL_PAIR
+	$(PYTHON) scripts/01_collect_traces.py --config-name experiments/$(JOINTADA_EXPERIMENT) \
+		experiments.output_dir=$(JOINTADA_TRACE_DIR) \
+		experiments.n_traces=$(JOINTADA_MAX_TRACES) \
+		experiments.datasets.train_max_samples=$(JOINTADA_MAX_TRACES)
+
+jointadaspec-solve: ## Solve JointAdaSpec MDP and cascade policies for MODEL_PAIR
+	$(PYTHON) scripts/02_solve_mdp.py --config-name experiments/$(JOINTADA_EXPERIMENT) \
+		experiments.output_dir=$(JOINTADA_SOLVE_DIR) \
+		experiments.traces_path=$(JOINTADA_TRACE_DIR)/traces.parquet
+
+jointadaspec-verify: ## Verify empirical JointAdaSpec conditions for MODEL_PAIR
+	$(PYTHON) scripts/04_verify_conditions.py \
+		--traces $(JOINTADA_TRACE_DIR)/traces.parquet \
+		--policy $(JOINTADA_POLICY_PATH) \
+		--out $(JOINTADA_CONDITIONS)
+
+jointadaspec-bench: ## Benchmark JointAdaSpec and baselines for MODEL_PAIR
+	$(PYTHON) scripts/03_benchmark.py --config-name experiments/$(JOINTADA_EXPERIMENT) \
+		experiments.output_dir=$(JOINTADA_BENCH_DIR) \
+		experiments.policy_path=$(JOINTADA_POLICY_PATH) \
+		experiments.datasets.test_max_samples=$(JOINTADA_MAX_SAMPLES) \
+		experiments.datasets.max_new_tokens=$(JOINTADA_MAX_NEW_TOKENS) \
+		experiments.n_seeds=$(JOINTADA_N_SEEDS)
+
+jointadaspec-report: ## Build JointAdaSpec plots for MODEL_PAIR
+	$(PYTHON) reports/templates/pareto_plot.py \
+		--input $(JOINTADA_BENCH_DIR)/results.jsonl \
+		--out $(JOINTADA_PARETO) \
+		--manifest $(JOINTADA_MANIFEST)
+	$(PYTHON) reports/templates/threshold_surface.py \
+		--policy $(JOINTADA_POLICY_PATH) \
+		--out $(JOINTADA_THRESHOLD_DIR) \
+		--manifest $(JOINTADA_MANIFEST)
+	$(PYTHON) reports/templates/ablation_bars.py \
+		--input $(JOINTADA_BENCH_DIR)/results.jsonl \
+		--out $(JOINTADA_ABLATION) \
+		--manifest $(JOINTADA_MANIFEST)
+
+jointadaspec-full: jointadaspec-traces jointadaspec-solve jointadaspec-verify jointadaspec-bench jointadaspec-report ## Run the full JointAdaSpec pipeline for MODEL_PAIR
 
 docker-build: ## Build CPU Docker image
 	$(DOCKER_CMD) build -t $(IMAGE_CPU) .

@@ -506,7 +506,8 @@ def main(cfg: DictConfig) -> None:
     n_seeds = int(exp_cfg.get("n_seeds", 3))
     seeds = _seed_list(n_seeds)
     start_timestamp = datetime.now(UTC).isoformat()
-    manifest_path = Path(get_original_cwd()) / "reports" / "manifests" / f"{output_dir.name}.json"
+    manifest_name = f"{output_dir.parent.name}_{output_dir.name}.json"
+    manifest_path = Path(get_original_cwd()) / "reports" / "manifests" / manifest_name
     write_manifest(
         out_path=manifest_path,
         resolved_config_yaml=OmegaConf.to_yaml(cfg),
