@@ -1,15 +1,29 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 from scipy import sparse
+import torch
 
+from jointadaspec.analysis import evaluate_conditions
 from jointadaspec.baselines import (
     solve_cascade_length_then_verif,
     solve_cascade_verif_then_length,
 )
 from jointadaspec.inference import JointAdaSpecPolicy
-from jointadaspec.mdp import MDPConfig, solve_mdp
+from jointadaspec.mdp import MDPConfig, collect_traces, estimate_mdp_parameters, solve_mdp
 from jointadaspec.mdp.spaces import ActionSpace, StateSpace
+from sp_samp.models import FixedModel
+
+
+class ToyModelAdapter:
+    def __init__(self, model: FixedModel) -> None:
+        self.model = model
+        self.vocab_size = model.vocab_size
+        self.device = "cpu"
+
+    def next_token_probs(self, context_tokens):
+        return self.model.next_token_probs(context_tokens)
 
 
 def _interaction_transitions(config: MDPConfig) -> sparse.csr_matrix:
@@ -136,3 +150,108 @@ def test_policy_npz_roundtrip(tmp_path) -> None:
     assert np.array_equal(loaded.pi_star, policy.pi_star)
     assert np.array_equal(loaded.V_star, policy.V_star)
     assert loaded.config == policy.config
+
+
+def test_value_iteration_seed_stability(tmp_path) -> None:
+    target = ToyModelAdapter(FixedModel([0.7, 0.2, 0.1]))
+    draft = ToyModelAdapter(FixedModel([0.6, 0.3, 0.1]))
+    config = MDPConfig(N_H=4, N_K=4, gamma_max=2, T_levels=(1.0, 2.0), nu_min=1)
+    prompts = [[0], [1], [2], [0, 1]]
+    policies: list[np.ndarray] = []
+    for seed in (7, 11):
+        generator = torch.Generator(device="cpu")
+        generator.manual_seed(seed)
+        traces_path = collect_traces(
+            target_model=target,
+            draft_model=draft,
+            prompts=prompts,
+            n_traces=40,
+            output_path=tmp_path / f"traces_seed_{seed}.parquet",
+            config=config,
+            generator=generator,
+        )
+        estimate = estimate_mdp_parameters(traces_path=traces_path, config=config)
+        _, pi_star, _ = solve_mdp(estimate.transitions, estimate.rewards, config)
+        policies.append(pi_star)
+
+    agreement = float(np.mean(policies[0] == policies[1]))
+    assert agreement >= 0.95
+
+
+def test_verify_conditions_smoke(tmp_path) -> None:
+    config = MDPConfig(N_H=4, N_K=1, gamma_max=1, T_levels=(1.0, 2.0))
+    state_space = StateSpace(config)
+    action_space = ActionSpace(config)
+    stop_idx = action_space.encode("stop", 1.0)
+    stop_any_idx = action_space.encode("stop", 2.0)
+    pi_star = np.full(config.num_states, stop_idx, dtype=np.int32)
+    policy = JointAdaSpecPolicy(config=config, pi_star=pi_star, V_star=np.zeros(config.num_states))
+    policy_path = tmp_path / "policy.npz"
+    policy.save(policy_path)
+
+    rows: list[dict[str, float | int | str]] = []
+    trace_idx = 0
+    for H in (0.2, 1.2, 2.2, 3.2):
+        state_idx = state_space.encode(H=H, K=0.1, k=0)
+        for _ in range(12):
+            rows.append(
+                {
+                    "trace_idx": trace_idx,
+                    "rollout_step": 0,
+                    "state_idx": state_idx,
+                    "action_idx": stop_idx,
+                    "action_length": "stop",
+                    "threshold": 1.0,
+                    "reward": 5.0 - H,
+                    "next_state_idx": state_idx,
+                    "accepted": 1,
+                    "proposed": 0,
+                    "emitted_token": 0,
+                    "step_time_ms": 0.1,
+                    "d_step": 0.0,
+                    "H": H,
+                    "K": 0.1,
+                    "k": 0,
+                    "next_H": max(0.0, H - 0.1),
+                    "next_K": 0.1,
+                    "next_k": 0,
+                }
+            )
+            rows.append(
+                {
+                    "trace_idx": trace_idx,
+                    "rollout_step": 0,
+                    "state_idx": state_idx,
+                    "action_idx": stop_any_idx,
+                    "action_length": "stop",
+                    "threshold": 2.0,
+                    "reward": 5.0 - H,
+                    "next_state_idx": state_idx,
+                    "accepted": 1,
+                    "proposed": 0,
+                    "emitted_token": 0,
+                    "step_time_ms": 0.1,
+                    "d_step": 0.0,
+                    "H": H,
+                    "K": 0.1,
+                    "k": 0,
+                    "next_H": max(0.0, H - 0.1),
+                    "next_K": 0.1,
+                    "next_k": 0,
+                }
+            )
+            trace_idx += 1
+    traces_path = tmp_path / "synthetic_traces.parquet"
+    pd.DataFrame.from_records(rows).to_parquet(traces_path, index=False)
+
+    report = evaluate_conditions(
+        traces_path=traces_path,
+        policy_path=policy_path,
+        out_path=tmp_path / "conditions_report.json",
+        n_resamples=100,
+        seed=42,
+    )
+
+    c1_stop = report["checks"]["c1"]["per_action"]["stop@1"]
+    assert c1_stop["rho_H"] < 0.0
+    assert c1_stop["rho_H_ci"][1] < 0.1
