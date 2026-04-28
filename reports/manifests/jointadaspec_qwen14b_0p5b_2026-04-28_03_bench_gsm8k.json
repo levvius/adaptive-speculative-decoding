@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-04-28T16:21:51.894703+00:00",
+  "start_timestamp": "2026-04-28T16:21:51.893401+00:00",
+  "platform": "Linux-6.17.0-19-generic-x86_64-with-glibc2.39",
+  "python": "Python 3.12.3",
+  "kernel": "Linux robot-To-Be-Filled-By-O-E-M 6.17.0-19-generic #19~24.04.2-Ubuntu SMP PREEMPT_DYNAMIC Fri Mar  6 23:08:46 UTC 2 x86_64 x86_64 x86_64 GNU/Linux",
+  "git_sha": "64972470bfb9bafcae60202408dbfca9e5f8ed37",
+  "git_branch": "main",
+  "git_dirty": true,
+  "hostname": "robot-To-Be-Filled-By-O-E-M",
+  "nvidia_smi": "NVIDIA GeForce RTX 5090, 590.48.01, 32607 MiB, 990 MiB",
+  "hydra_config_yaml": "experiments:\n  model_pairs:\n    target:\n      hf_model: models/qwen2.5-14b-Instruct-model\n      tokenizer: models/qwen2.5-14b-Instruct-model\n      device: cuda\n      dtype: bfloat16\n      quant: null\n      bnb_compute_dtype: bfloat16\n      use_fast_tokenizer: true\n      trust_remote_code: false\n    draft:\n      hf_model: models/qwen2.5-0.5b-Instruct-model\n      tokenizer: models/qwen2.5-14b-Instruct-model\n      device: cuda\n      dtype: bfloat16\n      quant: null\n      bnb_compute_dtype: bfloat16\n      use_fast_tokenizer: true\n      trust_remote_code: false\n  datasets:\n    name: gsm8k\n    path: datasets/gsm8k_test.jsonl\n    train_path: datasets/gsm8k_train.jsonl\n    train_max_samples: 1000\n    test_max_samples: 5\n    eval_mode: zero_shot_cot\n    max_new_tokens: 64\n  H_max: 6.0\n  K_max: 8.0\n  gamma_max: 8\n  N_H: 20\n  N_K: 20\n  T_levels:\n  - 1.0\n  - 1.22\n  - 1.49\n  - 1.82\n  - 2.22\n  - 2.71\n  - 3.3\n  - 4.0\n  lambda_discount: 0.99\n  epsilon_convergence: 0.0001\n  max_vi_iterations: 10000\n  kappa: 1.0\n  c_time: 0.01\n  alpha_smooth: 1.0\n  nu_min: 5\n  K_init: 0.0\n  experiment_name: qwen25_14b_0p5b_jointadaspec\n  output_root: outputs\n  output_dir: outputs/jointadaspec_qwen14b_0p5b_2026-04-28/03_bench_gsm8k\n  seed: 0\n  n_seeds: 1\n  traces_path: null\n  policy_path: outputs/jointadaspec_qwen14b_0p5b_2026-04-28/02_solve/policy.npz\n  n_traces: 2000\n  baselines:\n  - vanilla_ar\n  - fixed_sd\n  - fuzzy_sd\n  - specdecpp\n  - cascade_length_then_verif\n  - cascade_verif_then_length\n  fixed_sd_gamma: 4\n  fuzzy_sd_gamma: 4\n  fuzzy_sd_T_grid:\n  - 1.0\n  - 1.5\n  - 2.0\n  - 2.5\n  - 3.0\n  - 3.5\n  - 4.0\n  specdecpp_entropy_threshold: 2.0\n",
+  "seed_list": [
+    42
+  ],
+  "trace_path": null,
+  "policy_path": "outputs/jointadaspec_qwen14b_0p5b_2026-04-28/02_solve/policy.npz",
+  "trace_parquet_sha256": null,
+  "policy_npz_sha256": "f0f1e09c0b41cfc9e6d5de7a414d45b3c33592000fc36a1b73ac966e0ba47e5b",
+  "numpy_version": "2.4.2",
+  "scipy_version": "1.17.0",
+  "hydra_version": "1.3.2",
+  "transformers_version": "4.57.3",
+  "torch_version": "2.9.1+cu128",
+  "cuda_runtime": "12.8",
+  "cuda_available": true,
+  "cuda_device_name": "NVIDIA GeForce RTX 5090"
+}

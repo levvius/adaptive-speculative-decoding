@@ -1,0 +1,7 @@
+{
+  "git_commit_hash": "64972470bfb9bafcae60202408dbfca9e5f8ed37",
+  "num_prompts": 10,
+  "stage": "collect_traces",
+  "timestamp": "2026-04-28T16:03:02.667401+00:00",
+  "traces_path": "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen14b_0p5b_2026-04-28/01_traces/traces.parquet"
+}

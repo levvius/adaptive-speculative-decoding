@@ -1,0 +1,76 @@
+experiments:
+  model_pairs:
+    target:
+      hf_model: models/qwen2.5-14b-Instruct-model
+      tokenizer: models/qwen2.5-14b-Instruct-model
+      device: cuda
+      dtype: bfloat16
+      quant: null
+      bnb_compute_dtype: bfloat16
+      use_fast_tokenizer: true
+      trust_remote_code: false
+    draft:
+      hf_model: models/qwen2.5-0.5b-Instruct-model
+      tokenizer: models/qwen2.5-14b-Instruct-model
+      device: cuda
+      dtype: bfloat16
+      quant: null
+      bnb_compute_dtype: bfloat16
+      use_fast_tokenizer: true
+      trust_remote_code: false
+  datasets:
+    name: gsm8k
+    path: datasets/gsm8k_test.jsonl
+    train_path: datasets/gsm8k_train.jsonl
+    train_max_samples: 10
+    test_max_samples: 200
+    eval_mode: zero_shot_cot
+    max_new_tokens: 256
+  H_max: 6.0
+  K_max: 8.0
+  gamma_max: 8
+  N_H: 20
+  N_K: 20
+  T_levels:
+  - 1.0
+  - 1.22
+  - 1.49
+  - 1.82
+  - 2.22
+  - 2.71
+  - 3.3
+  - 4.0
+  lambda_discount: 0.99
+  epsilon_convergence: 0.0001
+  max_vi_iterations: 10000
+  kappa: 1.0
+  c_time: 0.01
+  alpha_smooth: 1.0
+  nu_min: 5
+  K_init: 0.0
+  experiment_name: qwen25_14b_0p5b_jointadaspec
+  output_root: outputs
+  output_dir: outputs/jointadaspec_qwen14b_0p5b_2026-04-28/01_traces
+  seed: 0
+  n_seeds: 3
+  traces_path: null
+  policy_path: null
+  n_traces: 10
+  baselines:
+  - vanilla_ar
+  - fixed_sd
+  - fuzzy_sd
+  - specdecpp
+  - cascade_length_then_verif
+  - cascade_verif_then_length
+  fixed_sd_gamma: 4
+  fuzzy_sd_gamma: 4
+  fuzzy_sd_T_grid:
+  - 1.0
+  - 1.5
+  - 2.0
+  - 2.5
+  - 3.0
+  - 3.5
+  - 4.0
+  specdecpp_entropy_threshold: 2.0
