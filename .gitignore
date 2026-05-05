@@ -48,6 +48,8 @@ logs/
 # Local datasets and generated benchmark outputs
 datasets/*
 !datasets/.gitkeep
+outputs/20*/
+outputs/jointadaspec_*_20*/
 
 # Local model weights
 models/*
