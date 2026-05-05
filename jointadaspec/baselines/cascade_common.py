@@ -27,6 +27,8 @@ def _config_payload(config: MDPConfig) -> dict[str, Any]:
         "nu_min": config.nu_min,
         "c_time": config.c_time,
         "K_init": config.K_init,
+        "quality_risk_K": config.quality_risk_K,
+        "quality_risk_k": config.quality_risk_k,
     }
 
 

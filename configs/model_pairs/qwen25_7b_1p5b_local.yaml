@@ -1,0 +1,21 @@
+# Local Qwen2.5 7B/1.5B pair for resume-safe quality-aware JointAdaSpec runs.
+
+target:
+  hf_model: "models/qwen2.5-7b-Instruct-model"
+  tokenizer: "models/qwen2.5-7b-Instruct-model"
+  device: "cuda"
+  dtype: "bfloat16"
+  quant: null
+  bnb_compute_dtype: "bfloat16"
+  use_fast_tokenizer: true
+  trust_remote_code: false
+
+draft:
+  hf_model: "models/qwen2.5-1.5b-Instruct-model"
+  tokenizer: "models/qwen2.5-7b-Instruct-model"
+  device: "cuda"
+  dtype: "bfloat16"
+  quant: null
+  bnb_compute_dtype: "bfloat16"
+  use_fast_tokenizer: true
+  trust_remote_code: false

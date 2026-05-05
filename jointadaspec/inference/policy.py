@@ -51,6 +51,8 @@ class JointAdaSpecPolicy:
                 "nu_min": self.config.nu_min,
                 "c_time": self.config.c_time,
                 "K_init": self.config.K_init,
+                "quality_risk_K": self.config.quality_risk_K,
+                "quality_risk_k": self.config.quality_risk_k,
             }
         }
         payload: dict[str, Any] = {

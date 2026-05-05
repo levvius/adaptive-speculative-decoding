@@ -32,10 +32,10 @@ This repository compares exact and approximate decoding strategies under a singl
 
 ## JointAdaSpec: Joint Adaptive Speculative Decoding
 
-JointAdaSpec formulates speculative decoding control as a finite MDP over the state `s = (H, K, k)` and solves the joint policy by value iteration.
+JointAdaSpec formulates speculative decoding control as a finite MDP over the state `s = (H, K_prev, k)` and solves the joint policy by sparse value iteration.
 
 - `H`: entropy of the draft distribution
-- `K`: `KL(q || p)` between draft and target distributions
+- `K_prev`: delayed `KL(q || p)` from the latest available target-verification step
 - `k`: current position in the draft window
 - `a_length ∈ {stop, continue}`
 - `a_verif ∈ {1.00, 1.22, 1.49, 1.82, 2.22, 2.71, 3.30, 4.00}`
@@ -65,6 +65,14 @@ make jointadaspec-full MODEL_PAIR=qwen14b_0p5b JOINTADA_MAX_TRACES=10 JOINTADA_M
 ```
 
 Outputs include traces, policy NPZ files, cascade policies, seeded benchmark JSONL, conditions JSON, manifests, Pareto plots, threshold-surface heatmaps, and ablation charts.
+
+Conservative quality-aware local rerun on Qwen 7B / 1.5B:
+
+```bash
+make jointadaspec-full MODEL_PAIR=qwen7b_1p5b_quality JOINTADA_MAX_TRACES=500 JOINTADA_MAX_SAMPLES=100 JOINTADA_N_SEEDS=3 JOINTADA_MAX_NEW_TOKENS=256
+```
+
+This config uses local checkpoints under `models/` and adds state-dependent quality-risk reward shaping through `quality_risk_K` and `quality_risk_k`.
 
 ## Latest Benchmark Snapshot
 

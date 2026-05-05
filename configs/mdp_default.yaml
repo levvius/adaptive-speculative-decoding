@@ -26,6 +26,8 @@ max_vi_iterations: 10000   # safety cap
 # Reward function weights
 kappa: 1.0          # Lagrange multiplier: trade-off speed vs quality (D)
 c_time: 0.01        # weight of wall-clock step cost in reward
+quality_risk_K: 0.0 # extra D penalty multiplier for high-K states (0 keeps legacy reward)
+quality_risk_k: 0.0 # extra D penalty multiplier for long accepted draft prefixes
 
 # MDP parameter estimation (Algorithm 3)
 alpha_smooth: 1.0   # Laplace additive smoothing count

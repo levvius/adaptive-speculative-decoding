@@ -1,0 +1,14 @@
+# Conservative quality-aware JointAdaSpec experiment on local Qwen2.5 7B/1.5B.
+# @package _global_
+
+defaults:
+  - default
+  - override /model_pairs: qwen25_7b_1p5b_local
+  - _self_
+
+experiment_name: "qwen25_7b_1p5b_jointadaspec_quality"
+
+# Penalise fuzzy-verification distortion more in high-divergence states and
+# near the end of long accepted draft prefixes.
+quality_risk_K: 1.0
+quality_risk_k: 0.5

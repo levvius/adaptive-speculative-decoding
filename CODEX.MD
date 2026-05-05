@@ -13,7 +13,7 @@ features, or behaviors are added.
 - `jointadaspec/`: JointAdaSpec implementation with MDP state/action spaces, trace collection, sparse value iteration, inference-time policy lookup, baseline decoders, metrics, and utility loaders.
 - `sp_samp/hf_topk.py`: HF Top-K lossy verification baseline and runtime stats.
 - `configs/datasets/`: Hydra dataset configs for the `jointadaspec/` pipeline (`gsm8k`, `livecodebench`, `mtbench`).
-- `configs/model_pairs/`: Hydra model-pair configs for JointAdaSpec experiments, including the ungated Qwen2.5 `7B -> 1.5B` pair and the gated Llama placeholder pair.
+- `configs/model_pairs/`: Hydra model-pair configs for JointAdaSpec experiments, including the ungated Qwen2.5 `7B -> 1.5B` pair, local Qwen quality rerun pairs, and the gated Llama placeholder pair.
 - `configs/experiments/`: Hydra experiment configs for JointAdaSpec defaults, sweeps, and dataset-specific profiles.
 - `configs/mdp_default.yaml`: Central JointAdaSpec MDP hyperparameters (grid, thresholds, reward weights, VI controls).
 - `configs/models.json`: Model presets (target/draft HF models, device, dtype, quantization, tokenizer, chat template).
@@ -47,6 +47,7 @@ features, or behaviors are added.
 - `docs/GITHUB_SETUP.md`: Practical checklist for GitHub About/topics/social preview setup.
 - `reports/jointadaspec_qwen_7b_1p5b_2026-04-14.md`: Curated markdown report for the first real JointAdaSpec Qwen `7B -> 1.5B` run.
 - `reports/jointadaspec_qwen_runs_through_2026-04-28.md`: Curated roll-up for the 2026-04-14 substantive run plus 2026-04-21/28 smoke and partial artifacts.
+- `reports/dissertation_review_2026-05-05.md`: Audit summary for the corrected dissertation copy and quality-aware JointAdaSpec update.
 - `sp_samp/autojudge.py`: Paper-aligned AutoJudge implementation (Algorithm 1 token mining, LogisticRegression training, and verification-stage decoding override).
 - `sp_samp/gsm8k.py`: GSM8K utilities (dataset loading, final-answer extraction, and equivalence checks).
 - `sp_samp/specexec.py`: CPU SpecExec implementation (exact target sampling with draft-tree cache prefill and pruning).
@@ -69,6 +70,15 @@ features, or behaviors are added.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
 
 ## Recent Changes (2026-05-05)
+- Added dissertation draft artifacts:
+  - created `papers/ИС61_fpm_КозинАА_2026_исправлено_практика.docx` from the original DOCX while preserving the title page, abstract, and table of contents;
+  - corrected key theorem/proof wording around delayed `K_prev`, cascade dominance, Pareto scalarization, sparse VI complexity, and smoke-vs-final result interpretation;
+  - added draft practical chapters, bibliography, conclusion, and appendix notes tied to the current repository architecture and tracked JointAdaSpec artifacts.
+- Added conservative quality-aware JointAdaSpec support:
+  - new backward-compatible `MDPConfig` fields `quality_risk_K` and `quality_risk_k`;
+  - reward shaping now scales `d_step` by a state-dependent risk weight in high-K/high-k states;
+  - policy metadata preserves the new fields for both joint and cascade policies;
+  - new local Qwen `7B -> 1.5B` quality experiment path via `MODEL_PAIR=qwen7b_1p5b_quality`.
 - Documented and archived JointAdaSpec artifacts through `2026-04-28`:
   - added the curated roll-up report `reports/jointadaspec_qwen_runs_through_2026-04-28.md`;
   - updated `README.MD`, `docs/RESULTS.md`, and `docs/ROADMAP.md` with the new result status and smoke-vs-substantive interpretation;

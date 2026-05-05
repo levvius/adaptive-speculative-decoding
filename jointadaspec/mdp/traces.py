@@ -15,7 +15,13 @@ import torch
 
 from jointadaspec.core.features import entropy, kl_divergence
 from jointadaspec.core.verification import fuzzy_verification, tv_distance_step
-from jointadaspec.mdp.spaces import ActionSpace, JointAction, MDPConfig, StateSpace
+from jointadaspec.mdp.spaces import (
+    ActionSpace,
+    JointAction,
+    MDPConfig,
+    StateSpace,
+    quality_risk_weight,
+)
 from jointadaspec.utils.probs import common_vocab_size, next_token_probs_tensor
 
 
@@ -141,6 +147,8 @@ def collect_traces(
             H = entropy(q_probs)
             K = kl_divergence(q_probs, p_probs)
             state_idx = state_space.encode(H, K, k)
+            _, i_K, _ = state_space.decode(state_idx)
+            risk_weight = quality_risk_weight(config, i_K=i_K, k=k)
             valid_action_indices = action_space.valid_action_indices(k)
             results_by_action: dict[int, dict[str, Any]] = {}
 
@@ -159,6 +167,11 @@ def collect_traces(
                     config=config,
                     common_vocab_n=common_vocab_n,
                 )
+                reward = (
+                    float(result["accepted"])
+                    - config.c_time * float(result["step_time_ms"])
+                    - config.kappa * risk_weight * float(result["d_step"])
+                )
                 results_by_action[action_idx] = result
                 records.append(
                     {
@@ -168,7 +181,7 @@ def collect_traces(
                         "action_idx": action_idx,
                         "action_length": action.length_action,
                         "threshold": action.threshold,
-                        "reward": result["reward"],
+                        "reward": reward,
                         "next_state_idx": result["next_state_idx"],
                         "accepted": result["accepted"],
                         "proposed": result["proposed"],

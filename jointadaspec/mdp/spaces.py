@@ -36,6 +36,8 @@ class MDPConfig:
     nu_min: int = 5
     c_time: float = 0.01
     K_init: float = 0.0
+    quality_risk_K: float = 0.0
+    quality_risk_k: float = 0.0
 
     def __post_init__(self) -> None:
         if self.H_max <= 0 or self.K_max <= 0:
@@ -48,6 +50,8 @@ class MDPConfig:
             raise ValueError("T_levels must be non-empty.")
         if any(level < 1.0 for level in self.T_levels):
             raise ValueError("All T_levels must be >= 1.0.")
+        if self.quality_risk_K < 0.0 or self.quality_risk_k < 0.0:
+            raise ValueError("quality_risk_K and quality_risk_k must be non-negative.")
 
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, Any]) -> "MDPConfig":
@@ -82,6 +86,19 @@ class StateSpace:
 
     def k_of(self, state_idx: int) -> int:
         return self.decode(state_idx)[2]
+
+
+def quality_risk_weight(config: MDPConfig, *, i_K: int, k: int) -> float:
+    """State-dependent multiplier for conservative fuzzy-verification penalties."""
+    K_bin_norm = 0.0 if config.N_K <= 1 else float(i_K) / float(config.N_K - 1)
+    k_norm = 0.0 if config.gamma_max <= 0 else float(k) / float(config.gamma_max)
+    return float(1.0 + config.quality_risk_K * K_bin_norm + config.quality_risk_k * k_norm)
+
+
+def quality_risk_weight_for_state(config: MDPConfig, state_idx: int) -> float:
+    state_space = StateSpace(config)
+    _, i_K, k = state_space.decode(state_idx)
+    return quality_risk_weight(config, i_K=i_K, k=k)
 
 
 @dataclass(frozen=True)

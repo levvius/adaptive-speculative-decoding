@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 from scipy import sparse
 
-from jointadaspec.mdp import MDPConfig, solve_mdp
+from jointadaspec.inference import JointAdaSpecPolicy
+from jointadaspec.mdp import MDPConfig, estimate_mdp_parameters, solve_mdp
 from jointadaspec.mdp.spaces import ActionSpace, StateSpace
 
 
@@ -78,3 +80,103 @@ def test_pi_star_shape() -> None:
     rewards = np.zeros((config.num_states, config.num_actions), dtype=np.float64)
     _, pi_star, _ = solve_mdp(transitions, rewards, config)
     assert pi_star.shape == (3600,)
+
+
+def _single_reward_trace(tmp_path, config: MDPConfig, *, H: float, K: float, k: int, d_step: float):
+    state_space = StateSpace(config)
+    action_space = ActionSpace(config)
+    state_idx = state_space.encode(H=H, K=K, k=k)
+    action_idx = action_space.encode("continue", config.T_levels[-1])
+    path = tmp_path / f"trace_{K}_{k}.parquet"
+    pd.DataFrame.from_records(
+        [
+            {
+                "state_idx": state_idx,
+                "action_idx": action_idx,
+                "next_state_idx": state_idx,
+                "accepted": 1,
+                "step_time_ms": 10.0,
+                "d_step": d_step,
+            }
+        ]
+    ).to_parquet(path, index=False)
+    return path, state_idx, action_idx
+
+
+def test_quality_risk_defaults_keep_legacy_reward(tmp_path) -> None:
+    config = MDPConfig(
+        N_H=2,
+        N_K=2,
+        gamma_max=2,
+        T_levels=(1.0, 2.0),
+        kappa=2.0,
+        c_time=0.01,
+        nu_min=1,
+    )
+    traces_path, state_idx, action_idx = _single_reward_trace(
+        tmp_path,
+        config,
+        H=0.1,
+        K=7.9,
+        k=2,
+        d_step=0.2,
+    )
+
+    estimate = estimate_mdp_parameters(traces_path=traces_path, config=config)
+
+    assert estimate.rewards[state_idx, action_idx] == np.float64(1.0 - 0.1 - 0.4)
+
+
+def test_quality_risk_penalizes_high_K_and_k_states(tmp_path) -> None:
+    config = MDPConfig(
+        N_H=2,
+        N_K=4,
+        gamma_max=4,
+        T_levels=(1.0, 2.0),
+        kappa=1.0,
+        c_time=0.0,
+        nu_min=1,
+        quality_risk_K=1.0,
+        quality_risk_k=0.5,
+    )
+    low_path, low_state_idx, action_idx = _single_reward_trace(
+        tmp_path,
+        config,
+        H=0.1,
+        K=0.1,
+        k=0,
+        d_step=0.2,
+    )
+    high_path, high_state_idx, _ = _single_reward_trace(
+        tmp_path,
+        config,
+        H=0.1,
+        K=7.9,
+        k=4,
+        d_step=0.2,
+    )
+
+    low_estimate = estimate_mdp_parameters(traces_path=low_path, config=config)
+    high_estimate = estimate_mdp_parameters(traces_path=high_path, config=config)
+
+    assert high_estimate.rewards[high_state_idx, action_idx] < low_estimate.rewards[low_state_idx, action_idx]
+
+
+def test_policy_roundtrip_preserves_quality_risk_fields(tmp_path) -> None:
+    config = MDPConfig(
+        N_H=1,
+        N_K=1,
+        gamma_max=1,
+        T_levels=(1.0,),
+        quality_risk_K=0.75,
+        quality_risk_k=0.25,
+    )
+    pi_star = np.zeros(config.num_states, dtype=np.int32)
+    policy = JointAdaSpecPolicy(config=config, pi_star=pi_star)
+    path = tmp_path / "policy_quality.npz"
+
+    policy.save(path)
+    loaded = JointAdaSpecPolicy.load(path)
+
+    assert loaded.config.quality_risk_K == 0.75
+    assert loaded.config.quality_risk_k == 0.25

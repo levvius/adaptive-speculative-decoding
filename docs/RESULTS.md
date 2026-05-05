@@ -15,6 +15,8 @@ The latest tracked `jointadaspec/` artifacts include one substantive benchmark s
 
 Curated roll-up report: `reports/jointadaspec_qwen_runs_through_2026-04-28.md`.
 
+Next planned rerun: local quality-aware Qwen `7B -> 1.5B` with `MODEL_PAIR=qwen7b_1p5b_quality`, `500` traces, `100` GSM8K samples, `3` seeds, and `256` max new tokens. This rerun is intended to replace the failed HuggingFace-loading benchmark stage from `2026-04-28`, not to reinterpret the smoke rows above.
+
 ### 2026-04-28 failure note
 
 The Qwen `7B -> 1.5B` full benchmark stage failed while loading `Qwen/Qwen2.5-7B-Instruct` from HuggingFace with an SSL EOF. The watcher script then refused to launch the dependent full Step 3 because it could not find `outputs/jointadaspec_qwen7b_1p5b_2026-04-28/03_bench_gsm8k/results.jsonl`, `reports/pareto_qwen7b_1p5b_2026-04-28.pdf`, `reports/ablation_qwen7b_1p5b_2026-04-28.pdf`, or `reports/threshold_surface_qwen7b_1p5b_2026-04-28/`.

@@ -55,8 +55,11 @@ JOINTADA_LCB_EXPERIMENT := qwen25_14b_0p5b_jointadaspec_livecodebench
 else ifeq ($(MODEL_PAIR),qwen7b_1p5b)
 JOINTADA_EXPERIMENT := qwen25_7b_1p5b_jointadaspec
 JOINTADA_LCB_EXPERIMENT := qwen25_7b_1p5b_jointadaspec_livecodebench
+else ifeq ($(MODEL_PAIR),qwen7b_1p5b_quality)
+JOINTADA_EXPERIMENT := qwen25_7b_1p5b_jointadaspec_quality
+JOINTADA_LCB_EXPERIMENT := qwen25_7b_1p5b_jointadaspec_livecodebench
 else
-$(error Unsupported MODEL_PAIR '$(MODEL_PAIR)'; use qwen14b_0p5b or qwen7b_1p5b)
+$(error Unsupported MODEL_PAIR '$(MODEL_PAIR)'; use qwen14b_0p5b, qwen7b_1p5b, or qwen7b_1p5b_quality)
 endif
 
 DATA_DIR ?= $(abspath $(dir $(DATASET)))

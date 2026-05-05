@@ -4,6 +4,7 @@ import numpy as np
 from scipy import sparse
 
 from jointadaspec.baselines import (
+    CascadePolicy,
     solve_cascade_length_then_verif,
     solve_cascade_verif_then_length,
 )
@@ -82,3 +83,29 @@ def test_cascade_equals_joint_on_separable_reward() -> None:
 
     assert np.allclose(V_joint, V_len_then, atol=1.0e-6)
     assert np.allclose(V_joint, V_verif_then, atol=1.0e-6)
+
+
+def test_cascade_policy_roundtrip_preserves_quality_risk_fields(tmp_path) -> None:
+    config = MDPConfig(
+        N_H=1,
+        N_K=1,
+        gamma_max=1,
+        T_levels=(1.0,),
+        quality_risk_K=0.5,
+        quality_risk_k=0.25,
+    )
+    pi_star = np.zeros(config.num_states, dtype=np.int32)
+    policy = CascadePolicy(
+        config=config,
+        cascade_order="length_then_verif",
+        pi_star=pi_star,
+        length_policy=pi_star,
+        verif_policy=pi_star,
+    )
+    path = tmp_path / "cascade_quality.npz"
+
+    policy.save(path)
+    loaded = CascadePolicy.load(path)
+
+    assert loaded.config.quality_risk_K == 0.5
+    assert loaded.config.quality_risk_k == 0.25

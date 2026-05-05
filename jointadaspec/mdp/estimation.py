@@ -9,7 +9,13 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
-from jointadaspec.mdp.spaces import ActionSpace, JointAction, MDPConfig, StateSpace
+from jointadaspec.mdp.spaces import (
+    ActionSpace,
+    JointAction,
+    MDPConfig,
+    StateSpace,
+    quality_risk_weight,
+)
 
 
 @dataclass(frozen=True)
@@ -76,6 +82,11 @@ def estimate_mdp_parameters(traces_path: str | bytes | "os.PathLike[str]", confi
 
     S = config.num_states
     A = config.num_actions
+    risk_weights = np.ones(S, dtype=np.float64)
+    if config.quality_risk_K > 0.0 or config.quality_risk_k > 0.0:
+        for state_idx in range(S):
+            _, i_K, k = state_space.decode(state_idx)
+            risk_weights[state_idx] = quality_risk_weight(config, i_K=i_K, k=k)
     visit_counts = np.zeros((S, A), dtype=np.int32)
     reward_sums = np.zeros((S, A), dtype=np.float64)
     grouped_counts: dict[tuple[int, int], dict[int, float]] = {}
@@ -84,7 +95,12 @@ def estimate_mdp_parameters(traces_path: str | bytes | "os.PathLike[str]", confi
         state_idx = int(row.state_idx)
         action_idx = int(row.action_idx)
         next_state_idx = int(row.next_state_idx)
-        reward = float(row.accepted) - config.c_time * float(row.step_time_ms) - config.kappa * float(row.d_step)
+        risk_weight = float(risk_weights[state_idx])
+        reward = (
+            float(row.accepted)
+            - config.c_time * float(row.step_time_ms)
+            - config.kappa * risk_weight * float(row.d_step)
+        )
 
         visit_counts[state_idx, action_idx] += 1
         reward_sums[state_idx, action_idx] += reward
