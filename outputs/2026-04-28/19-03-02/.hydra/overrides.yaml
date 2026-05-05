@@ -1,0 +1,3 @@
+- experiments.output_dir=outputs/jointadaspec_qwen14b_0p5b_2026-04-28/01_traces
+- experiments.n_traces=10
+- experiments.datasets.train_max_samples=10

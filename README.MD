@@ -68,24 +68,26 @@ Outputs include traces, policy NPZ files, cascade policies, seeded benchmark JSO
 
 ## Latest Benchmark Snapshot
 
-### Latest JointAdaSpec Run
+### JointAdaSpec Result Status
 
-Latest real `jointadaspec/` run: `2026-04-14`, Qwen2.5 `7B -> 1.5B`, RTX 5090.
+Best substantive `jointadaspec/` snapshot: `2026-04-14`, Qwen2.5 `7B -> 1.5B`, RTX 5090.
 
 Artifacts:
 - `reports/jointadaspec_qwen_7b_1p5b_2026-04-14.md`
+- `reports/jointadaspec_qwen_runs_through_2026-04-28.md`
 - `outputs/jointadaspec_qwen_2026-04-14/01_traces_gsm8k/`
 - `outputs/jointadaspec_qwen_2026-04-14/02_solve/`
 - `outputs/jointadaspec_qwen_2026-04-14/03_bench_gsm8k/`
 - `outputs/jointadaspec_qwen_2026-04-14/04_bench_livecodebench/`
 
-Trace and solve snapshot:
+Why this remains the headline benchmark:
 - `3000` collected traces
 - `479880` one-step transition records
 - `kappa` sweep: `0.0, 0.5, 1.0, 2.0, 5.0`
+- `100` prompts on GSM8K and LiveCodeBench
 - value iteration converged for all saved policies
 
-GSM8K throughput snapshot (`100` prompts, throughput + acceptance only):
+GSM8K throughput snapshot (`100` prompts):
 
 | Method | Speed (tok/s) | Acceptance | vs Vanilla |
 |---|---:|---:|---:|
@@ -108,7 +110,17 @@ LiveCodeBench throughput snapshot (`100` prompts):
 Current interpretation:
 - `JointAdaSpec` is operational end to end on the Qwen `7B -> 1.5B` profile used for the first thesis traces.
 - On this single-GPU ratio it improves acceptance over the fixed-window baselines, but it does not yet outperform target-only decoding in throughput.
-- The current `jointadaspec/` benchmark path now writes resumable seeded JSONL with bootstrap confidence intervals, plus legacy `run.jsonl` prompt records for backward compatibility.
+- The current `jointadaspec/` benchmark path writes resumable seeded JSONL with task-level GSM8K exact match, bootstrap confidence intervals, plus legacy `run.jsonl` prompt records for backward compatibility.
+
+Latest tracked artifacts through `2026-04-28` are smoke or partial runs and should not be read as final best-of-run claims:
+
+| Run | Scope | Best observed line | Status |
+|---|---|---|---|
+| `2026-04-21`, Qwen `7B -> 1.5B` | schema/seeded smoke, `1` prompt, `1` seed, `8` new tokens | `cascade_verif_then_length`: `18.47` tok/s, `1.204x` vs target-only | Complete smoke benchmark |
+| `2026-04-28`, Qwen `14B -> 0.5B` | smoke, `5` prompts, `1` seed, `64` new tokens | `cascade_verif_then_length`: `13.15` tok/s, `0.725x`; `jointadaspec`: `12.85` tok/s, `0.709x` | Complete smoke benchmark |
+| `2026-04-28`, Qwen `7B -> 1.5B` | full trace/solve attempt, `500` traces | policy and condition artifacts saved | Benchmark stage failed on HuggingFace SSL EOF |
+
+For the `2026-04-28` Qwen `14B -> 0.5B` smoke, `target_only` reached `18.13` tok/s. Condition checks passed `c2`, `c3`, `n1`, and `n2`; `c1` and `c4` failed, which is recorded as an empirical result rather than a runtime failure.
 
 ### Historical `sp_samp` Snapshot
 

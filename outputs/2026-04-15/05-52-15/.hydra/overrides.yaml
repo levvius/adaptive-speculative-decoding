@@ -1,0 +1,4 @@
+- experiments.output_dir=outputs/jointadaspec_qwen_2026-04-14/04_bench_livecodebench
+- experiments.seed=0
+- experiments.policy_path=outputs/jointadaspec_qwen_2026-04-14/02_solve/policy_kappa_1.npz
+- experiments.datasets.test_max_samples=100

@@ -1,0 +1,9 @@
+- experiments.output_dir=outputs/jointadaspec_schema_smoke/03_bench_qwen7
+- experiments.policy_path=outputs/jointadaspec_schema_smoke/02_solve/policy.npz
+- experiments.datasets.test_max_samples=1
+- experiments.datasets.max_new_tokens=8
+- experiments.n_seeds=1
+- experiments.model_pairs.target.hf_model=models/qwen2.5-7b-Instruct-model
+- experiments.model_pairs.target.tokenizer=models/qwen2.5-7b-Instruct-model
+- experiments.model_pairs.draft.hf_model=models/qwen2.5-1.5b-Instruct-model
+- experiments.model_pairs.draft.tokenizer=models/qwen2.5-7b-Instruct-model

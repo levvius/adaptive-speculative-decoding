@@ -1,0 +1,5 @@
+- experiments.output_dir=outputs/jointadaspec_smoke/03_bench_gsm8k
+- experiments.policy_path=outputs/jointadaspec_smoke/02_solve/policy.npz
+- experiments.datasets.test_max_samples=1
+- experiments.datasets.max_new_tokens=32
+- experiments.seed=0

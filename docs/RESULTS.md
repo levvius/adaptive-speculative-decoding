@@ -2,7 +2,32 @@
 
 This page is a compact index of benchmark outcomes and where to find full artifacts.
 
-## Latest JointAdaSpec Run (Qwen 7B / 1.5B)
+## Latest Artifacts Through 2026-04-28
+
+The latest tracked `jointadaspec/` artifacts include one substantive benchmark snapshot and several smoke or partial runs. Treat the smoke rows as regression and pipeline evidence, not as statistically stable best-of-run claims.
+
+| Run | Model pair | Scope | Best observed result | Reliability |
+|---|---|---|---|---|
+| `2026-04-14` | Qwen2.5 `7B -> 1.5B` | `3000` traces, `100` GSM8K prompts, `100` LiveCodeBench prompts | GSM8K: `jointadaspec` `18.99` tok/s, acceptance `0.951`; LiveCodeBench: `jointadaspec` `10.34` tok/s, acceptance `0.890` | Best substantive snapshot |
+| `2026-04-21` | Qwen2.5 `7B -> 1.5B` | seeded/schema smoke, `1` prompt, `1` seed, `8` new tokens | `cascade_verif_then_length` `18.47` tok/s, `1.204x` vs target-only | Complete smoke only |
+| `2026-04-28` | Qwen2.5 `14B -> 0.5B` | smoke, `5` prompts, `1` seed, `64` new tokens | `cascade_verif_then_length` `13.15` tok/s, `0.725x`; `jointadaspec` `12.85` tok/s, `0.709x`; `target_only` `18.13` tok/s | Complete smoke only |
+| `2026-04-28` | Qwen2.5 `7B -> 1.5B` | full trace/solve attempt, `500` traces | policy and condition artifacts saved; no benchmark summary | Partial, benchmark failed |
+
+Curated roll-up report: `reports/jointadaspec_qwen_runs_through_2026-04-28.md`.
+
+### 2026-04-28 failure note
+
+The Qwen `7B -> 1.5B` full benchmark stage failed while loading `Qwen/Qwen2.5-7B-Instruct` from HuggingFace with an SSL EOF. The watcher script then refused to launch the dependent full Step 3 because it could not find `outputs/jointadaspec_qwen7b_1p5b_2026-04-28/03_bench_gsm8k/results.jsonl`, `reports/pareto_qwen7b_1p5b_2026-04-28.pdf`, `reports/ablation_qwen7b_1p5b_2026-04-28.pdf`, or `reports/threshold_surface_qwen7b_1p5b_2026-04-28/`.
+
+### Condition checks
+
+| Run | Passed | Failed |
+|---|---|---|
+| Qwen `7B -> 1.5B`, `2026-04-21` | `c3`, `n1`, `n2` | `c1`, `c2`, `c4` |
+| Qwen `7B -> 1.5B`, `2026-04-28` | `n1`, `n2` | `c1`, `c2`, `c3`, `c4` |
+| Qwen `14B -> 0.5B`, `2026-04-28` | `c2`, `c3`, `n1`, `n2` | `c1`, `c4` |
+
+## Best Substantive JointAdaSpec Snapshot (Qwen 7B / 1.5B)
 
 Run tag: `2026-04-14`
 
@@ -28,7 +53,7 @@ Run tag: `2026-04-14`
 
 ### GSM8K throughput snapshot
 
-Note: the current `jointadaspec/` benchmark path reports throughput and acceptance only. Task accuracy is not yet computed here.
+This older run predates the seeded benchmark summary path that records task-level GSM8K exact match. It remains the best substantive throughput/acceptance snapshot because it used `100` prompts rather than a smoke-sized slice.
 
 | Method | Speed (tok/s) | Acceptance | vs Vanilla |
 |---|---:|---:|---:|

@@ -1,0 +1,2 @@
+- experiments.output_dir=outputs/jointadaspec_qwen7b_1p5b_2026-04-21/02_solve
+- experiments.traces_path=outputs/jointadaspec_qwen7b_1p5b_2026-04-21/01_traces/traces.parquet

@@ -9,6 +9,7 @@ A speculative decoding research playground implementing and benchmarking several
 - **AutoJudge**: paper-aligned judge decoding (Algorithm 1 label mining + LogisticRegression classifier)
 - **Top-K**: lossy baseline for paper-style comparisons
 - **SpecExec**: exact target sampling with draft-branch KV cache prefill and pruning
+- **JointAdaSpec**: thesis-focused joint MDP control over draft length and fuzzy verification threshold
 
 ## Common Commands
 
@@ -51,6 +52,12 @@ make local-eval
 
 # Run local Llama-3 8B/3B eval (GSM8K + LiveCodeBench)
 bash scripts/run_llama3_8b_3b_eval.sh
+
+# Run JointAdaSpec staged pipeline
+make jointadaspec-full MODEL_PAIR=qwen7b_1p5b
+
+# Validate Qwen 7B/1.5B Step 2 before launching dependent full Step 3
+bash scripts/run_step3_after_step2.sh
 ```
 
 ## Long-Run Operations (24-48h)
@@ -230,6 +237,7 @@ Pipeline stages:
 - `scripts/02_solve_mdp.py` — estimate MDP parameters, solve the joint policy, and save both cascade baselines.
 - `scripts/03_benchmark.py` — run seeded benchmarks and write `results.jsonl`, legacy `run.jsonl`, CSV summaries, and manifests.
 - `scripts/04_verify_conditions.py` — compute C1-C4 / N1-N2 diagnostics and save six plots.
+- `scripts/run_step3_after_step2.sh` — watcher that validates Qwen `7B -> 1.5B` Step 2 benchmark/report artifacts before launching the dependent Qwen `14B -> 0.5B` full Step 3 run.
 - `reports/templates/*.py` — generate Pareto plots, threshold surfaces, and ablation charts from the saved artifacts.
 
 JointAdaSpec constraints:
@@ -238,11 +246,13 @@ JointAdaSpec constraints:
 - Seed policy is deterministic by default: benchmark runs use `[42, 43, 44, ...]`, set `CUBLAS_WORKSPACE_CONFIG=:4096:8`, and enable `torch.use_deterministic_algorithms(True, warn_only=True)`.
 - Confidence intervals are additive only: the seeded benchmark writes bootstrap 95% CIs for speed, acceptance rate, and GSM8K exact match without breaking the old prompt-level JSONL readers.
 - Reproducibility manifests live under `reports/manifests/` and include git SHA, dirty flag, resolved config YAML, seed list, and SHA256 hashes for trace/policy artifacts.
+- Smoke-sized runs, including the `2026-04-21` one-prompt smoke and the `2026-04-28` five-prompt Qwen `14B -> 0.5B` smoke, are tracked for pipeline validation only. Do not present them as final best-of-run evidence.
 
 JointAdaSpec limitations:
 - The Qwen `14B/0.5B` local config assumes the full local checkpoint shards are present under `models/qwen2.5-14b-Instruct-model`; incomplete local weights will block the smoke/full run until those shards exist.
 - Policy transfer between model pairs is untested; solve a fresh policy per target/draft pair.
 - Condition failures in `04_verify_conditions.py` are treated as empirical results, not runtime bugs; the script exits `0` and reports them for thesis discussion.
+- The Qwen `7B -> 1.5B` full run on `2026-04-28` collected `500` traces and saved policy artifacts, but its benchmark stage failed with a HuggingFace SSL EOF while loading `Qwen/Qwen2.5-7B-Instruct`. The watcher correctly refused to launch the dependent full Step 3 because the expected `results.jsonl`, Pareto, ablation, and threshold-surface artifacts were missing.
 
 ## Determinism Policy
 

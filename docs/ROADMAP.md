@@ -3,14 +3,14 @@
 ## Current Focus
 
 1. Improve quality-speed tradeoff on local single-GPU runs.
-2. Add task-level quality metrics to the new JointAdaSpec benchmark path.
+2. Re-run JointAdaSpec full benchmarks with enough prompts/seeds to separate real speed wins from smoke noise.
 3. Make experiment outputs easier to compare and review.
 
 ## In Progress
 
-- Llama 8B/3B long-run profile with paper-aligned AutoJudge C-grid (`1e-7..1e0`).
+- Retry the Qwen `7B -> 1.5B` full JointAdaSpec benchmark after the `2026-04-28` HuggingFace SSL EOF failure.
 - Better project presentation for external reviewers (docs/templates/results index).
-- JointAdaSpec Qwen `7B -> 1.5B` documentation pass and report-card cleanup.
+- JointAdaSpec Qwen documentation pass and report-card cleanup through the `2026-04-28` artifacts.
 
 ## Next Technical Steps
 
@@ -19,8 +19,9 @@
 - Evaluate larger speculative window (`k=8`, `k=16`) with fixed runtime budget.
 - Prototype stronger judge backends (tree/boosting models) behind a stable interface.
 - Add task-specific AutoJudge training data path for LiveCodeBench-like tasks.
-- Add GSM8K exact-match evaluation to `scripts/03_benchmark.py` for the `jointadaspec/` stack.
+- Keep GSM8K exact-match evaluation in the seeded `scripts/03_benchmark.py` path and use it in future multi-seed reports.
 - Compare `JointAdaSpec` policies across `kappa` values instead of benchmarking only a single selected policy.
+- Promote smoke-only `2026-04-21` and `2026-04-28` results into a normal multi-seed/multi-sample run before claiming a new best result.
 
 ### Performance Engineering
 
@@ -35,6 +36,7 @@
 - Publish concise per-run summary cards (accuracy/speed/cost).
 - Keep strict JSONL schema compatibility for downstream analysis.
 - Generate markdown reports directly from JointAdaSpec `outputs/` directories.
+- Add a retry/resume wrapper around HuggingFace model metadata fetches for long benchmark stages.
 
 ## Project Hygiene
 

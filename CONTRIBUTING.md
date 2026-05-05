@@ -43,8 +43,10 @@ make bench-toy OUT=/tmp/bench_toy.jsonl
 
 - `datasets/` is for local data and run outputs (gitignored by default).
 - `reports/` contains tracked summary artifacts intended for sharing.
+- Selected `outputs/` directories may be tracked when they are needed to reproduce a report or review a thesis pipeline stage.
 - `logs/` is local runtime noise and is ignored.
 - Prefer new output filenames for long runs to avoid mixing old and new records.
+- Mark smoke-sized runs clearly in docs. Do not describe one-prompt or five-prompt smoke results as statistically stable best results.
 
 ## AutoJudge Notes
 

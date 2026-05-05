@@ -1,0 +1,7 @@
+{
+  "git_commit_hash": "0bcce61e5eaee58f5ff0af7ad6c4680c112fcc4d",
+  "num_prompts": 1,
+  "stage": "collect_traces",
+  "timestamp": "2026-04-14T16:24:09.277438+00:00",
+  "traces_path": "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_smoke/01_traces/traces.parquet"
+}

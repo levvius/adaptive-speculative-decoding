@@ -23,6 +23,7 @@ features, or behaviors are added.
 - `scripts/01_collect_traces.py`: JointAdaSpec stage 1, exploratory one-step trace collection into Parquet.
 - `scripts/02_solve_mdp.py`: JointAdaSpec stage 2, smoothed MDP estimation and sparse value iteration over a `kappa` sweep.
 - `scripts/03_benchmark.py`: JointAdaSpec stage 3, benchmark runner for `jointadaspec`, `vanilla_ar`, `fixed_sd`, `fuzzy_sd`, and `specdecpp`.
+- `scripts/run_step3_after_step2.sh`: Watcher that validates Qwen `7B -> 1.5B` Step 2 artifacts before launching the dependent Qwen `14B -> 0.5B` full Step 3 run.
 - `scripts/run_jointadaspec_qwen_longrun.sh`: Staged orchestration script for the ungated Qwen2.5 `7B -> 1.5B` JointAdaSpec profile on GSM8K + LiveCodeBench.
 - `scripts/validate_configs.py`: Static validator for configs (cross-file references, method constraints, tokenizer compatibility for target/draft pair methods).
 - `scripts/validate_results_jsonl.py`: JSONL schema/type validator for benchmark outputs (strict mode supported).
@@ -45,6 +46,7 @@ features, or behaviors are added.
 - `docs/ROADMAP.md`: Near-term and mid-term engineering roadmap.
 - `docs/GITHUB_SETUP.md`: Practical checklist for GitHub About/topics/social preview setup.
 - `reports/jointadaspec_qwen_7b_1p5b_2026-04-14.md`: Curated markdown report for the first real JointAdaSpec Qwen `7B -> 1.5B` run.
+- `reports/jointadaspec_qwen_runs_through_2026-04-28.md`: Curated roll-up for the 2026-04-14 substantive run plus 2026-04-21/28 smoke and partial artifacts.
 - `sp_samp/autojudge.py`: Paper-aligned AutoJudge implementation (Algorithm 1 token mining, LogisticRegression training, and verification-stage decoding override).
 - `sp_samp/gsm8k.py`: GSM8K utilities (dataset loading, final-answer extraction, and equivalence checks).
 - `sp_samp/specexec.py`: CPU SpecExec implementation (exact target sampling with draft-tree cache prefill and pruning).
@@ -65,6 +67,17 @@ features, or behaviors are added.
 - `tests/test_features.py`, `tests/test_verification.py`, `tests/test_mdp_solver.py`, `tests/test_inference.py`, `tests/test_end_to_end.py`: JointAdaSpec unit and toy end-to-end coverage.
 - `Dockerfile`, `Dockerfile.gpu`: CPU/GPU containers.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
+
+## Recent Changes (2026-05-05)
+- Documented and archived JointAdaSpec artifacts through `2026-04-28`:
+  - added the curated roll-up report `reports/jointadaspec_qwen_runs_through_2026-04-28.md`;
+  - updated `README.MD`, `docs/RESULTS.md`, and `docs/ROADMAP.md` with the new result status and smoke-vs-substantive interpretation;
+  - recorded condition-check outcomes for Qwen `7B -> 1.5B` (`2026-04-21`, `2026-04-28`) and Qwen `14B -> 0.5B` (`2026-04-28`);
+  - recorded the `2026-04-28` Qwen `7B -> 1.5B` benchmark interruption caused by a HuggingFace SSL EOF while loading `Qwen/Qwen2.5-7B-Instruct`.
+- Added/archived result artifacts from the newer JointAdaSpec pipeline:
+  - cascade policies, condition JSON, manifests, Pareto plots, threshold-surface plots, ablation reports, and raw output directories;
+  - `scripts/run_step3_after_step2.sh`, a watcher that validates Step 2 artifacts before launching the dependent full Step 3 run.
+- Current best substantive JointAdaSpec snapshot remains the `2026-04-14` Qwen `7B -> 1.5B` 100-prompt run; `2026-04-21` and `2026-04-28` are tracked as smoke or partial artifacts.
 
 ## Recent Changes (2026-04-14)
 - Added the first complete JointAdaSpec implementation:

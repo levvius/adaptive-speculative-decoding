@@ -1,0 +1,8 @@
+{
+  "benchmark_path": "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_smoke/03_bench_gsm8k/benchmark.csv",
+  "git_commit_hash": "0bcce61e5eaee58f5ff0af7ad6c4680c112fcc4d",
+  "num_records": 11,
+  "stage": "benchmark",
+  "summary_path": "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_smoke/03_bench_gsm8k/summary.csv",
+  "timestamp": "2026-04-14T16:24:39.556750+00:00"
+}
