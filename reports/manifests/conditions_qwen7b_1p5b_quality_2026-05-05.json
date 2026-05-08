@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-05-05T16:42:43.338580+00:00",
+  "start_timestamp": "2026-05-05T16:42:43.338573+00:00",
+  "platform": "Linux-6.17.0-22-generic-x86_64-with-glibc2.39",
+  "python": "Python 3.12.3",
+  "kernel": "Linux robot-To-Be-Filled-By-O-E-M 6.17.0-22-generic #22~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Thu Mar 26 15:25:54 UTC 2 x86_64 x86_64 x86_64 GNU/Linux",
+  "git_sha": "f078f8c2606d34e0843bc923a33c49434af67e64",
+  "git_branch": "main",
+  "git_dirty": false,
+  "hostname": "robot-To-Be-Filled-By-O-E-M",
+  "nvidia_smi": "NVIDIA GeForce RTX 5090, 590.48.01, 32607 MiB, 31229 MiB",
+  "hydra_config_yaml": "{\n  \"traces\": \"outputs/jointadaspec_qwen7b_1p5b_quality_2026-05-05/01_traces/traces.parquet\",\n  \"policy\": \"outputs/jointadaspec_qwen7b_1p5b_quality_2026-05-05/02_solve/policy.npz\",\n  \"out\": \"reports/conditions_qwen7b_1p5b_quality_2026-05-05.json\",\n  \"bootstrap_resamples\": 500,\n  \"seed\": 42\n}",
+  "seed_list": [
+    42
+  ],
+  "trace_path": "outputs/jointadaspec_qwen7b_1p5b_quality_2026-05-05/01_traces/traces.parquet",
+  "policy_path": "outputs/jointadaspec_qwen7b_1p5b_quality_2026-05-05/02_solve/policy.npz",
+  "trace_parquet_sha256": "e70076e799e7674f060a483598adabba508c069560b6c40a0ea2027aa9732b09",
+  "policy_npz_sha256": "7a07661f35a62d811a5a813dab72c10b58e33282fe52bc51ef16ca7d7eaf7d49",
+  "numpy_version": "2.4.2",
+  "scipy_version": "1.17.0",
+  "hydra_version": "1.3.2",
+  "transformers_version": "4.57.3",
+  "torch_version": "2.9.1+cu128",
+  "cuda_runtime": "12.8",
+  "cuda_available": true,
+  "cuda_device_name": "NVIDIA GeForce RTX 5090"
+}

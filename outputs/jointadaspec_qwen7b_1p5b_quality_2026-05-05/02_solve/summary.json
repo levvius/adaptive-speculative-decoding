@@ -1,0 +1,13 @@
+{
+  "cascade_policy_paths": [
+    "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen7b_1p5b_quality_2026-05-05/02_solve/cascade_length_then_verif.npz",
+    "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen7b_1p5b_quality_2026-05-05/02_solve/cascade_verif_then_length.npz"
+  ],
+  "git_commit_hash": "f078f8c2606d34e0843bc923a33c49434af67e64",
+  "policy_paths": [
+    "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen7b_1p5b_quality_2026-05-05/02_solve/policy.npz"
+  ],
+  "stage": "solve_mdp",
+  "timestamp": "2026-05-05T16:42:38.962225+00:00",
+  "traces_path": "outputs/jointadaspec_qwen7b_1p5b_quality_2026-05-05/01_traces/traces.parquet"
+}
