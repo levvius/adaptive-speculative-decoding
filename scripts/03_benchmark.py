@@ -88,8 +88,16 @@ def _set_deterministic_seed(seed: int) -> None:
 def _load_eval_samples(dataset_cfg: DictConfig) -> list[EvalSample]:
     dataset_name = str(dataset_cfg.name).lower()
     max_samples = int(dataset_cfg.test_max_samples)
+    start_index = int(dataset_cfg.get("test_start_index", 0))
+    if max_samples < 0:
+        raise ValueError("datasets.test_max_samples must be non-negative.")
+    if start_index < 0:
+        raise ValueError("datasets.test_start_index must be non-negative.")
+    if max_samples == 0:
+        return []
+    load_limit = start_index + max_samples
     if dataset_name == "gsm8k":
-        samples = load_gsm8k(str(dataset_cfg.path), max_samples=max_samples)
+        samples = load_gsm8k(str(dataset_cfg.path), max_samples=load_limit)[start_index:]
         prompt_mode = str(dataset_cfg.get("eval_mode", "zero_shot_cot"))
         prompts = []
         for sample in samples:
@@ -104,14 +112,14 @@ def _load_eval_samples(dataset_cfg: DictConfig) -> list[EvalSample]:
             prompts.append(EvalSample(prompt=prompt, reference_answer=extract_reference_answer(sample.answer)))
         return prompts
     if dataset_name == "livecodebench":
-        prompts = load_livecodebench(str(dataset_cfg.path), max_samples=max_samples)
+        prompts = load_livecodebench(str(dataset_cfg.path), max_samples=load_limit)[start_index:]
         return [EvalSample(prompt=prompt) for prompt in prompts]
     if dataset_name == "mtbench":
         prompts = load_mtbench(
             str(dataset_cfg.path),
             turn_index=int(dataset_cfg.get("turn_index", 0)),
-            max_samples=max_samples,
-        )
+            max_samples=load_limit,
+        )[start_index:]
         return [EvalSample(prompt=prompt) for prompt in prompts]
     raise ValueError(f"Unsupported dataset name '{dataset_name}'.")
 
@@ -309,6 +317,7 @@ def _build_record_base(exp_cfg: DictConfig, *, method: str) -> dict[str, object]
         "k": k_value,
         "max_new_tokens": int(exp_cfg.datasets.max_new_tokens),
         "max_samples": int(exp_cfg.datasets.test_max_samples),
+        "test_start_index": int(exp_cfg.datasets.get("test_start_index", 0)),
         "turn_index": int(exp_cfg.datasets.get("turn_index", 0)),
         "dataset": str(exp_cfg.datasets.path),
         "autojudge_threshold": None,
@@ -331,6 +340,7 @@ def _record_resume_key(exp_cfg: DictConfig, *, method: str, seed: int) -> str:
         "eval_task": str(exp_cfg.datasets.name),
         "max_new_tokens": int(exp_cfg.datasets.max_new_tokens),
         "max_samples": int(exp_cfg.datasets.test_max_samples),
+        "test_start_index": int(exp_cfg.datasets.get("test_start_index", 0)),
         "target_model": _config_model_name(target_cfg),
         "draft_model": _config_model_name(draft_cfg),
         "fixed_sd_gamma": int(exp_cfg.get("fixed_sd_gamma", 0)),

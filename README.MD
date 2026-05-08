@@ -74,6 +74,14 @@ make jointadaspec-full MODEL_PAIR=qwen7b_1p5b_quality JOINTADA_MAX_TRACES=500 JO
 
 This config uses local checkpoints under `models/` and adds state-dependent quality-risk reward shaping through `quality_risk_K` and `quality_risk_k`.
 
+Held-out quality validation using the fixed `2026-05-05` policy:
+
+```bash
+make jointadaspec-quality-heldout-full JOINTADA_DATE=2026-05-08
+```
+
+The validation uses GSM8K `test_start_index=100`, `500` prompts, `3` seeds, and pre-registers `cascade_verif_then_length` as the primary quality decoder.
+
 ## Latest Benchmark Snapshot
 
 ### JointAdaSpec Result Status
@@ -83,6 +91,7 @@ Best substantive `jointadaspec/` snapshot: `2026-04-14`, Qwen2.5 `7B -> 1.5B`, R
 Artifacts:
 - `reports/jointadaspec_qwen_7b_1p5b_2026-04-14.md`
 - `reports/jointadaspec_qwen_runs_through_2026-04-28.md`
+- `reports/jointadaspec_quality_qwen7b_1p5b_quality_2026-05-05.md`
 - `outputs/jointadaspec_qwen_2026-04-14/01_traces_gsm8k/`
 - `outputs/jointadaspec_qwen_2026-04-14/02_solve/`
 - `outputs/jointadaspec_qwen_2026-04-14/03_bench_gsm8k/`
@@ -120,13 +129,14 @@ Current interpretation:
 - On this single-GPU ratio it improves acceptance over the fixed-window baselines, but it does not yet outperform target-only decoding in throughput.
 - The current `jointadaspec/` benchmark path writes resumable seeded JSONL with task-level GSM8K exact match, bootstrap confidence intervals, plus legacy `run.jsonl` prompt records for backward compatibility.
 
-Latest tracked artifacts through `2026-04-28` are smoke or partial runs and should not be read as final best-of-run claims:
+Latest tracked artifacts through `2026-05-05` include smoke, partial, and one complete quality-aware hypothesis run:
 
 | Run | Scope | Best observed line | Status |
 |---|---|---|---|
 | `2026-04-21`, Qwen `7B -> 1.5B` | schema/seeded smoke, `1` prompt, `1` seed, `8` new tokens | `cascade_verif_then_length`: `18.47` tok/s, `1.204x` vs target-only | Complete smoke benchmark |
 | `2026-04-28`, Qwen `14B -> 0.5B` | smoke, `5` prompts, `1` seed, `64` new tokens | `cascade_verif_then_length`: `13.15` tok/s, `0.725x`; `jointadaspec`: `12.85` tok/s, `0.709x` | Complete smoke benchmark |
 | `2026-04-28`, Qwen `7B -> 1.5B` | full trace/solve attempt, `500` traces | policy and condition artifacts saved | Benchmark stage failed on HuggingFace SSL EOF |
+| `2026-05-05`, Qwen `7B -> 1.5B` quality-aware | `500` traces, `100` GSM8K prompts, `3` seeds | `cascade_verif_then_length`: EM `0.6267`; `jointadaspec`: EM `0.6167`; `target_only`: EM `0.5700` | Complete quality hypothesis run |
 
 For the `2026-04-28` Qwen `14B -> 0.5B` smoke, `target_only` reached `18.13` tok/s. Condition checks passed `c2`, `c3`, `n1`, and `n2`; `c1` and `c4` failed, which is recorded as an empirical result rather than a runtime failure.
 

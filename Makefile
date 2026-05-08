@@ -36,6 +36,7 @@ MODEL_PAIR ?= qwen14b_0p5b
 JOINTADA_DATE ?= $(shell date +%F)
 JOINTADA_MAX_TRACES ?= 500
 JOINTADA_MAX_SAMPLES ?= 100
+JOINTADA_TEST_START_INDEX ?= 0
 JOINTADA_MAX_NEW_TOKENS ?= 256
 JOINTADA_N_SEEDS ?= 3
 JOINTADA_OUTPUT_ROOT ?= outputs/jointadaspec_$(MODEL_PAIR)_$(JOINTADA_DATE)
@@ -48,6 +49,15 @@ JOINTADA_PARETO ?= reports/pareto_$(MODEL_PAIR)_$(JOINTADA_DATE).pdf
 JOINTADA_ABLATION ?= reports/ablation_$(MODEL_PAIR)_$(JOINTADA_DATE).pdf
 JOINTADA_THRESHOLD_DIR ?= reports/threshold_surface_$(MODEL_PAIR)_$(JOINTADA_DATE)
 JOINTADA_CONDITIONS ?= reports/conditions_$(MODEL_PAIR)_$(JOINTADA_DATE).json
+JOINTADA_HELDOUT_OUTPUT_ROOT ?= outputs/jointadaspec_qwen7b_1p5b_quality_heldout_$(JOINTADA_DATE)
+JOINTADA_HELDOUT_BENCH_DIR ?= $(JOINTADA_HELDOUT_OUTPUT_ROOT)/03_bench_gsm8k
+JOINTADA_HELDOUT_POLICY_PATH ?= outputs/jointadaspec_qwen7b_1p5b_quality_2026-05-05/02_solve/policy.npz
+JOINTADA_HELDOUT_START_INDEX ?= 100
+JOINTADA_HELDOUT_MAX_SAMPLES ?= 500
+JOINTADA_HELDOUT_MANIFEST ?= reports/manifests/$(notdir $(JOINTADA_HELDOUT_OUTPUT_ROOT))_03_bench_gsm8k.json
+JOINTADA_HELDOUT_PARETO ?= reports/pareto_qwen7b_1p5b_quality_heldout_$(JOINTADA_DATE).pdf
+JOINTADA_HELDOUT_ABLATION ?= reports/ablation_qwen7b_1p5b_quality_heldout_$(JOINTADA_DATE).pdf
+JOINTADA_HELDOUT_THRESHOLD_DIR ?= reports/threshold_surface_qwen7b_1p5b_quality_heldout_$(JOINTADA_DATE)
 
 ifeq ($(MODEL_PAIR),qwen14b_0p5b)
 JOINTADA_EXPERIMENT := qwen25_14b_0p5b_jointadaspec
@@ -70,6 +80,7 @@ ALLOW_EOL_ARG := $(if $(filter 1 true yes,$(ALLOW_EOL_UBUNTU)),--allow-eol-ubunt
 
 .PHONY: help setup setup-gpu check validate-configs validate-results list-presets test bench-toy smoke-hf smoke-hf-gpu bench bench-method autojudge specexec bench-all paper-eval local-eval \
 		jointadaspec-traces jointadaspec-solve jointadaspec-verify jointadaspec-bench jointadaspec-report jointadaspec-full \
+		jointadaspec-quality-heldout jointadaspec-quality-heldout-report jointadaspec-quality-heldout-full \
 		docker-build docker-build-gpu docker-build-gpu-safe docker-prune-builder docker-gpu-check docker-gpu-check-image docker-test docker-bench docker-autojudge docker-specexec docker-bench-all
 
 help: ## Show available targets
@@ -203,6 +214,7 @@ jointadaspec-bench: ## Benchmark JointAdaSpec and baselines for MODEL_PAIR
 	$(PYTHON) scripts/03_benchmark.py --config-name experiments/$(JOINTADA_EXPERIMENT) \
 		experiments.output_dir=$(JOINTADA_BENCH_DIR) \
 		experiments.policy_path=$(JOINTADA_POLICY_PATH) \
+		experiments.datasets.test_start_index=$(JOINTADA_TEST_START_INDEX) \
 		experiments.datasets.test_max_samples=$(JOINTADA_MAX_SAMPLES) \
 		experiments.datasets.max_new_tokens=$(JOINTADA_MAX_NEW_TOKENS) \
 		experiments.n_seeds=$(JOINTADA_N_SEEDS)
@@ -222,6 +234,31 @@ jointadaspec-report: ## Build JointAdaSpec plots for MODEL_PAIR
 		--manifest $(JOINTADA_MANIFEST)
 
 jointadaspec-full: jointadaspec-traces jointadaspec-solve jointadaspec-verify jointadaspec-bench jointadaspec-report ## Run the full JointAdaSpec pipeline for MODEL_PAIR
+
+jointadaspec-quality-heldout: ## Benchmark the fixed quality-aware Qwen 7B/1.5B policy on held-out GSM8K
+	$(PYTHON) scripts/03_benchmark.py --config-name experiments/qwen25_7b_1p5b_jointadaspec_quality_heldout \
+		experiments.output_dir=$(JOINTADA_HELDOUT_BENCH_DIR) \
+		experiments.policy_path=$(JOINTADA_HELDOUT_POLICY_PATH) \
+		experiments.datasets.test_start_index=$(JOINTADA_HELDOUT_START_INDEX) \
+		experiments.datasets.test_max_samples=$(JOINTADA_HELDOUT_MAX_SAMPLES) \
+		experiments.datasets.max_new_tokens=$(JOINTADA_MAX_NEW_TOKENS) \
+		experiments.n_seeds=$(JOINTADA_N_SEEDS)
+
+jointadaspec-quality-heldout-report: ## Build held-out quality validation plots
+	$(PYTHON) reports/templates/pareto_plot.py \
+		--input $(JOINTADA_HELDOUT_BENCH_DIR)/results.jsonl \
+		--out $(JOINTADA_HELDOUT_PARETO) \
+		--manifest $(JOINTADA_HELDOUT_MANIFEST)
+	$(PYTHON) reports/templates/threshold_surface.py \
+		--policy $(JOINTADA_HELDOUT_POLICY_PATH) \
+		--out $(JOINTADA_HELDOUT_THRESHOLD_DIR) \
+		--manifest $(JOINTADA_HELDOUT_MANIFEST)
+	$(PYTHON) reports/templates/ablation_bars.py \
+		--input $(JOINTADA_HELDOUT_BENCH_DIR)/results.jsonl \
+		--out $(JOINTADA_HELDOUT_ABLATION) \
+		--manifest $(JOINTADA_HELDOUT_MANIFEST)
+
+jointadaspec-quality-heldout-full: jointadaspec-quality-heldout jointadaspec-quality-heldout-report ## Run held-out quality validation and plots
 
 docker-build: ## Build CPU Docker image
 	$(DOCKER_CMD) build -t $(IMAGE_CPU) .

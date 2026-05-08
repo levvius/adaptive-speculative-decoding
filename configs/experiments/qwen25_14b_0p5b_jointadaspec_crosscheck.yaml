@@ -1,0 +1,21 @@
+# Secondary GSM8K cross-check for local Qwen2.5 14B/0.5B artifacts.
+# This is a transfer sanity check, not the primary quality claim.
+# @package _global_
+
+defaults:
+  - qwen25_14b_0p5b_jointadaspec
+  - _self_
+
+experiment_name: "qwen25_14b_0p5b_jointadaspec_crosscheck"
+policy_path: "outputs/jointadaspec_qwen14b_0p5b_2026-04-28/02_solve/policy.npz"
+n_seeds: 3
+
+baselines:
+  - vanilla_ar
+  - fixed_sd
+  - cascade_verif_then_length
+
+datasets:
+  test_start_index: 100
+  test_max_samples: 200
+  max_new_tokens: 256

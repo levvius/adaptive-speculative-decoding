@@ -2,9 +2,9 @@
 
 This page is a compact index of benchmark outcomes and where to find full artifacts.
 
-## Latest Artifacts Through 2026-04-28
+## Latest Artifacts Through 2026-05-05
 
-The latest tracked `jointadaspec/` artifacts include one substantive benchmark snapshot and several smoke or partial runs. Treat the smoke rows as regression and pipeline evidence, not as statistically stable best-of-run claims.
+The latest tracked `jointadaspec/` artifacts include one substantive throughput snapshot, several smoke or partial runs, and a quality-aware Qwen `7B -> 1.5B` rerun. Treat the smoke rows as regression and pipeline evidence, not as statistically stable best-of-run claims.
 
 | Run | Model pair | Scope | Best observed result | Reliability |
 |---|---|---|---|---|
@@ -12,10 +12,13 @@ The latest tracked `jointadaspec/` artifacts include one substantive benchmark s
 | `2026-04-21` | Qwen2.5 `7B -> 1.5B` | seeded/schema smoke, `1` prompt, `1` seed, `8` new tokens | `cascade_verif_then_length` `18.47` tok/s, `1.204x` vs target-only | Complete smoke only |
 | `2026-04-28` | Qwen2.5 `14B -> 0.5B` | smoke, `5` prompts, `1` seed, `64` new tokens | `cascade_verif_then_length` `13.15` tok/s, `0.725x`; `jointadaspec` `12.85` tok/s, `0.709x`; `target_only` `18.13` tok/s | Complete smoke only |
 | `2026-04-28` | Qwen2.5 `7B -> 1.5B` | full trace/solve attempt, `500` traces | policy and condition artifacts saved; no benchmark summary | Partial, benchmark failed |
+| `2026-05-05` | Qwen2.5 `7B -> 1.5B` local quality-aware | `500` traces, `100` GSM8K prompts, `3` seeds, `256` new tokens | `cascade_verif_then_length` EM `0.6267`, `15.80` tok/s; `jointadaspec` EM `0.6167`, `15.79` tok/s; `target_only` EM `0.5700`, `25.01` tok/s | Complete quality hypothesis run |
 
 Curated roll-up report: `reports/jointadaspec_qwen_runs_through_2026-04-28.md`.
 
-Next planned rerun: local quality-aware Qwen `7B -> 1.5B` with `MODEL_PAIR=qwen7b_1p5b_quality`, `500` traces, `100` GSM8K samples, `3` seeds, and `256` max new tokens. This rerun is intended to replace the failed HuggingFace-loading benchmark stage from `2026-04-28`, not to reinterpret the smoke rows above.
+Quality-aware analysis report: `reports/jointadaspec_quality_qwen7b_1p5b_quality_2026-05-05.md`.
+
+Next planned validation: held-out local Qwen `7B -> 1.5B` quality validation using the fixed `2026-05-05` policy, `test_start_index=100`, `500` GSM8K prompts, `3` seeds, and `256` max new tokens. The primary decoder is fixed in advance as `cascade_verif_then_length`.
 
 ### 2026-04-28 failure note
 
@@ -28,6 +31,24 @@ The Qwen `7B -> 1.5B` full benchmark stage failed while loading `Qwen/Qwen2.5-7B
 | Qwen `7B -> 1.5B`, `2026-04-21` | `c3`, `n1`, `n2` | `c1`, `c2`, `c4` |
 | Qwen `7B -> 1.5B`, `2026-04-28` | `n1`, `n2` | `c1`, `c2`, `c3`, `c4` |
 | Qwen `14B -> 0.5B`, `2026-04-28` | `c2`, `c3`, `n1`, `n2` | `c1`, `c4` |
+| Qwen `7B -> 1.5B` quality-aware, `2026-05-05` | `n1`, `n2` | `c1`, `c2`, `c3`, `c4` |
+
+## Quality-aware Qwen 7B / 1.5B Rerun
+
+Run tag: `2026-05-05`
+
+- Output artifacts: `outputs/jointadaspec_qwen7b_1p5b_quality_2026-05-05/`
+- Analysis: `reports/jointadaspec_quality_qwen7b_1p5b_quality_2026-05-05.md`
+- Plots: `reports/pareto_qwen7b_1p5b_quality_2026-05-05.pdf`, `reports/ablation_qwen7b_1p5b_quality_2026-05-05.pdf`
+
+| Method | Speed (tok/s) | Acceptance | GSM8K EM | vs Target Speed |
+|---|---:|---:|---:|---:|
+| target_only | 25.01 | 0.000 | 0.570 | 1.000 |
+| speculative | 13.23 | 0.719 | 0.620 | 0.529 |
+| jointadaspec | 15.79 | 0.917 | 0.617 | 0.631 |
+| cascade_verif_then_length | 15.80 | 0.919 | 0.627 | 0.632 |
+
+Paired EM difference for the fixed primary method `cascade_verif_then_length` versus `target_only` was `+5.67` percentage points on `300` paired prompt-seed rows, with bootstrap CI crossing zero. This is a quality hypothesis, not yet a final statistically stable claim.
 
 ## Best Substantive JointAdaSpec Snapshot (Qwen 7B / 1.5B)
 

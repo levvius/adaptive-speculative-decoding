@@ -69,6 +69,15 @@ features, or behaviors are added.
 - `Dockerfile`, `Dockerfile.gpu`: CPU/GPU containers.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
 
+## Recent Changes (2026-05-08)
+- Added held-out JointAdaSpec quality validation workflow:
+  - `datasets.test_start_index` is now recorded in benchmark metadata and used to slice GSM8K/LiveCodeBench/MT-Bench eval samples;
+  - added fixed Qwen `7B -> 1.5B` held-out validation config with `test_start_index=100`, `500` prompts, `3` seeds, and `cascade_verif_then_length` as the pre-registered primary decoder;
+  - added `scripts/run_jointadaspec_quality_validation_queue.sh` for the 48-hour validation queue and `scripts/analyze_jointadaspec_quality.py` for paired EM reports.
+- Archived the completed `2026-05-05` quality-aware Qwen `7B -> 1.5B` artifacts and analysis:
+  - `cascade_verif_then_length` reached GSM8K EM `0.6267`; `jointadaspec` reached `0.6167`; `target_only` was `0.5700`;
+  - paired CI still crossed zero, so the result is treated as a quality hypothesis pending held-out validation.
+
 ## Recent Changes (2026-05-05)
 - Added dissertation draft artifacts:
   - created `papers/ИС61_fpm_КозинАА_2026_исправлено_практика.docx` from the original DOCX while preserving the title page, abstract, and table of contents;

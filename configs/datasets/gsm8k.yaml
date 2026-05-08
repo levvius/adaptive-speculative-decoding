@@ -6,6 +6,7 @@ train_path: "datasets/gsm8k_train.jsonl"
 # Strict train/test split enforced at runtime
 # Traces are collected on 'train' split; benchmark runs on 'test' split.
 train_max_samples: 1000   # prompts used for trace collection
+test_start_index: 0       # held-out offset inside the benchmark split
 test_max_samples: 200     # prompts used for benchmarking
 
 eval_mode: "zero_shot_cot"

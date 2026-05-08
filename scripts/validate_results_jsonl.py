@@ -55,6 +55,7 @@ BASE_FIELDS = {
 OPTIONAL_BASE_FIELDS = {
     "schema_version",
     "seed",
+    "test_start_index",
     "draft2_model",
     "draft2_tokenizer",
     "draft2_device",
@@ -452,6 +453,7 @@ def _validate_record(
         elif key in {
             "schema_version",
             "seed",
+            "test_start_index",
             "autojudge_threshold_used",
             "autojudge_threshold_calibrated",
             "autojudge_recall_target",
