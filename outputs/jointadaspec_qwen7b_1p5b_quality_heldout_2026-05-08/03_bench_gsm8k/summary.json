@@ -1,0 +1,11 @@
+{
+  "benchmark_path": "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen7b_1p5b_quality_heldout_2026-05-08/03_bench_gsm8k/benchmark.csv",
+  "git_commit_hash": "046a3c0ed1e421d2f484fbedb30026ef966b50f6",
+  "manifest_path": "/home/robot/Project/adaptive-speculative-decoding/reports/manifests/jointadaspec_qwen7b_1p5b_quality_heldout_2026-05-08_03_bench_gsm8k.json",
+  "n_seeds": 3,
+  "num_records": 12,
+  "results_path": "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen7b_1p5b_quality_heldout_2026-05-08/03_bench_gsm8k/results.jsonl",
+  "stage": "benchmark",
+  "summary_path": "/home/robot/Project/adaptive-speculative-decoding/outputs/jointadaspec_qwen7b_1p5b_quality_heldout_2026-05-08/03_bench_gsm8k/summary.csv",
+  "timestamp": "2026-05-08T10:50:01.060427+00:00"
+}

@@ -2,9 +2,9 @@
 
 This page is a compact index of benchmark outcomes and where to find full artifacts.
 
-## Latest Artifacts Through 2026-05-05
+## Latest Artifacts Through 2026-05-08
 
-The latest tracked `jointadaspec/` artifacts include one substantive throughput snapshot, several smoke or partial runs, and a quality-aware Qwen `7B -> 1.5B` rerun. Treat the smoke rows as regression and pipeline evidence, not as statistically stable best-of-run claims.
+The latest tracked `jointadaspec/` artifacts include one substantive throughput snapshot, several smoke or partial runs, a quality-aware Qwen `7B -> 1.5B` rerun, and a held-out validation pass. Treat the smoke rows as regression and pipeline evidence, not as statistically stable best-of-run claims.
 
 | Run | Model pair | Scope | Best observed result | Reliability |
 |---|---|---|---|---|
@@ -13,12 +13,15 @@ The latest tracked `jointadaspec/` artifacts include one substantive throughput 
 | `2026-04-28` | Qwen2.5 `14B -> 0.5B` | smoke, `5` prompts, `1` seed, `64` new tokens | `cascade_verif_then_length` `13.15` tok/s, `0.725x`; `jointadaspec` `12.85` tok/s, `0.709x`; `target_only` `18.13` tok/s | Complete smoke only |
 | `2026-04-28` | Qwen2.5 `7B -> 1.5B` | full trace/solve attempt, `500` traces | policy and condition artifacts saved; no benchmark summary | Partial, benchmark failed |
 | `2026-05-05` | Qwen2.5 `7B -> 1.5B` local quality-aware | `500` traces, `100` GSM8K prompts, `3` seeds, `256` new tokens | `cascade_verif_then_length` EM `0.6267`, `15.80` tok/s; `jointadaspec` EM `0.6167`, `15.79` tok/s; `target_only` EM `0.5700`, `25.01` tok/s | Complete quality hypothesis run |
+| `2026-05-08` | Qwen2.5 `7B -> 1.5B` local quality-aware held-out | `500` held-out GSM8K prompts, `3` seeds, `256` new tokens | `target_only` EM `0.6020`; `speculative` EM `0.6060`; `jointadaspec` EM `0.5873`; `cascade_verif_then_length` EM `0.5793` | Complete held-out validation, negative/neutral result |
 
 Curated roll-up report: `reports/jointadaspec_qwen_runs_through_2026-04-28.md`.
 
 Quality-aware analysis report: `reports/jointadaspec_quality_qwen7b_1p5b_quality_2026-05-05.md`.
 
-Next planned validation: held-out local Qwen `7B -> 1.5B` quality validation using the fixed `2026-05-05` policy, `test_start_index=100`, `500` GSM8K prompts, `3` seeds, and `256` max new tokens. The primary decoder is fixed in advance as `cascade_verif_then_length`.
+Held-out validation report: `reports/jointadaspec_quality_qwen7b_1p5b_quality_heldout_2026-05-08.md`.
+
+The held-out validation did not support the quality-aware cascade hypothesis. The fixed primary decoder `cascade_verif_then_length` had paired EM delta `-2.27` percentage points versus `target_only` with CI `[-5.27%, 0.60%]` and `p=0.1439`. The original `2026-05-05` improvement therefore remains a first-slice hypothesis that did not generalize to held-out GSM8K.
 
 ### 2026-04-28 failure note
 
@@ -49,6 +52,25 @@ Run tag: `2026-05-05`
 | cascade_verif_then_length | 15.80 | 0.919 | 0.627 | 0.632 |
 
 Paired EM difference for the fixed primary method `cascade_verif_then_length` versus `target_only` was `+5.67` percentage points on `300` paired prompt-seed rows, with bootstrap CI crossing zero. This is a quality hypothesis, not yet a final statistically stable claim.
+
+## Held-out Quality Validation (Qwen 7B / 1.5B)
+
+Run tag: `2026-05-08`
+
+- Output artifacts: `outputs/jointadaspec_qwen7b_1p5b_quality_heldout_2026-05-08/03_bench_gsm8k/`
+- Analysis: `reports/jointadaspec_quality_qwen7b_1p5b_quality_heldout_2026-05-08.md`
+- Plots: `reports/pareto_qwen7b_1p5b_quality_heldout_2026-05-08.pdf`, `reports/ablation_qwen7b_1p5b_quality_heldout_2026-05-08.pdf`
+
+| Method | Speed (tok/s) | Acceptance | GSM8K EM | vs Target Speed |
+|---|---:|---:|---:|---:|
+| target_only | 25.48 | 0.000 | 0.602 | 1.000 |
+| speculative | 13.13 | 0.715 | 0.606 | 0.515 |
+| jointadaspec | 15.79 | 0.917 | 0.587 | 0.620 |
+| cascade_verif_then_length | 15.78 | 0.921 | 0.579 | 0.619 |
+
+Primary success: `False`. Strong success: `False`. The selected quality-aware cascade did not improve held-out GSM8K exact match; it reduced EM by `2.27` percentage points relative to `target_only`, with uncertainty crossing zero.
+
+Partial runtime evidence from the queue is tracked only as incomplete evidence. The Qwen `14B -> 0.5B` cross-check and the extended Qwen `7B -> 1.5B` fallback produced manifests and partial `run.jsonl` files, but no `results.jsonl`; they are not used for benchmark claims.
 
 ## Best Substantive JointAdaSpec Snapshot (Qwen 7B / 1.5B)
 
