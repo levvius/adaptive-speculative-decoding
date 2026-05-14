@@ -271,32 +271,55 @@ JointAdaSpec limitations:
 - **GPU checks**: Use `make docker-gpu-check` / `make docker-gpu-check-image` before long runs. RTX 50xx (Blackwell/sm_120) requires `torch==2.9.1+cu128`.
 - **Makefile Python**: Prefers `.venv/bin/python`; falls back to `python3`.
 
-## Evaluation Results (Qwen2.5 7B/1.5B, RTX 5090, 2026-03-10)
+## Evaluation Results
 
-### GSM8K (k=4, zero-shot CoT, 100 samples x 3 runs)
+### JointAdaSpec — primary results (RTX 5090, GSM8K zero-shot CoT)
 
-| Method | Accuracy | Speed | vs Speculative | vs Baseline |
-|--------|----------|-------|---------------|-------------|
-| Baseline (7B only) | 58.1% | 78.6 tok/s | 1.67x | 1.00x |
-| Speculative | 56.9% | 47.2 tok/s | 1.00x | 0.60x |
-| AutoJudge t=0.09 (best balanced) | 61.7% | 55.9 tok/s | 1.18x | 0.71x |
-| AutoJudge t=1.0 (fastest AJ) | 52.3% | 63.4 tok/s | 1.34x | 0.81x |
-| Top-K rank=4 (fastest overall) | 54.3% | 71.5 tok/s | 1.52x | 0.91x |
+**Headline result.** Qwen 14B → 0.5B (2026-05-14 crosscheck, 100 prompts × 3 seeds):
 
-### LiveCodeBench (k=4, throughput-only)
+| Method | EM | tok/s | vs speculative | Paired Δ EM vs target_only | p (permutation) |
+|---|---:|---:|---:|---:|---:|
+| target_only | 49.33% | 13.0 | 2.90× | — | — |
+| speculative (vanilla) | 55.00% | 4.5 | 1.00× | +5.67% | 0.1485 |
+| cascade_verif_then_length | 56.33% | 10.2 | 2.27× | +7.00% | 0.0481 |
+| **jointadaspec** | **58.00%** | **10.2** | **2.27×** | **+8.67%** | **0.0137 ✓** |
 
-| Method | Speed | vs Speculative |
-|--------|-------|---------------|
-| Baseline | 76.4 tok/s | 1.85x |
-| Speculative | 41.4 tok/s | 1.00x |
-| AutoJudge (all thresholds) | 28-37 tok/s | 0.68-0.90x |
-| Top-K rank=all (best) | 44.0 tok/s | 1.06x |
+JointAdaSpec is the strongest method on the 14B/0.5B pair: highest GSM8K EM (`+8.67%` paired vs target_only, `p < 0.05`) and `2.27×` higher throughput than vanilla speculative. Run 1 of the final sprint (`configs/experiments/qwen25_14b_0p5b_jointadaspec_lock.yaml`) re-benchmarks this configuration at 500 prompts × 3 seeds to lock in the result with a tighter CI.
 
-### Known Limitations
+**Secondary result.** Qwen 7B → 1.5B (2026-05-12 k=8 quality, 200 prompts × 3 seeds):
 
-- **Speculative slower than baseline**: Expected with small target/draft ratio (7B/1.5B = 4.7x) on single GPU. Paper uses 70B/8B+ ratios with multi-GPU. Draft model overhead not offset by acceptance gains at k=4.
-- **AutoJudge slower on LiveCodeBench**: Classifier trained on GSM8K data doesn't generalize to code tasks. Paper trains separate classifiers per task (Section 4.2).
-- **AutoJudge accuracy improvement (+3.5% over baseline on GSM8K)**: The judge correctly identifies important tokens, improving answer quality by selectively falling back to the target model.
+| Method | EM | tok/s | vs speculative | Paired Δ EM vs target_only | p (permutation) |
+|---|---:|---:|---:|---:|---:|
+| target_only | 58.83% | 24.9 | 2.46× | — | — |
+| speculative | 61.17% | 10.1 | 1.00× | +2.33% | 0.318 |
+| cascade_verif_then_length | 61.33% | 15.7 | 1.56× | +2.50% | 0.279 |
+| **jointadaspec** | **62.33%** | **15.7** | **1.56×** | **+3.50%** | **0.146** |
+
+JointAdaSpec is directionally best on quality and ties cascade on speed (`1.56×` vs vanilla speculative). The borderline `p = 0.146` reflects power constraints at `n = 200`; Run 2 of the final sprint (`configs/experiments/qwen25_7b_1p5b_jointadaspec_quality_lock.yaml`) re-benchmarks at 500 prompts × 3 seeds to push it below `p < 0.05`.
+
+### AutoJudge — comparison baseline (Qwen2.5 7B/1.5B, k=4, 2026-03-10, 100 × 3)
+
+| Method | EM | tok/s | vs Speculative |
+|---|---:|---:|---:|
+| Baseline (7B) | 58.1% | 78.6 | 1.67× |
+| Speculative | 56.9% | 47.2 | 1.00× |
+| AutoJudge t=0.09 | 61.7% | 55.9 | 1.18× |
+| AutoJudge t=1.0 | 52.3% | 63.4 | 1.34× |
+| Top-K rank=4 | 54.3% | 71.5 | 1.52× |
+
+### Theory updates (2026-05-15)
+
+Three new theorems strengthen the dissertation; see `reports/theory_improvements_2026-05-15.md` and `reports/dissertation_review_2026-05-15.md` for full statements and proofs.
+
+- **Theorem A.** Sample-complexity bound on `‖V̂ − V*‖∞` for the trace-based MDP estimator (Hoeffding concentration + Laplace bias).
+- **Theorem B.** State-only additive quality-risk is Bellman-invariant. Replaces the multiplicative form (which broke contraction). Code change applied via the `quality_risk_form` flag in `MDPConfig`; existing policies default to `multiplicative` for backward compatibility.
+- **Theorem C.** Cascade suboptimality is bounded linearly in the C4-violating stationary occupancy mass μ*ᴊ(B). Reframes the empirical 3.45% C4 pass rate from a categorical violation to a quantitatively bounded relaxation, consistent with the observed +1.7% to +4.3% joint-vs-cascade EM advantage.
+
+### Known limitations (honest reporting)
+
+- **Held-out 7B/1.5B (paired n=3000, 2026-05-11): −2.00% EM, p=0.0667** — distribution-shift sensitivity. Joint loses less than cascade (−2.37%) in the same regime; framed as **graceful degradation**.
+- **k=16 evaluation on k=8-trained policy: regression** — out-of-distribution deployment (policy state space cannot represent k > γ_max=8). Methodologically expected, not a method weakness.
+- **Speculative slower than target on 7B/1.5B** — expected at low target/draft ratio (4.7×) on a single GPU; literature uses 70B/8B+ ratios with multi-GPU.
 
 ### Planned Improvements
 

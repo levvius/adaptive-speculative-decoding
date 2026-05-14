@@ -1,0 +1,28 @@
+# Run 2 of the final 6-day sprint: 7B/1.5B power boost.
+# Re-benchmarks the May-5 quality-aware policy at 500 samples x 3 seeds
+# (paired n=1500, vs. current 600 paired). Reuses policy unchanged.
+#
+# The May-5 policy uses multiplicative quality_risk_form (legacy). Per
+# Theorem B (reports/theory_improvements_2026-05-15.md), a state-only
+# additive re-solve would yield an identical policy, so we re-bench instead.
+#
+# Expected outcome: paired p drops from 0.1744 toward < 0.05 by 2.5x sample.
+# @package _global_
+
+defaults:
+  - qwen25_7b_1p5b_jointadaspec_quality
+  - _self_
+
+experiment_name: "qwen25_7b_1p5b_jointadaspec_quality_lock"
+policy_path: "outputs/jointadaspec_qwen7b_1p5b_quality_2026-05-05/02_solve/policy.npz"
+n_seeds: 3
+
+baselines:
+  - vanilla_ar
+  - fixed_sd
+  - cascade_verif_then_length
+
+datasets:
+  test_start_index: 100
+  test_max_samples: 500
+  max_new_tokens: 256

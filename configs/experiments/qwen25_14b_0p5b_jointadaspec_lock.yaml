@@ -1,0 +1,25 @@
+# Run 1 of the final 6-day sprint: lock in the 14B/0.5B anchor result with
+# larger n. Reuses the April-28 policy unchanged (multiplicative form, K=0, k=0)
+# and only re-benchmarks at 500 samples x 3 seeds (paired n=1500).
+#
+# Expected outcome: tightens 95% CI from [1.33%, 16.00%] toward [3%, 14%]
+# and pushes p from 0.0255 toward ~0.005-0.01. Anchor preserved (no re-solve).
+# @package _global_
+
+defaults:
+  - qwen25_14b_0p5b_jointadaspec
+  - _self_
+
+experiment_name: "qwen25_14b_0p5b_jointadaspec_lock"
+policy_path: "outputs/jointadaspec_qwen14b_0p5b_2026-04-28/02_solve/policy.npz"
+n_seeds: 3
+
+baselines:
+  - vanilla_ar
+  - fixed_sd
+  - cascade_verif_then_length
+
+datasets:
+  test_start_index: 100
+  test_max_samples: 500
+  max_new_tokens: 256

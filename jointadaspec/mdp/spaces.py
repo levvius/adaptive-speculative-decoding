@@ -38,6 +38,7 @@ class MDPConfig:
     K_init: float = 0.0
     quality_risk_K: float = 0.0
     quality_risk_k: float = 0.0
+    quality_risk_form: str = "multiplicative"
 
     def __post_init__(self) -> None:
         if self.H_max <= 0 or self.K_max <= 0:
@@ -52,6 +53,10 @@ class MDPConfig:
             raise ValueError("All T_levels must be >= 1.0.")
         if self.quality_risk_K < 0.0 or self.quality_risk_k < 0.0:
             raise ValueError("quality_risk_K and quality_risk_k must be non-negative.")
+        if self.quality_risk_form not in ("multiplicative", "additive"):
+            raise ValueError(
+                "quality_risk_form must be 'multiplicative' (legacy) or 'additive' (Theorem-B-correct)."
+            )
 
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, Any]) -> "MDPConfig":
@@ -89,16 +94,38 @@ class StateSpace:
 
 
 def quality_risk_weight(config: MDPConfig, *, i_K: int, k: int) -> float:
-    """State-dependent multiplier for conservative fuzzy-verification penalties."""
+    """State-dependent multiplier for conservative fuzzy-verification penalties.
+
+    Legacy multiplicative form. Breaks Bellman linearity when multiplied with
+    action-dependent terms (e.g. d_step). Prefer ``quality_risk_penalty`` with
+    ``quality_risk_form='additive'`` for new policies (see Theorem B).
+    """
     K_bin_norm = 0.0 if config.N_K <= 1 else float(i_K) / float(config.N_K - 1)
     k_norm = 0.0 if config.gamma_max <= 0 else float(k) / float(config.gamma_max)
     return float(1.0 + config.quality_risk_K * K_bin_norm + config.quality_risk_k * k_norm)
+
+
+def quality_risk_penalty(config: MDPConfig, *, i_K: int, k: int) -> float:
+    """State-dependent additive penalty for the Theorem-B-correct reward form.
+
+    Defined so that the optimal policy is invariant under the substitution
+    ``r(s,a) -> r(s,a) - λ(s)`` (state-only shift; action argmax preserved).
+    """
+    K_bin_norm = 0.0 if config.N_K <= 1 else float(i_K) / float(config.N_K - 1)
+    k_norm = 0.0 if config.gamma_max <= 0 else float(k) / float(config.gamma_max)
+    return float(config.quality_risk_K * K_bin_norm + config.quality_risk_k * k_norm)
 
 
 def quality_risk_weight_for_state(config: MDPConfig, state_idx: int) -> float:
     state_space = StateSpace(config)
     _, i_K, k = state_space.decode(state_idx)
     return quality_risk_weight(config, i_K=i_K, k=k)
+
+
+def quality_risk_penalty_for_state(config: MDPConfig, state_idx: int) -> float:
+    state_space = StateSpace(config)
+    _, i_K, k = state_space.decode(state_idx)
+    return quality_risk_penalty(config, i_K=i_K, k=k)
 
 
 @dataclass(frozen=True)

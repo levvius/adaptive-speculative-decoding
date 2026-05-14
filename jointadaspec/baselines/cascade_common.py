@@ -29,6 +29,7 @@ def _config_payload(config: MDPConfig) -> dict[str, Any]:
         "K_init": config.K_init,
         "quality_risk_K": config.quality_risk_K,
         "quality_risk_k": config.quality_risk_k,
+        "quality_risk_form": config.quality_risk_form,
     }
 
 

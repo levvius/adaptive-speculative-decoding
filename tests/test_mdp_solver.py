@@ -127,6 +127,46 @@ def test_quality_risk_defaults_keep_legacy_reward(tmp_path) -> None:
     assert estimate.rewards[state_idx, action_idx] == np.float64(1.0 - 0.1 - 0.4)
 
 
+def test_quality_risk_additive_form_preserves_bellman_shift(tmp_path) -> None:
+    """Theorem B: additive penalty shifts reward by a state-only constant."""
+    config = MDPConfig(
+        N_H=2,
+        N_K=2,
+        gamma_max=2,
+        T_levels=(1.0, 2.0),
+        kappa=2.0,
+        c_time=0.0,
+        nu_min=1,
+        quality_risk_K=0.4,
+        quality_risk_k=0.2,
+        quality_risk_form="additive",
+    )
+    traces_path, state_idx, action_idx = _single_reward_trace(
+        tmp_path,
+        config,
+        H=0.1,
+        K=7.9,
+        k=2,
+        d_step=0.2,
+    )
+
+    estimate = estimate_mdp_parameters(traces_path=traces_path, config=config)
+
+    state_space = StateSpace(config)
+    _, i_K_test, k_test = state_space.decode(state_idx)
+    expected_penalty = 0.4 * (i_K_test / (config.N_K - 1)) + 0.2 * (k_test / config.gamma_max)
+    expected_reward = 1.0 - 2.0 * 0.2 - expected_penalty
+    assert estimate.rewards[state_idx, action_idx] == np.float64(expected_reward)
+
+
+def test_quality_risk_form_validation() -> None:
+    """quality_risk_form must be 'multiplicative' or 'additive'."""
+    import pytest
+
+    with pytest.raises(ValueError, match="quality_risk_form"):
+        MDPConfig(quality_risk_form="invalid")
+
+
 def test_quality_risk_penalizes_high_K_and_k_states(tmp_path) -> None:
     config = MDPConfig(
         N_H=2,

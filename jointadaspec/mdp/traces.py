@@ -20,6 +20,7 @@ from jointadaspec.mdp.spaces import (
     JointAction,
     MDPConfig,
     StateSpace,
+    quality_risk_penalty,
     quality_risk_weight,
 )
 from jointadaspec.utils.probs import common_vocab_size, next_token_probs_tensor
@@ -148,7 +149,13 @@ def collect_traces(
             K = kl_divergence(q_probs, p_probs)
             state_idx = state_space.encode(H, K, k)
             _, i_K, _ = state_space.decode(state_idx)
-            risk_weight = quality_risk_weight(config, i_K=i_K, k=k)
+            additive_form = config.quality_risk_form == "additive"
+            if additive_form:
+                state_penalty = quality_risk_penalty(config, i_K=i_K, k=k)
+                risk_weight = 1.0
+            else:
+                state_penalty = 0.0
+                risk_weight = quality_risk_weight(config, i_K=i_K, k=k)
             valid_action_indices = action_space.valid_action_indices(k)
             results_by_action: dict[int, dict[str, Any]] = {}
 
@@ -167,11 +174,19 @@ def collect_traces(
                     config=config,
                     common_vocab_n=common_vocab_n,
                 )
-                reward = (
-                    float(result["accepted"])
-                    - config.c_time * float(result["step_time_ms"])
-                    - config.kappa * risk_weight * float(result["d_step"])
-                )
+                if additive_form:
+                    reward = (
+                        float(result["accepted"])
+                        - config.c_time * float(result["step_time_ms"])
+                        - config.kappa * float(result["d_step"])
+                        - state_penalty
+                    )
+                else:
+                    reward = (
+                        float(result["accepted"])
+                        - config.c_time * float(result["step_time_ms"])
+                        - config.kappa * risk_weight * float(result["d_step"])
+                    )
                 results_by_action[action_idx] = result
                 records.append(
                     {

@@ -53,6 +53,7 @@ class JointAdaSpecPolicy:
                 "K_init": self.config.K_init,
                 "quality_risk_K": self.config.quality_risk_K,
                 "quality_risk_k": self.config.quality_risk_k,
+                "quality_risk_form": self.config.quality_risk_form,
             }
         }
         payload: dict[str, Any] = {
