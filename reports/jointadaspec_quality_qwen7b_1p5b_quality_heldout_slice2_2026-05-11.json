@@ -1,0 +1,76 @@
+{
+  "baseline": "target_only",
+  "benchmark_path": "outputs/jointadaspec_qwen7b_1p5b_quality_heldout_2026-05-11-slice2/03_bench_gsm8k/benchmark.csv",
+  "comparisons": [
+    {
+      "baseline": "target_only",
+      "ci_high": 0.004666666666666667,
+      "ci_low": -0.05266666666666667,
+      "losses": 258,
+      "mcnemar_p": 0.09989344627234426,
+      "mean_diff": -0.024666666666666667,
+      "method": "cascade_verif_then_length",
+      "paired_n": 1500,
+      "ties": 1021,
+      "wins": 221
+    },
+    {
+      "baseline": "target_only",
+      "ci_high": 0.007333333333333333,
+      "ci_low": -0.048666666666666664,
+      "losses": 262,
+      "mcnemar_p": 0.19191806690030333,
+      "mean_diff": -0.02,
+      "method": "speculative",
+      "paired_n": 1500,
+      "ties": 1006,
+      "wins": 232
+    },
+    {
+      "baseline": "target_only",
+      "ci_high": 0.004,
+      "ci_low": -0.05333333333333334,
+      "losses": 264,
+      "mcnemar_p": 0.09452432651470255,
+      "mean_diff": -0.025333333333333333,
+      "method": "jointadaspec",
+      "paired_n": 1500,
+      "ties": 1010,
+      "wins": 226
+    }
+  ],
+  "primary": "cascade_verif_then_length",
+  "primary_strong_success": false,
+  "primary_success": false,
+  "report_path": "reports/jointadaspec_quality_qwen7b_1p5b_quality_heldout_slice2_2026-05-11.md",
+  "summary": [
+    {
+      "acceptance_rate": 0.9214009746989171,
+      "gsm8k_exact_match": 0.58,
+      "method": "cascade_verif_then_length",
+      "runs": 1500,
+      "tokens_per_sec": 15.700879428913671
+    },
+    {
+      "acceptance_rate": 0.9178053952401282,
+      "gsm8k_exact_match": 0.5793333333333334,
+      "method": "jointadaspec",
+      "runs": 1500,
+      "tokens_per_sec": 15.689907346904302
+    },
+    {
+      "acceptance_rate": 0.7128217117304092,
+      "gsm8k_exact_match": 0.5846666666666667,
+      "method": "speculative",
+      "runs": 1500,
+      "tokens_per_sec": 13.039701368293604
+    },
+    {
+      "acceptance_rate": 0.0,
+      "gsm8k_exact_match": 0.6046666666666667,
+      "method": "target_only",
+      "runs": 1500,
+      "tokens_per_sec": 24.890773536080896
+    }
+  ]
+}
