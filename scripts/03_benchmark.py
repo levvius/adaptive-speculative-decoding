@@ -161,6 +161,21 @@ def _read_jsonl(path: Path) -> list[dict[str, object]]:
     return records
 
 
+def _dedup_prompt_records(records: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Drop duplicate (decoder, seed, prompt_idx) rows, keeping the last write.
+
+    A resumed run re-executes any partially-completed (method, seed) pair from
+    scratch and appends fresh per-prompt rows. Deterministic per-(method, seed)
+    seeding makes those re-run values identical to the stale ones, so keeping the
+    last occurrence is safe and prevents resumed runs from corrupting benchmark.csv.
+    """
+    deduped: dict[tuple[object, object, object], dict[str, object]] = {}
+    for record in records:
+        key = (record.get("decoder"), record.get("seed"), record.get("prompt_idx"))
+        deduped[key] = record
+    return list(deduped.values())
+
+
 def _read_legacy_prompt_records(run_path: Path) -> list[dict[str, object]]:
     records: list[dict[str, object]] = []
     if not run_path.exists():
@@ -171,7 +186,7 @@ def _read_legacy_prompt_records(run_path: Path) -> list[dict[str, object]]:
         if "decoder" not in payload or "prompt_idx" not in payload:
             continue
         records.append(payload)
-    return records
+    return _dedup_prompt_records(records)
 
 
 def _load_existing_results(results_path: Path) -> tuple[list[dict[str, object]], set[str]]:
@@ -184,6 +199,108 @@ def _load_existing_results(results_path: Path) -> tuple[list[dict[str, object]],
         and isinstance(record.get("resume_key"), str)
     }
     return records, completed
+
+
+def _flush_results(
+    results_path: Path,
+    *,
+    exp_cfg: DictConfig,
+    existing_non_summary: list[dict[str, object]],
+    new_records: list[dict[str, object]],
+) -> None:
+    """Atomically rewrite results.jsonl with all per-run records + summaries.
+
+    Called after every completed (method, seed) pair so a crash mid-sweep never
+    loses finished work: the resume scan reads this file on the next launch.
+    The tmp-file + replace keeps results.jsonl from ever being half-written.
+    """
+    all_non_summary = existing_non_summary + new_records
+    summary_records = _summary_records(exp_cfg=exp_cfg, records=all_non_summary)
+    tmp_path = results_path.with_name(results_path.name + ".tmp")
+    with tmp_path.open("w", encoding="utf-8") as fh:
+        for record in all_non_summary + summary_records:
+            fh.write(json.dumps(record, sort_keys=True) + "\n")
+    tmp_path.replace(results_path)
+
+
+def _reconcile_completed_from_run_log(
+    run_path: Path,
+    *,
+    exp_cfg: DictConfig,
+    expected_prompt_count: int,
+    seeds: list[int],
+    active_methods: set[str],
+    existing_records: list[dict[str, object]],
+    completed_run_keys: set[str],
+) -> int:
+    """Recover completed (method, seed) pairs from the per-prompt run log.
+
+    results.jsonl is the resume ledger but only becomes durable once a sweep
+    flushes; a run that crashes before its first flush leaves it absent. The
+    per-prompt run.jsonl, by contrast, is appended live. For any (method, seed)
+    whose run.jsonl rows cover the full prompt set, synthesise its results.jsonl
+    summary record so resume skips it. Thesis metrics (tokens/s, GSM8K EM) are
+    reconstructed exactly from the per-prompt rows; raw proposed/accepted counts
+    are absent from the log and set to 0 (flagged via "reconstructed"), which
+    affects neither paired p-values (computed from benchmark.csv) nor the
+    Pareto/ablation plots (which use tokens_per_sec and gsm8k_exact_match).
+    """
+    if expected_prompt_count <= 0:
+        return 0
+    prompt_records = _read_legacy_prompt_records(run_path)
+    if not prompt_records:
+        return 0
+    seed_set = {int(seed) for seed in seeds}
+    grouped: dict[tuple[str, int], list[dict[str, object]]] = {}
+    for record in prompt_records:
+        decoder = record.get("decoder")
+        seed = record.get("seed")
+        if decoder is None or seed is None:
+            continue
+        grouped.setdefault((str(decoder), int(seed)), []).append(record)
+
+    reconciled = 0
+    for (method, seed), rows in grouped.items():
+        if method not in active_methods or seed not in seed_set:
+            continue
+        if len(rows) < expected_prompt_count:
+            continue
+        resume_key = _record_resume_key(exp_cfg, method=method, seed=seed)
+        if resume_key in completed_run_keys:
+            continue
+        total_generated = sum(int(row.get("n_tokens_generated", 0) or 0) for row in rows)
+        duration_sec = sum(float(row.get("total_time_ms", 0.0) or 0.0) for row in rows) / 1000.0
+        acc_values = [float(row["acceptance_rate"]) for row in rows if row.get("acceptance_rate") is not None]
+        em_values = [float(row["gsm8k_exact_match"]) for row in rows if row.get("gsm8k_exact_match") is not None]
+        gsm8k_total = len(em_values)
+        gsm8k_correct = int(sum(em_values))
+        record = {
+            "timestamp": str(rows[0].get("timestamp") or datetime.now(UTC).isoformat()),
+            "status": "ok",
+            "summary": False,
+            "reconstructed": True,
+            "run": int(rows[0].get("run", 1) or 1),
+            "seed": int(seed),
+            "resume_key": resume_key,
+            **_build_record_base(exp_cfg, method=method),
+            "total_prompt_tokens": 0,
+            "total_generated_tokens": total_generated,
+            "duration_sec": duration_sec,
+            "tokens_per_sec": 0.0 if duration_sec <= 0.0 else float(total_generated / duration_sec),
+            "acceptance_rate": float(np.mean(acc_values)) if acc_values else 0.0,
+            "avg_tokens_per_step": 0.0,
+            "proposed": 0.0,
+            "accepted": 0.0,
+            "steps": 0.0,
+            "rejections": 0.0,
+            "gsm8k_correct": gsm8k_correct,
+            "gsm8k_total": gsm8k_total,
+            "gsm8k_exact_match": None if gsm8k_total <= 0 else float(gsm8k_correct / gsm8k_total),
+        }
+        existing_records.append(record)
+        completed_run_keys.add(resume_key)
+        reconciled += 1
+    return reconciled
 
 
 def _bootstrap_ci(values: list[float], *, seed: int, n_resamples: int = 1000) -> tuple[float | None, float | None]:
@@ -543,6 +660,19 @@ def main(cfg: DictConfig) -> None:
 
     results_path = _results_path(output_dir)
     existing_records, completed_run_keys = _load_existing_results(results_path)
+    active_methods = {name for name in decoders if _is_enabled(active_names, name)}
+    reconciled = _reconcile_completed_from_run_log(
+        _legacy_run_path(output_dir),
+        exp_cfg=exp_cfg,
+        expected_prompt_count=len(samples),
+        seeds=seeds,
+        active_methods=active_methods,
+        existing_records=existing_records,
+        completed_run_keys=completed_run_keys,
+    )
+    if reconciled:
+        print(f"[resume] reconciled {reconciled} completed (method, seed) pair(s) from run.jsonl")
+    existing_non_summary = [record for record in existing_records if not bool(record.get("summary"))]
     new_records: list[dict[str, object]] = []
 
     for method_name, decoder in decoders.items():
@@ -649,12 +779,20 @@ def main(cfg: DictConfig) -> None:
                 }
             new_records.append(record)
             completed_run_keys.add(resume_key)
+            _flush_results(
+                results_path,
+                exp_cfg=exp_cfg,
+                existing_non_summary=existing_non_summary,
+                new_records=new_records,
+            )
 
-    all_non_summary = [record for record in existing_records if not bool(record.get("summary"))] + new_records
-    summary_records = _summary_records(exp_cfg=exp_cfg, records=all_non_summary)
-    with results_path.open("w", encoding="utf-8") as fh:
-        for record in all_non_summary + summary_records:
-            fh.write(json.dumps(record, sort_keys=True) + "\n")
+    _flush_results(
+        results_path,
+        exp_cfg=exp_cfg,
+        existing_non_summary=existing_non_summary,
+        new_records=new_records,
+    )
+    all_non_summary = existing_non_summary + new_records
 
     benchmark_path, summary_path = _write_legacy_prompt_artifacts(output_dir)
     logger.finalize(
