@@ -1,0 +1,22 @@
+{
+  "14B/0.5B": {
+    "gamma": 0.99,
+    "c4_violating_state_frac": 0.8888888888888888,
+    "mu_star_J_B": 0.8998422534490669,
+    "theorem_c_bound": 359.9369013796264,
+    "exact_value_gap_stationary": 0.00501895340835487,
+    "value_gap_mean": 0.005110145488316022,
+    "value_gap_max": 0.1562914364546657,
+    "weak_dominance_frac_states": 1.0
+  },
+  "7B/1.5B": {
+    "gamma": 0.99,
+    "c4_violating_state_frac": 0.8888888888888888,
+    "mu_star_J_B": 0.9344410299008765,
+    "theorem_c_bound": 373.7764119603503,
+    "exact_value_gap_stationary": 0.10350693853703737,
+    "value_gap_mean": 0.08560032428773633,
+    "value_gap_max": 0.524731584406517,
+    "weak_dominance_frac_states": 1.0
+  }
+}

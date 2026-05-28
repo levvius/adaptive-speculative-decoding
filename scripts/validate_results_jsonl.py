@@ -246,6 +246,7 @@ GENERAL_FIELDS = {
     "timestamp",
     "status",
     "summary",
+    "reconstructed",
     "run",
     "resume_key",
     "error_type",

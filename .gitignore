@@ -50,6 +50,7 @@ datasets/*
 !datasets/.gitkeep
 outputs/20*/
 outputs/jointadaspec_*_20*/
+outputs/jointadaspec_*_kappa_sweep/
 
 # Local model weights
 models/*

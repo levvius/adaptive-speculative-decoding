@@ -75,16 +75,18 @@ mpl.rcParams["figure.dpi"] = 110
 mpl.rcParams["savefig.bbox"] = "tight"
 mpl.rcParams["pdf.fonttype"] = 42  # editable text in PDFs
 
-# Locked anchor runs — replace with new outputs after Run 1 / Run 2 lock.
+# Locked anchor runs (final sprint, 500 prompts x 3 seeds = paired n=1500).
+# Updated 2026-05-20 from the small-n crosscheck/k8 dirs to the lock dirs so the
+# thesis figures reflect the locked numbers (14B: +4.07% p=0.02; 7B: null).
 RUN_14B = {
     "label": "Qwen 14B → 0.5B",
-    "benchmark_csv": REPO_ROOT / "outputs" / "jointadaspec_qwen14b_0p5b_crosscheck_2026-05-14-final" / "03_bench_gsm8k" / "benchmark.csv",
+    "benchmark_csv": REPO_ROOT / "outputs" / "jointadaspec_qwen14b_0p5b_lock_2026-05-14" / "03_bench_gsm8k" / "benchmark.csv",
     "policy_npz": REPO_ROOT / "outputs" / "jointadaspec_qwen14b_0p5b_2026-04-28" / "02_solve" / "policy.npz",
     "conditions_json": REPO_ROOT / "reports" / "conditions_qwen14b_0p5b_2026-04-28.json",
 }
 RUN_7B = {
     "label": "Qwen 7B → 1.5B",
-    "benchmark_csv": REPO_ROOT / "outputs" / "jointadaspec_qwen7b_1p5b_quality_k8_2026-05-12" / "03_bench_gsm8k" / "benchmark.csv",
+    "benchmark_csv": REPO_ROOT / "outputs" / "jointadaspec_qwen7b_1p5b_quality_lock_2026-05-14" / "03_bench_gsm8k" / "benchmark.csv",
     "policy_npz": REPO_ROOT / "outputs" / "jointadaspec_qwen7b_1p5b_quality_2026-05-05" / "02_solve" / "policy.npz",
     "conditions_json": REPO_ROOT / "reports" / "conditions_qwen7b_1p5b_quality_2026-05-05.json",
 }
@@ -493,32 +495,252 @@ else:
     for sub in sorted(sweep_root.glob("kappa_*/03_bench_gsm8k/benchmark.csv")):
         kappa = float(sub.parent.parent.name.split("_")[1])
         df = load_benchmark(sub)
-        joint = df[df["method"] == "jointadaspec"]
-        if joint.empty:
-            continue
-        rows.append({
-            "kappa": kappa,
-            "em": joint["gsm8k_exact_match"].mean(),
-            "tps": joint["tokens_per_sec"].mean(),
-        })
+        for m in ("jointadaspec", "cascade_verif_then_length"):
+            g = df[df["method"] == m]
+            if g.empty:
+                continue
+            rows.append({
+                "kappa": kappa,
+                "method": m,
+                "em": g["gsm8k_exact_match"].mean(),
+                "tps": g["tokens_per_sec"].mean(),
+            })
     if not rows:
         print("[skip] κ-sweep results empty.")
     else:
-        sweep_df = pd.DataFrame(rows).sort_values("kappa")
+        sweep_df = pd.DataFrame(rows)
         print(sweep_df.to_string(index=False))
         fig, ax = plt.subplots(figsize=(8, 5))
-        ax.plot(sweep_df["tps"], sweep_df["em"], "-o", color="#55A868", linewidth=2, markersize=10)
-        for _, row in sweep_df.iterrows():
-            ax.annotate(f"κ={row['kappa']:g}", (row["tps"], row["em"]), textcoords="offset points", xytext=(8, 6), fontsize=11)
+        for m, color, label in (("jointadaspec", "#55A868", "joint"),
+                                ("cascade_verif_then_length", "#C44E52", "cascade")):
+            sub = sweep_df[sweep_df["method"] == m].sort_values("kappa")
+            ax.plot(sub["tps"], sub["em"], "-o", color=color, linewidth=2, markersize=8, label=label)
+            for _, row in sub.iterrows():
+                ax.annotate(f"κ={row['kappa']:g}", (row["tps"], row["em"]), textcoords="offset points", xytext=(6, 6), fontsize=9, color=color)
         ax.set_xlabel("Throughput (tokens/sec)")
         ax.set_ylabel("GSM8K exact match")
-        ax.set_title("Theorem 2.4 — empirical Pareto via κ-sweep on 7B/1.5B")
+        ax.set_title("κ-sweep on 7B/1.5B — joint vs cascade traces")
+        ax.legend()
         ax.grid(True, alpha=0.3)
         fig.tight_layout()
         out_path = FIGS_DIR / "fig_bonus_kappa_sweep.pdf"
         fig.savefig(out_path)
         print("Saved:", out_path)
         plt.show()
+'''
+    )
+)
+
+
+CELLS.append(md_cell("## Theorem E — joint adaptivity beats fixed fuzzy threshold (14B/0.5B)\n\nAblation against `fuzzy_sd` (fixed γ=8, fixed T ∈ {1.0, 1.25, 1.5, 2.0}) on n=300. Joint dominates EVERY fixed-T baseline on BOTH EM and tok/s — adaptive control is empirically non-trivial vs any non-adaptive choice."))
+
+
+CELLS.append(
+    code_cell(
+        '''fuzzy_csv = REPO_ROOT / "outputs" / "jointadaspec_qwen14b_0p5b_fuzzy_ablation_2026-05-25" / "03_bench_gsm8k" / "benchmark.csv"
+if not fuzzy_csv.exists():
+    print(f"[skip] {fuzzy_csv} not present")
+else:
+    df = load_benchmark(fuzzy_csv)
+    summary = df.groupby("method").agg(em=("gsm8k_exact_match", "mean"),
+                                       tps=("tokens_per_sec", "mean"),
+                                       acc=("acceptance_rate", "mean")).reset_index()
+    order = ["fuzzy_sd_T1", "fuzzy_sd_T1.25", "fuzzy_sd_T1.5", "fuzzy_sd_T2", "jointadaspec"]
+    summary = summary.set_index("method").reindex(order).reset_index()
+    print(summary.to_string(index=False))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+    colors = ["#9aa0a6"] * 4 + ["#55A868"]
+    axes[0].bar(range(len(summary)), summary["em"] * 100, color=colors)
+    axes[0].set_xticks(range(len(summary)))
+    axes[0].set_xticklabels(summary["method"], rotation=30, ha="right")
+    axes[0].set_ylabel("GSM8K exact match (%)")
+    axes[0].set_title("Quality")
+    axes[0].grid(True, alpha=0.3, axis="y")
+    axes[1].bar(range(len(summary)), summary["tps"], color=colors)
+    axes[1].set_xticks(range(len(summary)))
+    axes[1].set_xticklabels(summary["method"], rotation=30, ha="right")
+    axes[1].set_ylabel("Throughput (tokens/sec)")
+    axes[1].set_title("Speed")
+    axes[1].grid(True, alpha=0.3, axis="y")
+    fig.suptitle("Theorem E — joint dominates fixed fuzzy_sd on quality AND speed (14B/0.5B, n=300)")
+    fig.tight_layout()
+    out_path = FIGS_DIR / "fig_E_adaptivity_ablation.pdf"
+    fig.savefig(out_path)
+    print("Saved:", out_path)
+    plt.show()
+'''
+    )
+)
+
+
+CELLS.append(md_cell("## Theorem D — C4 violation is benign (replaces Theorem C's loose bound)\n\nC4 is violated on ~89% of states, but the cascade-policy *advantage* on those states is ≈0 → cascade is near-optimal in the visited regime. The exact stationary-weighted value gap V_joint − V_cascade is tiny on both pairs."))
+
+
+CELLS.append(
+    code_cell(
+        '''import json
+path = REPO_ROOT / "reports" / "theorem_c_gap_analysis.json"
+if not path.exists():
+    print(f"[skip] {path} not present")
+else:
+    data = json.loads(path.read_text())
+    rows = [{"pair": k, **v} for k, v in data.items()]
+    df = pd.DataFrame(rows)
+    print(df[["pair", "c4_violating_state_frac", "mu_star_J_B",
+              "theorem_c_bound", "exact_value_gap_stationary",
+              "weak_dominance_frac_states"]].to_string(index=False))
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    x = np.arange(len(df))
+    width = 0.35
+    ax.bar(x - width / 2, df["mu_star_J_B"], width, label="μ*_J(B)  (C4-violation mass)", color="#C44E52")
+    ax.bar(x + width / 2, df["exact_value_gap_stationary"] * 10, width, label="exact V-gap ×10", color="#55A868")
+    ax.set_xticks(x)
+    ax.set_xticklabels(df["pair"])
+    ax.set_title("Theorem D — pervasive C4 violation, near-zero realized gap")
+    ax.legend()
+    ax.grid(True, alpha=0.3, axis="y")
+    fig.tight_layout()
+    out_path = FIGS_DIR / "fig_D_advantage_on_B.pdf"
+    fig.savefig(out_path)
+    print("Saved:", out_path)
+    plt.show()
+'''
+    )
+)
+
+
+CELLS.append(md_cell("## Theorem G — non-monotonic EM gain in joint acceptance (14B/0.5B)\n\nChurn rate ≈45% across all acceptance levels, but the NET EM change flips sign with acceptance: moderate acceptance helps, high acceptance hurts. Over-trusting the 0.5B draft degrades quality."))
+
+
+CELLS.append(
+    code_cell(
+        '''lock = REPO_ROOT / "outputs" / "jointadaspec_qwen14b_0p5b_lock_2026-05-14" / "03_bench_gsm8k" / "benchmark.csv"
+df = load_benchmark(lock)
+w = df.pivot_table(index=["seed", "prompt_idx"], columns="method", values="gsm8k_exact_match")
+acc = df[df["method"] == "jointadaspec"].set_index(["seed", "prompt_idx"])["acceptance_rate"]
+d = pd.DataFrame({"t": w["target_only"], "j": w["jointadaspec"]}).join(acc.rename("acc")).dropna()
+d["WR"] = ((d.t == 0) & (d.j == 1)).astype(int)
+d["RW"] = ((d.t == 1) & (d.j == 0)).astype(int)
+d["accbin"] = pd.qcut(d.acc, 3, labels=["low", "mid", "high"])
+agg = d.groupby("accbin", observed=True).agg(
+    WR=("WR", "mean"), RW=("RW", "mean"),
+    n=("WR", "size"), accm=("acc", "mean"),
+).reset_index()
+agg["net"] = (agg.WR - agg.RW) * 100
+print(agg.to_string(index=False))
+fig, ax = plt.subplots(figsize=(7, 4.5))
+colors = ["#55A868" if v >= 0 else "#C44E52" for v in agg["net"]]
+ax.bar(agg["accbin"].astype(str), agg["net"], color=colors)
+for i, v in enumerate(agg["net"]):
+    ax.text(i, v + (0.3 if v >= 0 else -0.5), f"{v:+.1f}%", ha="center", fontsize=11)
+ax.set_xlabel("joint acceptance tercile")
+ax.set_ylabel("net Δ EM (W→R minus R→W), %")
+ax.set_title("Theorem G — quality gain non-monotonic in fuzzy acceptance")
+ax.axhline(0, color="black", lw=0.5)
+ax.grid(True, alpha=0.3, axis="y")
+fig.tight_layout()
+out_path = FIGS_DIR / "fig_G_acceptance_em.pdf"
+fig.savefig(out_path)
+print("Saved:", out_path)
+plt.show()
+'''
+    )
+)
+
+
+CELLS.append(md_cell("## Policy interpretability — what did the joint controller learn?\n\nThree slices of the optimal 14B/0.5B policy: (1) P(continue drafting) vs entropy bin; (2) mean accept-threshold T* vs divergence bin; (3) P(continue) vs accepted-streak length k. Qualitatively the controller verifies stricter at high divergence and drafts maximally until the window cap."))
+
+
+CELLS.append(
+    code_cell(
+        '''import sys
+sys.path.insert(0, str(REPO_ROOT))
+from jointadaspec.inference import JointAdaSpecPolicy
+from jointadaspec.mdp.spaces import ActionSpace, StateSpace
+
+pol = JointAdaSpecPolicy.load(str(REPO_ROOT / "outputs/jointadaspec_qwen14b_0p5b_2026-04-28/02_solve/policy.npz"))
+cfg = pol.config
+A = ActionSpace(cfg)
+S = StateSpace(cfg)
+contH = np.zeros(cfg.N_H); nH = np.zeros(cfg.N_H)
+thrK = [[] for _ in range(cfg.N_K)]
+cont_k = np.zeros(cfg.gamma_max + 1); n_k = np.zeros(cfg.gamma_max + 1)
+for s in range(cfg.num_states):
+    iH, iK, k = S.decode(s)
+    a = A.decode(int(pol.pi_star[s]))
+    c = 1.0 if a.length_action == "continue" else 0.0
+    contH[iH] += c; nH[iH] += 1
+    thrK[iK].append(a.threshold)
+    cont_k[k] += c; n_k[k] += 1
+fig, axes = plt.subplots(1, 3, figsize=(13, 4))
+axes[0].plot(range(cfg.N_H), contH / np.maximum(nH, 1) * 100, "-o", color="#4C72B0")
+axes[0].set_xlabel("entropy bin i_H (low → high)")
+axes[0].set_ylabel("P(continue), %")
+axes[0].set_ylim(0, 105)
+axes[0].set_title("Length action vs entropy")
+axes[0].grid(True, alpha=0.3)
+axes[1].plot(range(cfg.N_K), [np.mean(t) if t else np.nan for t in thrK], "-o", color="#C44E52")
+axes[1].set_xlabel("divergence bin i_K (low → high)")
+axes[1].set_ylabel("mean accept-threshold T*")
+axes[1].set_title("Threshold vs K-divergence")
+axes[1].grid(True, alpha=0.3)
+axes[2].plot(range(cfg.gamma_max + 1), cont_k / np.maximum(n_k, 1) * 100, "-o", color="#55A868")
+axes[2].set_xlabel("accepted-streak length k")
+axes[2].set_ylabel("P(continue), %")
+axes[2].set_ylim(0, 105)
+axes[2].set_title("Length action vs streak")
+axes[2].grid(True, alpha=0.3)
+fig.suptitle("Learned joint policy on 14B/0.5B — mild adaptivity in qualitatively sensible directions")
+fig.tight_layout()
+out_path = FIGS_DIR / "fig_policy_interpretability.pdf"
+fig.savefig(out_path)
+print("Saved:", out_path)
+plt.show()
+'''
+    )
+)
+
+
+CELLS.append(md_cell("## 7B/1.5B robustness — paired ΔEM across three held-out windows\n\nFirst window (n=200) showed +3.5% (noise at small n). At n=1500 on two fresh non-overlapping windows the effect is null/negative — joint=cascade hold, the method gives no quality benefit on this low-ratio (4.7×) pair."))
+
+
+CELLS.append(
+    code_cell(
+        '''from scipy.stats import binomtest
+windows = [
+    ("start=1100\\nn=200", REPO_ROOT / "outputs/jointadaspec_qwen7b_1p5b_quality_k8_2026-05-12/03_bench_gsm8k/benchmark.csv"),
+    ("start=100\\nn=1500 (lock)", REPO_ROOT / "outputs/jointadaspec_qwen7b_1p5b_quality_lock_2026-05-14/03_bench_gsm8k/benchmark.csv"),
+    ("start=600\\nn=1500 (triang.)", REPO_ROOT / "outputs/jointadaspec_qwen7b_1p5b_quality_tri_2026-05-20/03_bench_gsm8k/benchmark.csv"),
+]
+rows = []
+for label, p in windows:
+    if not p.exists():
+        print("[skip]", p); continue
+    df = load_benchmark(p)
+    w = df.pivot_table(index=["seed", "prompt_idx"], columns="method", values="gsm8k_exact_match")
+    paired = w[["target_only", "jointadaspec"]].dropna()
+    diff = (paired["jointadaspec"] - paired["target_only"]).mean() * 100
+    wins = int(((paired["jointadaspec"] == 1) & (paired["target_only"] == 0)).sum())
+    loss = int(((paired["jointadaspec"] == 0) & (paired["target_only"] == 1)).sum())
+    pv = binomtest(min(wins, loss), wins + loss, 0.5).pvalue if (wins + loss) > 0 else 1.0
+    rows.append({"window": label, "n": len(paired), "diff_pct": diff, "p": pv})
+out = pd.DataFrame(rows)
+print(out.to_string(index=False))
+fig, ax = plt.subplots(figsize=(8, 4.5))
+colors = ["#55A868" if d >= 0 else "#C44E52" for d in out["diff_pct"]]
+bars = ax.bar(out["window"], out["diff_pct"], color=colors)
+for b, d, p in zip(bars, out["diff_pct"], out["p"]):
+    ax.text(b.get_x() + b.get_width() / 2, d + (0.2 if d >= 0 else -0.5),
+            f"{d:+.2f}%\\np={p:.3f}", ha="center", fontsize=10)
+ax.axhline(0, color="black", lw=0.5)
+ax.set_ylabel("paired ΔEM jointadaspec − target_only (%)")
+ax.set_title("7B/1.5B — three independent held-out windows")
+ax.grid(True, alpha=0.3, axis="y")
+fig.tight_layout()
+out_path = FIGS_DIR / "fig_3win_robustness.pdf"
+fig.savefig(out_path)
+print("Saved:", out_path)
+plt.show()
 '''
     )
 )

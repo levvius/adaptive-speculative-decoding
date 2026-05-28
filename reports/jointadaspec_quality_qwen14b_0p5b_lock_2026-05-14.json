@@ -1,0 +1,76 @@
+{
+  "baseline": "target_only",
+  "benchmark_path": "outputs/jointadaspec_qwen14b_0p5b_lock_2026-05-14/03_bench_gsm8k/benchmark.csv",
+  "comparisons": [
+    {
+      "baseline": "target_only",
+      "ci_high": 0.07666666666666666,
+      "ci_low": 0.008666666666666666,
+      "losses": 293,
+      "mcnemar_p": 0.014881257052091468,
+      "mean_diff": 0.042,
+      "method": "cascade_verif_then_length",
+      "paired_n": 1500,
+      "ties": 851,
+      "wins": 356
+    },
+    {
+      "baseline": "target_only",
+      "ci_high": 0.037333333333333336,
+      "ci_low": -0.03,
+      "losses": 331,
+      "mcnemar_p": 0.8769303555119008,
+      "mean_diff": 0.0033333333333333335,
+      "method": "speculative",
+      "paired_n": 1500,
+      "ties": 833,
+      "wins": 336
+    },
+    {
+      "baseline": "target_only",
+      "ci_high": 0.07466666666666667,
+      "ci_low": 0.006666666666666667,
+      "losses": 304,
+      "mcnemar_p": 0.020286664884626496,
+      "mean_diff": 0.04066666666666666,
+      "method": "jointadaspec",
+      "paired_n": 1500,
+      "ties": 831,
+      "wins": 365
+    }
+  ],
+  "primary": "cascade_verif_then_length",
+  "primary_strong_success": true,
+  "primary_success": true,
+  "report_path": "reports/jointadaspec_quality_qwen14b_0p5b_lock_2026-05-14.md",
+  "summary": [
+    {
+      "acceptance_rate": 0.5492840794561336,
+      "gsm8k_exact_match": 0.5713333333333334,
+      "method": "cascade_verif_then_length",
+      "runs": 1500,
+      "tokens_per_sec": 10.291600492616858
+    },
+    {
+      "acceptance_rate": 0.5521083764463696,
+      "gsm8k_exact_match": 0.57,
+      "method": "jointadaspec",
+      "runs": 1500,
+      "tokens_per_sec": 10.840656142363992
+    },
+    {
+      "acceptance_rate": 0.2706768709206089,
+      "gsm8k_exact_match": 0.5326666666666666,
+      "method": "speculative",
+      "runs": 1500,
+      "tokens_per_sec": 4.8801702451845586
+    },
+    {
+      "acceptance_rate": 0.0,
+      "gsm8k_exact_match": 0.5293333333333333,
+      "method": "target_only",
+      "runs": 1500,
+      "tokens_per_sec": 14.445580043807063
+    }
+  ]
+}
