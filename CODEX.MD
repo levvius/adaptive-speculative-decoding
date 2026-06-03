@@ -69,6 +69,18 @@ features, or behaviors are added.
 - `Dockerfile`, `Dockerfile.gpu`: CPU/GPU containers.
 - `requirements.txt`, `requirements-gpu.txt`: Dependencies.
 
+## Recent Changes (2026-05-14 — 2026-05-27)
+- **Locked Run 1** (Qwen 14B/0.5B, 500 prompts × 3 seeds = n=1500, McNemar): JointAdaSpec +4.07% EM vs target_only (p=0.020); cascade +4.20% (p=0.015); joint = cascade head-to-head (p=0.96). Reports: `reports/*qwen14b_0p5b_lock_2026-05-14*`.
+- **Locked Run 2** (Qwen 7B/1.5B, n=1500): confirmed null (jointadaspec −1.47%, p=0.369; cascade −2.27%, p=0.144). Report: `reports/jointadaspec_quality_qwen7b_1p5b_quality_lock_2026-05-14.md`.
+- **Triangulation window 3** (7B/1.5B, start=600, n=1500): joint −2.53%, p=0.094 — slice-independent null. Report: `reports/jointadaspec_quality_qwen7b_1p5b_quality_tri_2026-05-20.md`.
+- **Theorem E ablation** (14B/0.5B, n=300): JointAdaSpec +4–8% EM AND 3.7× faster than any fixed `fuzzy_sd_T` baseline. Output dir: `outputs/jointadaspec_qwen14b_0p5b_fuzzy_ablation_2026-05-25/`. Figure: `reports/thesis_figs/fig_E_adaptivity_ablation.pdf`.
+- **κ-sweep** (7B/1.5B, 6κ × n=300): tok/s flat (16.28–16.55), joint ≈ cascade at every κ (≤3% gap). Figure: `reports/thesis_figs/fig_bonus_kappa_sweep.pdf`.
+- **Theorem D** exact value gap (`V_joint − V_cascade = E_{μ*_J}[A^{πC}(s,πJ(s))]/(1−γ)`): mean |advantage| on C4-violating set B = 6e-5 (14B), 1e-3 (7B); weak dominance V_joint ≥ V_cascade confirmed on 100% of states. Script: `scripts/analyze_theorem_c_gap.py`. Figure: `reports/thesis_figs/fig_D_advantage_on_B.pdf`. Analysis: `reports/theorem_c_gap_analysis.json`.
+- **Theorem G** quality non-monotonicity: Δ EM +7.4% at low/mid acceptance, −2.6% at high acceptance; churn rate ~45% flat.
+- **Thesis defense guide**: `papers/ВКР_тезисы_и_структура.md` — chapter-by-chapter writing recommendations and defense theses.
+- **CI fix**: `.github/workflows/ci.yml` updated to Python 3.12 to match `.python-version`.
+- **docs updated**: `README.MD`, `docs/RESULTS.md`, `docs/ROADMAP.md` updated with locked final results.
+
 ## Recent Changes (2026-05-08)
 - Added held-out JointAdaSpec quality validation workflow:
   - `datasets.test_start_index` is now recorded in benchmark metadata and used to slice GSM8K/LiveCodeBench/MT-Bench eval samples;

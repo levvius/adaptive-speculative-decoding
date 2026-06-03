@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](.python-version)
 
-Pet project and research playground for LLM decoding acceleration.
+Research implementation and benchmark of adaptive speculative decoding methods for LLM inference acceleration.
 
 This repository compares exact and approximate decoding strategies under a single benchmark harness, with reproducible configs, JSONL outputs, and report scripts.
 
@@ -82,73 +82,54 @@ make jointadaspec-quality-heldout-full JOINTADA_DATE=2026-05-08
 
 The validation uses GSM8K `test_start_index=100`, `500` prompts, `3` seeds, and pre-registers `cascade_verif_then_length` as the primary quality decoder.
 
-## Latest Benchmark Snapshot
+## Final Results (2026-05-14, locked)
 
-### JointAdaSpec Result Status
+### JointAdaSpec — Qwen 14B → 0.5B (primary, n=1500)
 
-Best substantive `jointadaspec/` snapshot: `2026-04-14`, Qwen2.5 `7B -> 1.5B`, RTX 5090.
+GSM8K zero-shot CoT, RTX 5090, 500 prompts × 3 seeds, McNemar paired test:
 
-Artifacts:
-- `reports/jointadaspec_qwen_7b_1p5b_2026-04-14.md`
-- `reports/jointadaspec_qwen_runs_through_2026-04-28.md`
-- `reports/jointadaspec_quality_qwen7b_1p5b_quality_2026-05-05.md`
-- `outputs/jointadaspec_qwen_2026-04-14/01_traces_gsm8k/`
-- `outputs/jointadaspec_qwen_2026-04-14/02_solve/`
-- `outputs/jointadaspec_qwen_2026-04-14/03_bench_gsm8k/`
-- `outputs/jointadaspec_qwen_2026-04-14/04_bench_livecodebench/`
+| Method | EM | tok/s | vs speculative | Δ vs target_only | p |
+|---|---:|---:|---:|---:|---:|
+| target_only | 52.93% | 14.45 | 2.96× | — | — |
+| speculative | 53.27% | 4.88 | 1.00× | +0.33% | 0.877 |
+| cascade_verif_then_length | 57.13% | 10.29 | 2.11× | +4.20% | 0.015 ✓ |
+| **jointadaspec** | **57.00%** | **10.84** | **2.22×** | **+4.07%** | **0.020 ✓** |
 
-Why this remains the headline benchmark:
-- `3000` collected traces
-- `479880` one-step transition records
-- `kappa` sweep: `0.0, 0.5, 1.0, 2.0, 5.0`
-- `100` prompts on GSM8K and LiveCodeBench
-- value iteration converged for all saved policies
+The adaptive control family (joint + cascade) significantly outperforms `target_only` at p < 0.05. Joint = cascade (Δ = −0.13%, p = 0.96): predicted by Theorem D (advantage-weighted value gap ε-small, mean 6e-5). Speed note: `target_only` is the fastest method (14.45 tok/s); the 2.22× figure is relative to vanilla speculative, not to plain autoregressive decoding.
 
-GSM8K throughput snapshot (`100` prompts):
+Reports: `reports/{pareto,ablation,jointadaspec_quality}_qwen14b_0p5b_lock_2026-05-14.*`, `reports/threshold_surface_qwen14b_0p5b_lock_2026-05-14/`.
 
-| Method | Speed (tok/s) | Acceptance | vs Vanilla |
+### JointAdaSpec — Qwen 7B → 1.5B (secondary, null at power)
+
+Three independent held-out windows confirm the null at n = 1500:
+
+| Window | n | joint − target_only | p |
 |---|---:|---:|---:|
-| Vanilla AR | 29.38 | 0.000 | 1.000 |
-| Fixed SD | 17.26 | 0.801 | 0.588 |
-| Fuzzy SD (`T=4.0`) | 19.09 | 0.915 | 0.650 |
-| JointAdaSpec | 18.99 | 0.951 | 0.646 |
-| SpecDecPP | 17.81 | 0.835 | 0.606 |
+| start=1100 (2026-05-12, original) | 200 | +3.50% | 0.146 |
+| start=100 lock (2026-05-14) | 1500 | −1.47% | 0.369 |
+| start=600 triangulation (2026-05-22) | 1500 | −2.53% | 0.094 |
 
-LiveCodeBench throughput snapshot (`100` prompts):
+The early +3.50% was small-n noise. Low model-power ratio (4.7×) on a single GPU does not generate sufficient acceptance to recover quality. Reports: `reports/jointadaspec_quality_qwen7b_1p5b_quality_lock_2026-05-14.md`, `reports/jointadaspec_quality_qwen7b_1p5b_quality_tri_2026-05-20.md`.
 
-| Method | Speed (tok/s) | Acceptance | vs Vanilla |
+### Adaptive vs fixed fuzzy threshold (Theorem E, 14B/0.5B, n=300)
+
+JointAdaSpec is **+4–8% more accurate and ~3.7× faster** than any fixed `fuzzy_sd_T` baseline, showing that adaptive joint control over (draft length, threshold) is non-trivial versus the natural non-adaptive alternative.
+
+| Method | EM | tok/s | vs jointadaspec |
 |---|---:|---:|---:|
-| Vanilla AR | 14.36 | 0.000 | 1.000 |
-| Fixed SD | 8.05 | 0.659 | 0.560 |
-| Fuzzy SD (`T=4.0`) | 9.62 | 0.843 | 0.670 |
-| JointAdaSpec | 10.34 | 0.890 | 0.720 |
-| SpecDecPP | 9.04 | 0.763 | 0.629 |
+| fuzzy_sd_T=1.0 | 53.67% | 2.85 | joint +4.33% |
+| fuzzy_sd_T=1.25 | 50.33% | 2.95 | joint +7.67% |
+| fuzzy_sd_T=1.5 | 51.67% | 3.00 | joint +6.33% |
+| fuzzy_sd_T=2.0 | 53.33% | 3.06 | joint +4.67% |
+| **jointadaspec** | **58.00%** | **11.12** | — |
 
-Current interpretation:
-- `JointAdaSpec` is operational end to end on the Qwen `7B -> 1.5B` profile used for the first thesis traces.
-- On this single-GPU ratio it improves acceptance over the fixed-window baselines, but it does not yet outperform target-only decoding in throughput.
-- The current `jointadaspec/` benchmark path writes resumable seeded JSONL with task-level GSM8K exact match, bootstrap confidence intervals, plus legacy `run.jsonl` prompt records for backward compatibility.
+Figure: `reports/thesis_figs/fig_E_adaptivity_ablation.pdf`.
 
-Latest tracked artifacts through `2026-05-05` include smoke, partial, and one complete quality-aware hypothesis run:
+### κ-sweep: Pareto trade-off (7B/1.5B, 6 κ values × n=300)
 
-| Run | Scope | Best observed line | Status |
-|---|---|---|---|
-| `2026-04-21`, Qwen `7B -> 1.5B` | schema/seeded smoke, `1` prompt, `1` seed, `8` new tokens | `cascade_verif_then_length`: `18.47` tok/s, `1.204x` vs target-only | Complete smoke benchmark |
-| `2026-04-28`, Qwen `14B -> 0.5B` | smoke, `5` prompts, `1` seed, `64` new tokens | `cascade_verif_then_length`: `13.15` tok/s, `0.725x`; `jointadaspec`: `12.85` tok/s, `0.709x` | Complete smoke benchmark |
-| `2026-04-28`, Qwen `7B -> 1.5B` | full trace/solve attempt, `500` traces | policy and condition artifacts saved | Benchmark stage failed on HuggingFace SSL EOF |
-| `2026-05-05`, Qwen `7B -> 1.5B` quality-aware | `500` traces, `100` GSM8K prompts, `3` seeds | `cascade_verif_then_length`: EM `0.6267`; `jointadaspec`: EM `0.6167`; `target_only`: EM `0.5700` | Complete quality hypothesis run |
+`tok/s` is flat across κ (16.28–16.55); EM varies non-monotonically (55.7–60.3%); joint ≈ cascade at every κ (gap ≤ 3%). The joint–cascade parity is robust to the Lagrange trade-off knob. Figure: `reports/thesis_figs/fig_bonus_kappa_sweep.pdf`.
 
-For the `2026-04-28` Qwen `14B -> 0.5B` smoke, `target_only` reached `18.13` tok/s. Condition checks passed `c2`, `c3`, `n1`, and `n2`; `c1` and `c4` failed, which is recorded as an empirical result rather than a runtime failure.
-
-### Historical `sp_samp` Snapshot
-
-Latest historical `sp_samp/` full Llama run: `2026-03-28-llama-48h-cgrid8` on RTX 5090.
-
-Source reports:
-- `reports/yandex_llama3_8b_3b_2026-03-28-llama-48h-cgrid8-gsm8k.md`
-- `reports/yandex_llama3_8b_3b_2026-03-28-llama-48h-cgrid8-livecodebench.md`
-
-GSM8K highlights (k=4):
+### Historical `sp_samp` snapshot (Llama 8B/3B, 2026-03-28)
 
 | Method | Accuracy (%) | Speed (tok/s) |
 |---|---:|---:|
@@ -157,14 +138,7 @@ GSM8K highlights (k=4):
 | AutoJudge (t=0.14) | 78.67 | 45.98 |
 | Top-K (all) | 75.67 | 59.29 |
 
-LiveCodeBench highlights (throughput only):
-
-| Method | Speed (tok/s) |
-|---|---:|
-| Baseline | 71.52 |
-| Speculative | 34.80 |
-| AutoJudge (t=1.0) | 29.27 |
-| Top-K (all) | 36.53 |
+Reports: `reports/yandex_llama3_8b_3b_2026-03-28-llama-48h-cgrid8-{gsm8k,livecodebench}.md`.
 
 More context and historical runs: `docs/RESULTS.md`.
 

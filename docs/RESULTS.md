@@ -1,5 +1,74 @@
 # Results Overview
 
+## Final Locked Results (2026-05-14 — 2026-05-27)
+
+### Run 1 — Qwen 14B → 0.5B (primary, locked 2026-05-14)
+
+GSM8K zero-shot CoT, RTX 5090, 500 prompts × 3 seeds = **n=1500 paired**, McNemar:
+
+| Method | EM | tok/s | vs speculative | Δ vs target_only | 95% CI | p |
+|---|---:|---:|---:|---:|---:|---:|
+| target_only | 52.93% | 14.45 | 2.96× | — | — | — |
+| speculative | 53.27% | 4.88 | 1.00× | +0.33% | [−3.00%, 3.73%] | 0.877 |
+| cascade_verif_then_length | 57.13% | 10.29 | 2.11× | **+4.20%** | [0.87%, 7.67%] | **0.015 ✓** |
+| **jointadaspec** | **57.00%** | **10.84** | **2.22×** | **+4.07%** | [0.67%, 7.47%] | **0.020 ✓** |
+
+Adaptive control family (joint + cascade) significantly outperforms `target_only` at p < 0.05. Joint = cascade head-to-head (Δ = −0.13%, p = 0.96): predicted by Theorem D. Speed note: `target_only` is the fastest method (14.45 tok/s); the 2.22× is relative to vanilla speculative.
+
+Reports: `reports/{pareto,ablation,jointadaspec_quality}_qwen14b_0p5b_lock_2026-05-14.*`, `reports/threshold_surface_qwen14b_0p5b_lock_2026-05-14/`.
+
+### Run 2 — Qwen 7B → 1.5B (secondary, null at power, locked 2026-05-14)
+
+| Method | EM | tok/s | vs speculative | Δ vs target_only | p |
+|---|---:|---:|---:|---:|---:|
+| target_only | 60.20% | 24.93 | 1.90× | — | — |
+| speculative | 60.60% | 13.13 | 1.00× | +0.40% | 0.830 |
+| cascade_verif_then_length | 57.93% | 15.76 | 1.20× | −2.27% | 0.144 |
+| jointadaspec | 58.73% | 15.77 | 1.20× | −1.47% | 0.369 |
+
+### Triangulation — 7B/1.5B null is slice-independent (2026-05-22)
+
+Three independent held-out windows all confirm the null:
+
+| Window | n | joint − target_only | p |
+|---|---:|---:|---:|
+| start=1100 (2026-05-12, original) | 200 | +3.50% | 0.146 |
+| start=100 lock (2026-05-14) | 1500 | −1.47% | 0.369 |
+| start=600 triangulation (2026-05-22) | 1500 | **−2.53%** | **0.094** |
+
+The early +3.50% was small-n noise. Low model-power ratio (4.7×) on a single GPU is insufficient. Report: `reports/jointadaspec_quality_qwen7b_1p5b_quality_tri_2026-05-20.md`.
+
+### Theorem E — Adaptive vs fixed fuzzy threshold (14B/0.5B, n=300, 2026-05-27)
+
+| Method | EM | tok/s | accept | paired vs joint |
+|---|---:|---:|---:|---:|
+| fuzzy_sd_T=1.0 (best fixed) | 53.67% | 2.85 | 15.2% | joint +4.33% |
+| fuzzy_sd_T=1.25 | 50.33% | 2.95 | 16.3% | joint +7.67%, p≈0.05 |
+| fuzzy_sd_T=1.5 | 51.67% | 3.00 | 16.7% | joint +6.33% |
+| fuzzy_sd_T=2.0 | 53.33% | 3.06 | 17.4% | joint +4.67% |
+| **jointadaspec** | **58.00%** | **11.12** | **55.1%** | — |
+
+JointAdaSpec is **+4–8% more accurate AND ~3.7× faster** than any fixed-T baseline. Figure: `reports/thesis_figs/fig_E_adaptivity_ablation.pdf`. Output dir: `outputs/jointadaspec_qwen14b_0p5b_fuzzy_ablation_2026-05-25/`.
+
+### Theorem D — Exact value gap joint vs cascade (2026-05-25)
+
+Advantage-weighted value gap: `V_joint − V_cascade = 1/(1−γ) · E_{μ*_J}[A^{πC}(s, πJ(s))]`.
+
+| Pair | μ*_J(B) | mean |A^πC| on B | |adv|>0.01 states | V_joint − V_cascade |
+|---|---:|---:|---:|---:|
+| 14B/0.5B | 0.90 | **6e-5** | 0.1% | +0.005 |
+| 7B/1.5B | 0.90 | **1e-3** | 0.6% | +0.10 |
+
+C4 is violated on 90% of states, but the violation is *benign*: cascade advantage on B is ε-small, so the value gap is nearly zero despite near-universal C4 failure. Weak dominance V_joint ≥ V_cascade holds on 100% of states (both pairs). Script: `scripts/analyze_theorem_c_gap.py`. Figure: `reports/thesis_figs/fig_D_advantage_on_B.pdf`.
+
+### κ-sweep — joint vs cascade across trade-off knob (7B/1.5B, 6 κ × n=300, 2026-05-26)
+
+`tok/s` flat (16.28–16.55 tok/s); EM non-monotonic (joint 55.7–60.3%, cascade 55.0–61.0%); joint ≈ cascade at every κ (gap ≤ 3%). Joint–cascade parity is robust to the Lagrange trade-off knob. Figure: `reports/thesis_figs/fig_bonus_kappa_sweep.pdf`.
+
+---
+
+## Historical Runs (through 2026-05-08)
+
 This page is a compact index of benchmark outcomes and where to find full artifacts.
 
 ## Latest Artifacts Through 2026-05-08

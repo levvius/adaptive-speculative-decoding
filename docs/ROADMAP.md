@@ -1,24 +1,41 @@
 # Roadmap
 
-## Current Focus
+## Current Focus (post-defense)
 
-1. Replace the current quality-risk reward shaping with a stronger quality mechanism.
-2. Use held-out prompt slices before treating quality improvements as real.
-3. Make experiment outputs easier to compare and review.
+1. Clean up code after thesis defense.
+2. Action-coupled additive reward form (Theorem B refinement) — 2-line code change.
+3. k=16 policy with γ_max=16: fresh traces + fresh solve on 14B/0.5B.
 
 ## In Progress
 
-- Pivot from scalar `quality_risk_K/k` shaping to prompt/state-level fallback policies.
-- Analyze where held-out `jointadaspec` and `cascade_verif_then_length` lose exact match against `target_only`.
-- Better project presentation for external reviewers (docs/templates/results index).
-- JointAdaSpec Qwen documentation pass and report-card cleanup through the `2026-05-08` artifacts.
+- Post-defense documentation cleanup.
 
 ## Recently Completed
 
-- Completed the `2026-05-08` held-out Qwen `7B -> 1.5B` quality validation with `500` GSM8K prompts, `3` seeds, and `256` max new tokens.
-- Primary method `cascade_verif_then_length` did not improve held-out quality: EM delta vs `target_only` was `-2.27` percentage points with CI crossing zero.
-- The `2026-05-05` first-slice quality improvement is now treated as a non-generalizing hypothesis, not a final quality claim.
-- Secondary Qwen `14B -> 0.5B` cross-check and extended fallback runs remained partial and are not used for benchmark claims.
+### Thesis sprint (2026-05-14 — 2026-05-27)
+
+- **Locked Run 1 (14B/0.5B, n=1500)**: adaptive control family +4% EM vs target_only, p<0.05. Reports in `reports/*qwen14b_0p5b_lock_2026-05-14*`.
+- **Locked Run 2 (7B/1.5B, n=1500)**: confirmed null on lock window (−1.47%, p=0.369).
+- **Triangulation (7B/1.5B, start=600, n=1500)**: third independent window confirms slice-independent null (−2.53%, p=0.094).
+- **Theorem E ablation (14B/0.5B, n=300)**: JointAdaSpec +4–8% EM AND 3.7× faster than any fixed fuzzy_sd_T. Figure `fig_E_adaptivity_ablation.pdf`.
+- **κ-sweep (7B/1.5B, 6κ × n=300)**: joint ≈ cascade robust across Lagrange knob. Figure `fig_bonus_kappa_sweep.pdf`.
+- **Theorem D exact value gap**: advantage-weighted gap derivation, mean |A^πC| on B = 6e-5 (14B), 1e-3 (7B). Script `scripts/analyze_theorem_c_gap.py`. Figure `fig_D_advantage_on_B.pdf`.
+- **Theorem G quality non-monotonicity**: Δ EM +7.4% at low acceptance, −2.6% at high acceptance.
+- **Thesis defense guide**: `papers/ВКР_тезисы_и_структура.md`.
+
+### Theory sprint (2026-05-15)
+
+- **Theorem A**: sample-complexity bound on `‖V̂ − V*‖∞`, non-vacuous at n_min=5.
+- **Theorem B**: additive state-only quality-risk is Bellman-invariant; `quality_risk_form` flag added.
+- **Theorem C**: cascade suboptimality ≤ 2R_max·μ*_J(B)/(1−γ); C4 failure reframed quantitatively.
+- **Theorems 2.3/2.4**: empirically grounded with N1/N2 conditions and κ-sweep Pareto front.
+
+### Quality-aware hypothesis (2026-05-05 — 2026-05-08)
+
+- Completed the `2026-05-08` held-out Qwen `7B -> 1.5B` validation (500 prompts, 3 seeds): primary method did not improve held-out quality (EM delta −2.27 pp, CI crossing zero).
+- The `2026-05-05` first-slice improvement treated as non-generalizing hypothesis.
+- Added `quality_risk_form` config flag (default `multiplicative` for backward compat).
+- Added held-out benchmark workflow with `test_start_index`.
 
 ## Next Technical Steps
 
