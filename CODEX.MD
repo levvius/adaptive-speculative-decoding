@@ -34,6 +34,8 @@ features, or behaviors are added.
 - `scripts/run_local_7b_1p5b_eval.sh`: Orchestrates local Qwen2.5 7B/1.5B GSM8K + LiveCodeBench evaluation.
 - `scripts/run_autojudge_topk_gsm8k_bg.sh`: Long-run orchestration for local Qwen2.5 7B/1.5B GSM8K AutoJudge-threshold + Top-K sweeps with GPU preflight wait gate and resume-friendly append output.
 - `scripts/install_dependencies.sh`: Safe host bootstrap script (idempotent apt/pip install, optional GPU extras, EOL Ubuntu guard, never touches NVIDIA driver packages).
+- `.github/workflows/ci.yml`: GitHub Actions CI (Python 3.12, CPU torch, syntax/config/unit-tests).
+- `requirements-ci.txt`: Loose-pinned dependency list used by CI to avoid version-drift breakage.
 - `.python-version`: Recommended local Python runtime version.
 - `datasets/.gitkeep`: Repository placeholder for local dataset directory (`datasets/`).
 - `README.MD`: Project overview, usage, and examples.
@@ -77,7 +79,9 @@ features, or behaviors are added.
 - **Theorem D** exact value gap (`V_joint − V_cascade = E_{μ*_J}[A^{πC}(s,πJ(s))]/(1−γ)`): mean |advantage| on C4-violating set B = 6e-5 (14B), 1e-3 (7B); weak dominance V_joint ≥ V_cascade confirmed on 100% of states. Script: `scripts/analyze_theorem_c_gap.py`. Figure: `reports/thesis_figs/fig_D_advantage_on_B.pdf`. Analysis: `reports/theorem_c_gap_analysis.json`.
 - **Theorem G** quality non-monotonicity: Δ EM +7.4% at low/mid acceptance, −2.6% at high acceptance; churn rate ~45% flat.
 - **Thesis defense guide**: `papers/ВКР_тезисы_и_структура.md` — chapter-by-chapter writing recommendations and defense theses.
-- **CI removed (2026-06-03)**: `.github/workflows/ci.yml` and all gating references removed. Tests still pass locally (72/72, ~5s) via `make test`; CONTRIBUTING.md/PR template reformulated as local-only checks.
+- **CI restored (2026-06-03, final)**: `.github/workflows/ci.yml` rebuilt with Python 3.12, CPU-only torch from PyTorch wheel index, and a new `requirements-ci.txt` with loose pins for resilience against version drift. CONTRIBUTING.md and the PR template reference CI again.
+- **README rewritten (2026-06-03)**: compacted from ~242 to ~95 lines — single headline table, compact methods list, structure, and pointers to `docs/`.
+- **Stale files removed (2026-06-03)**: `notebooks/generate_thesis_notebook.py` (superseded by direct `nbformat`-based notebook edits) and `docs/GITHUB_SETUP.md` (one-time setup checklist, completed).
 - **docs updated**: `README.MD`, `docs/RESULTS.md`, `docs/ROADMAP.md` updated with locked final results.
 
 ## Recent Changes (2026-05-08)

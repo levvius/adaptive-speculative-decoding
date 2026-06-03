@@ -25,9 +25,12 @@ make setup-gpu
 3. Run checks before opening a PR.
 4. Include rationale in commit messages and PR description.
 
-## Recommended Local Checks Before PR
+## Checks Before PR
 
-There is no automated GitHub Actions CI in this repository. Run the local checks manually:
+GitHub Actions CI (`.github/workflows/ci.yml`) runs on every push and PR: it installs
+CPU-only PyTorch, validates configs, and runs the unit test suite on Python 3.12.
+
+Run the same checks locally before opening a PR:
 
 ```bash
 make check   # compileall + JSON config validation
@@ -65,7 +68,9 @@ make bench-toy OUT=/tmp/bench_toy.jsonl
 ## Pull Request Checklist
 
 - [ ] Scope is clear and focused
-- [ ] Local `make check` and `make test` were run (results pasted in PR description)
+- [ ] `make check` passes locally
+- [ ] `make test` passes locally
+- [ ] GitHub Actions CI green
 - [ ] Relevant docs/configs updated
 - [ ] Added or updated tests for logic changes
 - [ ] Benchmark outputs validated when applicable

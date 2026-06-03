@@ -8,12 +8,15 @@
 
 ## Validation
 
-Paste the output (or summary) of the local checks you ran. There is no automated CI in this repository.
+- [ ] `make check`
+- [ ] `make test`
+- [ ] GitHub Actions CI green
+- [ ] (if applicable) benchmark smoke run + JSONL validation
+
+Commands used:
 
 ```bash
-# e.g. .venv/bin/python -m pytest tests/ -q
-# e.g. make check
-# paste commands and their output here
+# paste commands here
 ```
 
 ## Impact
