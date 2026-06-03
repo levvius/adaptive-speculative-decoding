@@ -34,7 +34,6 @@ features, or behaviors are added.
 - `scripts/run_local_7b_1p5b_eval.sh`: Orchestrates local Qwen2.5 7B/1.5B GSM8K + LiveCodeBench evaluation.
 - `scripts/run_autojudge_topk_gsm8k_bg.sh`: Long-run orchestration for local Qwen2.5 7B/1.5B GSM8K AutoJudge-threshold + Top-K sweeps with GPU preflight wait gate and resume-friendly append output.
 - `scripts/install_dependencies.sh`: Safe host bootstrap script (idempotent apt/pip install, optional GPU extras, EOL Ubuntu guard, never touches NVIDIA driver packages).
-- `.github/workflows/ci.yml`: GitHub Actions CI pipeline (checks, tests, toy SpecExec smoke run, result-schema validation).
 - `.python-version`: Recommended local Python runtime version.
 - `datasets/.gitkeep`: Repository placeholder for local dataset directory (`datasets/`).
 - `README.MD`: Project overview, usage, and examples.
@@ -78,7 +77,7 @@ features, or behaviors are added.
 - **Theorem D** exact value gap (`V_joint − V_cascade = E_{μ*_J}[A^{πC}(s,πJ(s))]/(1−γ)`): mean |advantage| on C4-violating set B = 6e-5 (14B), 1e-3 (7B); weak dominance V_joint ≥ V_cascade confirmed on 100% of states. Script: `scripts/analyze_theorem_c_gap.py`. Figure: `reports/thesis_figs/fig_D_advantage_on_B.pdf`. Analysis: `reports/theorem_c_gap_analysis.json`.
 - **Theorem G** quality non-monotonicity: Δ EM +7.4% at low/mid acceptance, −2.6% at high acceptance; churn rate ~45% flat.
 - **Thesis defense guide**: `papers/ВКР_тезисы_и_структура.md` — chapter-by-chapter writing recommendations and defense theses.
-- **CI fix**: `.github/workflows/ci.yml` updated to Python 3.12 to match `.python-version`.
+- **CI removed (2026-06-03)**: `.github/workflows/ci.yml` and all gating references removed. Tests still pass locally (72/72, ~5s) via `make test`; CONTRIBUTING.md/PR template reformulated as local-only checks.
 - **docs updated**: `README.MD`, `docs/RESULTS.md`, `docs/ROADMAP.md` updated with locked final results.
 
 ## Recent Changes (2026-05-08)
