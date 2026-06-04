@@ -6,7 +6,7 @@
 
 Implementation and benchmark of **joint adaptive control over draft length and verification
 threshold** for speculative LLM decoding, formalised as a tabular MDP. Companion code for the
-bachelor's thesis *JointAdaSpec* (Kozin A. A., 2026).
+master's thesis (магистерская диссертация) *JointAdaSpec* (Kozin A. A., 2026).
 
 ## Headline result
 
@@ -66,13 +66,16 @@ Pipeline stages: `01_collect_traces` → `02_solve_mdp` → `03_benchmark` →
 | `tests/` | 72 unit tests covering all methods and MDP solver |
 | `notebooks/thesis_plots.ipynb` | Defence figures with Russian explanations |
 | `reports/`, `outputs/` | Benchmark artifacts, manifests, figures |
-| `papers/` | Thesis DOCX and defence guide (Russian) |
+| `papers/` | Master's thesis ([DOCX](papers/Козин_newera.docx) · [PDF](papers/Козин_newera.pdf)), defence deck plan + speech, design brief (Russian) |
 
 ## Documentation
 
 - [`docs/RESULTS.md`](docs/RESULTS.md) — full benchmark tables (locked + historical runs)
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — post-thesis future work
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — local checks and PR workflow
+- [`papers/Козин_newera.pdf`](papers/Козин_newera.pdf) — full master's thesis (RU, PDF; DOCX alongside)
+- [`papers/pres.md`](papers/pres.md) — defence presentation plan + 10-minute speech (RU)
+- [`papers/claude_design.md`](papers/claude_design.md) — slide-deck design brief for building the visual deck
 - [`papers/ВКР_тезисы_и_структура.md`](papers/ВКР_тезисы_и_структура.md) — thesis defence guide (RU)
 - [`CODEX.MD`](CODEX.MD) — chronological change log with file-level detail
 
