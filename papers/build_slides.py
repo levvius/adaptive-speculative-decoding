@@ -194,9 +194,9 @@ def slide_title(prs):
     rect(s, 0, SH - 0.22, SW, 0.22, TURQUOISE)
     tf = textbox(s, 1.0, 2.0, 11.33, 2.2, anchor=MSO_ANCHOR.MIDDLE)
     p = add_para(tf, True); p.alignment = PP_ALIGN.CENTER
-    run(p, "Совместное адаптивное спекулятивное декодирование\nбольших языковых моделей", size=34, color=INDIGO, bold=True)
+    run(p, "Оптимизация больших языковых моделей\nметодом адаптивного спекулятивного декодирования", size=32, color=INDIGO, bold=True)
     p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
-    run(p2, "на основе марковского процесса принятия решений (JointAdaSpec)", size=20, color=TURQUOISE, bold=True)
+    run(p2, "Метод JointAdaSpec на основе марковского процесса принятия решений", size=20, color=TURQUOISE, bold=True)
     tf2 = textbox(s, 1.0, 4.5, 11.33, 2.0, anchor=MSO_ANCHOR.TOP)
     for i, (txt, c, b, sz) in enumerate([
         ("Выпускная квалификационная работа (магистерская диссертация)", GRAPHITE, True, 18),
@@ -207,8 +207,8 @@ def slide_title(prs):
     ]):
         p = add_para(tf2, first=(i == 0)); p.alignment = PP_ALIGN.CENTER; p.space_after = Pt(6)
         run(p, txt, size=sz, color=c, bold=b)
-    notes(s, "Уважаемые члены комиссии, тема моей работы — совместное адаптивное "
-             "спекулятивное декодирование больших языковых моделей. Докладывает Козин Александр.")
+    notes(s, "Уважаемые члены комиссии, тема моей работы — оптимизация больших языковых моделей "
+             "методом адаптивного спекулятивного декодирования. Докладывает Козин Александр.")
 
 
 def slide_problem(prs):
