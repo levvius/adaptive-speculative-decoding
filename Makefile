@@ -78,7 +78,7 @@ OUT_IN_CONTAINER ?= /data/$(notdir $(OUT))
 ALLOW_EOL_UBUNTU ?= 0
 ALLOW_EOL_ARG := $(if $(filter 1 true yes,$(ALLOW_EOL_UBUNTU)),--allow-eol-ubuntu,)
 
-.PHONY: help setup setup-gpu check validate-configs validate-results list-presets test bench-toy smoke-hf smoke-hf-gpu bench bench-method autojudge specexec bench-all paper-eval local-eval \
+.PHONY: help setup setup-gpu check validate-configs validate-results list-presets test bench-toy smoke-hf smoke-hf-gpu bench bench-method autojudge specexec bench-all paper-eval local-eval slides \
 		jointadaspec-traces jointadaspec-solve jointadaspec-verify jointadaspec-bench jointadaspec-report jointadaspec-full \
 		jointadaspec-quality-heldout jointadaspec-quality-heldout-report jointadaspec-quality-heldout-full \
 		docker-build docker-build-gpu docker-build-gpu-safe docker-prune-builder docker-gpu-check docker-gpu-check-image docker-test docker-bench docker-autojudge docker-specexec docker-bench-all
@@ -192,6 +192,9 @@ paper-eval: ## Run paper-style GSM8K sweep (Qwen2.5 0.5B -> 3B) and build report
 
 local-eval: ## Run local Qwen2.5 7B/1.5B eval (GSM8K + LiveCodeBench) and build Yandex-style reports
 	PYTHON_BIN="$(PYTHON)" REPORT_PREFIX="$(LOCAL_REPORT_PREFIX)" MANIFEST_PATH="$(LOCAL_MANIFEST)" scripts/run_local_7b_1p5b_eval.sh
+
+slides: ## Build the defense deck in 3 formats (PPTX + PDF + HTML) into papers/dist/
+	bash scripts/build_slides.sh
 
 jointadaspec-traces: ## Collect JointAdaSpec traces for MODEL_PAIR
 	$(PYTHON) scripts/01_collect_traces.py --config-name experiments/$(JOINTADA_EXPERIMENT) \

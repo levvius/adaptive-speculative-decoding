@@ -38,6 +38,9 @@ make smoke-hf
 # List all preset experiments/models/methods
 make list-presets
 
+# Build the defense deck in 3 formats (PPTX + PDF + HTML) into papers/dist/
+make slides
+
 # Validate config consistency
 make validate-configs
 

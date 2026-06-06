@@ -23,7 +23,8 @@ htmlcov/
 
 # Build and packaging artifacts
 build/
-dist/
+dist/                 # note: papers/dist/ deck files are force-added intentionally
+*.docx.bak            # in-place TOC patch backups (papers/add_toc_links.py)
 *.egg-info/
 .eggs/
 pip-wheel-metadata/
