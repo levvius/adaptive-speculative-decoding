@@ -8,9 +8,13 @@ import torch
 
 from jointadaspec.core.features import entropy, kl_divergence
 from jointadaspec.core.sd_base import GenerationResult, SpeculativeDecoder
-from jointadaspec.core.verification import fuzzy_verification, tv_distance_step
+from jointadaspec.core.verification import tv_distance_step, verify_draft_chain
 from jointadaspec.inference.policy import JointAdaSpecPolicy
-from jointadaspec.utils.probs import common_vocab_size, next_token_probs_tensor
+from jointadaspec.utils.probs import (
+    block_next_token_probs_tensor,
+    common_vocab_size,
+    next_token_probs_tensor,
+)
 
 
 def _sample_token(probs: torch.Tensor, generator: torch.Generator) -> int:
@@ -18,7 +22,7 @@ def _sample_token(probs: torch.Tensor, generator: torch.Generator) -> int:
 
 
 class JointAdaSpecDecoder(SpeculativeDecoder):
-    """Online policy-controlled fuzzy speculative decoding."""
+    """Online policy-controlled block fuzzy speculative decoding."""
 
     def __init__(
         self,
@@ -47,57 +51,100 @@ class JointAdaSpecDecoder(SpeculativeDecoder):
         accepted = 0
         n_target_calls = 0
         n_draft_calls = 0
-        k = 0
+        n_target_verified_positions = 0
+        draft_tokens: list[int] = []
+        q_list: list[torch.Tensor] = []
+        K_prev = float(self.policy.config.K_init)
 
         started = self._start_timer(self.device)
         while len(generated_ids) < max_new_tokens:
-            p_probs = next_token_probs_tensor(self.target_model, context_tokens, self.common_vocab_n)
-            q_probs = next_token_probs_tensor(self.draft_model, context_tokens, self.common_vocab_n)
-            n_target_calls += 1
+            k = len(draft_tokens)
+            draft_context = context_tokens + draft_tokens
+            q_probs = next_token_probs_tensor(self.draft_model, draft_context, self.common_vocab_n)
             n_draft_calls += 1
 
             H = entropy(q_probs)
-            K = kl_divergence(q_probs, p_probs)
-            action_length, threshold = self.policy.get_action(H=H, K=K, k=k)
+            action_length, threshold = self.policy.get_action(H=H, K=K_prev, k=k)
+            must_verify = k >= self.policy.config.gamma_max
+            should_continue = action_length == "continue" and not must_verify
 
-            if action_length == "stop":
-                emitted_token = _sample_token(p_probs, generator)
-                accepted_flag = False
-                d_step = 0.0
-                k = 0
-            else:
+            if should_continue:
                 draft_token = _sample_token(q_probs, generator)
+                draft_tokens.append(draft_token)
+                q_list.append(q_probs)
                 proposed += 1
-                accepted_flag, corrective_fn = fuzzy_verification(
-                    p=p_probs,
-                    q=q_probs,
-                    draft_token=draft_token,
+                per_step_metrics.append(
+                    {
+                        "H": H,
+                        "K": K_prev,
+                        "k": k,
+                        "action_length": "continue",
+                        "threshold": 1.0,
+                        "accepted": None,
+                        "d_step": 0.0,
+                    }
+                )
+                continue
+
+            if not draft_tokens:
+                p_probs = next_token_probs_tensor(self.target_model, context_tokens, self.common_vocab_n)
+                n_target_calls += 1
+                n_target_verified_positions += 1
+                emitted_tokens = [_sample_token(p_probs, generator)]
+                K_prev = kl_divergence(q_probs, p_probs)
+                accepted_now = 0
+                d_step = 0.0
+            else:
+                p_block = block_next_token_probs_tensor(
+                    self.target_model,
+                    context_tokens,
+                    draft_tokens,
+                    self.common_vocab_n,
+                )
+                n_target_calls += 1
+                n_target_verified_positions += len(draft_tokens) + 1
+                p_list = p_block[:-1]
+                p_bonus = p_block[-1]
+                n_accepted, corrective_token = verify_draft_chain(
+                    p_list=p_list,
+                    q_list=q_list,
+                    draft_tokens=draft_tokens,
                     T=threshold,
                     generator=generator,
+                    p_bonus=p_bonus,
                 )
-                if accepted_flag:
-                    emitted_token = draft_token
-                    accepted += 1
-                    k = min(k + 1, self.policy.config.gamma_max)
-                else:
-                    emitted_token = corrective_fn(generator)
-                    k = 0
-                d_step = tv_distance_step(p_probs, q_probs, threshold)
+                accepted += n_accepted
+                accepted_now = n_accepted
+                emitted_tokens = list(draft_tokens[:n_accepted]) + [int(corrective_token)]
+                K_values = [kl_divergence(q, p) for q, p in zip(q_list, p_list, strict=True)]
+                K_prev = float(sum(K_values) / len(K_values)) if K_values else K_prev
+                d_step = float(
+                    sum(tv_distance_step(p, q, threshold) for p, q in zip(p_list, q_list, strict=True))
+                    / max(len(q_list), 1)
+                )
 
-            context_tokens.append(int(emitted_token))
-            generated_ids.append(int(emitted_token))
             per_step_metrics.append(
                 {
                     "H": H,
-                    "K": K,
+                    "K": K_prev,
                     "k": k,
-                    "action_length": action_length,
+                    "action_length": "verify",
                     "threshold": threshold,
-                    "accepted": bool(accepted_flag),
+                    "accepted": accepted_now,
                     "d_step": d_step,
                 }
             )
-            if self.eos_token_id is not None and emitted_token == self.eos_token_id:
+            draft_tokens = []
+            q_list = []
+
+            for emitted_token in emitted_tokens:
+                if len(generated_ids) >= max_new_tokens:
+                    break
+                context_tokens.append(int(emitted_token))
+                generated_ids.append(int(emitted_token))
+                if self.eos_token_id is not None and emitted_token == self.eos_token_id:
+                    break
+            if self.eos_token_id is not None and generated_ids[-1:] == [self.eos_token_id]:
                 break
 
         total_time_ms = self._stop_timer(started, self.device)
@@ -110,4 +157,6 @@ class JointAdaSpecDecoder(SpeculativeDecoder):
             n_draft_calls=n_draft_calls,
             n_tokens_generated=len(generated_ids),
             per_step_metrics=per_step_metrics,
+            n_target_verified_positions=n_target_verified_positions,
+            decoder_semantics="block_sd_v2",
         )
