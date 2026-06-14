@@ -19,7 +19,6 @@ def _terminal_chain_transitions(config: MDPConfig, *, threshold_sensitive: bool)
     action_space = ActionSpace(config)
     state_space = StateSpace(config)
     s0 = state_space.encode(H=0.1, K=0.1, k=0)
-    s1 = state_space.encode(H=0.1, K=0.1, k=1)
     s2 = state_space.encode(H=0.1, K=0.1, k=2)
     for state_idx in range(config.num_states):
         for action_idx in range(config.num_actions):
@@ -27,12 +26,7 @@ def _terminal_chain_transitions(config: MDPConfig, *, threshold_sensitive: bool)
             next_state = s2
             if action.length_action == "continue":
                 if state_idx == s0:
-                    if threshold_sensitive and action.threshold == 1.0:
-                        next_state = s2
-                    else:
-                        next_state = s1
-                elif state_idx == s1:
-                    next_state = s2
+                    next_state = state_space.encode(H=0.1, K=0.1, k=1)
             row_idx = state_idx * config.num_actions + action_idx
             rows.append(row_idx)
             cols.append(next_state)
@@ -49,9 +43,9 @@ def _separable_rewards(config: MDPConfig) -> np.ndarray:
     action_space = ActionSpace(config)
     state_space = StateSpace(config)
     length_term = {
-        0: {"stop": 1.0, "continue": 2.0},
-        1: {"stop": 3.0, "continue": -1.0},
-        2: {"stop": 0.0, "continue": 0.0},
+        0: {"verify": 1.0, "continue": 2.0},
+        1: {"verify": 3.0, "continue": -1.0},
+        2: {"verify": 0.0, "continue": 0.0},
     }
     threshold_bonus = {1.0: 0.0, 2.0: 0.25}
     for state_idx in range(config.num_states):
@@ -59,7 +53,9 @@ def _separable_rewards(config: MDPConfig) -> np.ndarray:
         for action_idx in range(config.num_actions):
             action = action_space.decode(action_idx)
             rewards[state_idx, action_idx] = (
-                length_term[k][action.length_action] + threshold_bonus[action.threshold]
+                length_term[k][action.length_action] + (
+                    threshold_bonus[action.threshold] if action.is_verify else 0.0
+                )
             )
     return rewards
 

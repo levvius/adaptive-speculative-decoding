@@ -22,7 +22,7 @@ def _strict_threshold_mask(config: MDPConfig) -> np.ndarray:
         _, _, k = state_space.decode(state_idx)
         for action_idx in action_space.valid_action_indices(k):
             action = action_space.decode(action_idx)
-            if action.threshold == 1.0:
+            if action.length_action == "continue" or action.threshold == 1.0:
                 mask[state_idx, action_idx] = True
     return mask
 

@@ -20,10 +20,7 @@ def _verif_only_mask(config: MDPConfig) -> np.ndarray:
         _, _, k = state_space.decode(state_idx)
         for action_idx in action_space.valid_action_indices(k):
             action = action_space.decode(action_idx)
-            if k >= config.gamma_max:
-                mask[state_idx, action_idx] = action.length_action == "stop"
-            else:
-                mask[state_idx, action_idx] = action.length_action == "continue"
+            mask[state_idx, action_idx] = action.is_verify
     return mask
 
 
@@ -36,7 +33,7 @@ def _threshold_constrained_mask(config: MDPConfig, verif_policy: np.ndarray) -> 
         chosen_threshold = action_space.decode(int(verif_policy[state_idx])).threshold
         for action_idx in action_space.valid_action_indices(k):
             action = action_space.decode(action_idx)
-            if action.threshold == chosen_threshold:
+            if action.length_action == "continue" or action.threshold == chosen_threshold:
                 mask[state_idx, action_idx] = True
     return mask
 

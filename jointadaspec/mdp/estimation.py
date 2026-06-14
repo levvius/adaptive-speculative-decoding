@@ -67,9 +67,9 @@ def _prior_support(
 
 def _prior_reward(action: JointAction, config: MDPConfig) -> float:
     if action.is_stop:
-        return float(-config.c_time)
-    quality_penalty = 0.0 if action.threshold == 1.0 else min(1.0, (action.threshold - 1.0) / 3.0)
-    return float(0.25 - config.c_time - config.kappa * quality_penalty)
+        quality_penalty = 0.0 if action.threshold == 1.0 else min(1.0, (action.threshold - 1.0) / 3.0)
+        return float(1.0 - config.c_time - config.kappa * quality_penalty)
+    return float(-config.c_time)
 
 
 def estimate_mdp_parameters(traces_path: str | bytes | "os.PathLike[str]", config: MDPConfig) -> EstimatedMDP:
@@ -101,9 +101,10 @@ def estimate_mdp_parameters(traces_path: str | bytes | "os.PathLike[str]", confi
         state_idx = int(row.state_idx)
         action_idx = int(row.action_idx)
         next_state_idx = int(row.next_state_idx)
+        emitted_count = float(getattr(row, "emitted_count", row.accepted))
         if additive_form:
             reward = (
-                float(row.accepted)
+                emitted_count
                 - config.c_time * float(row.step_time_ms)
                 - config.kappa * float(row.d_step)
                 - float(state_penalties[state_idx])
@@ -111,7 +112,7 @@ def estimate_mdp_parameters(traces_path: str | bytes | "os.PathLike[str]", confi
         else:
             risk_weight = float(risk_weights[state_idx])
             reward = (
-                float(row.accepted)
+                emitted_count
                 - config.c_time * float(row.step_time_ms)
                 - config.kappa * risk_weight * float(row.d_step)
             )

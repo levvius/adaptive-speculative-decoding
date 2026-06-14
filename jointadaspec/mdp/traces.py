@@ -14,7 +14,7 @@ import pandas as pd
 import torch
 
 from jointadaspec.core.features import entropy, kl_divergence
-from jointadaspec.core.verification import fuzzy_verification, tv_distance_step
+from jointadaspec.core.verification import tv_distance_step, verify_draft_chain
 from jointadaspec.mdp.spaces import (
     ActionSpace,
     JointAction,
@@ -23,7 +23,11 @@ from jointadaspec.mdp.spaces import (
     quality_risk_penalty,
     quality_risk_weight,
 )
-from jointadaspec.utils.probs import common_vocab_size, next_token_probs_tensor
+from jointadaspec.utils.probs import (
+    block_next_token_probs_tensor,
+    common_vocab_size,
+    next_token_probs_tensor,
+)
 
 
 def _git_commit_or_none() -> str | None:
@@ -61,48 +65,89 @@ def _transition_from_action(
     target_model: Any,
     draft_model: Any,
     context_tokens: list[int],
+    draft_tokens: list[int],
+    q_list: list[torch.Tensor],
     k: int,
     action: JointAction,
-    p_probs: torch.Tensor,
     q_probs: torch.Tensor,
+    K_prev: float,
     state_space: StateSpace,
     generator: torch.Generator,
     config: MDPConfig,
     common_vocab_n: int,
 ) -> dict[str, Any]:
     started = time.perf_counter()
-    accepted = False
-    proposed = False
+    accepted = 0
+    proposed = 0
+    emitted_count = 0
+    d_step = 0.0
 
-    if action.is_stop:
-        emitted_token = _sample_token(p_probs, generator)
-        next_k = 0
-        d_step = 0.0
-    else:
-        proposed = True
+    if action.length_action == "continue" and k < config.gamma_max:
         draft_token = _sample_token(q_probs, generator)
-        accepted, corrective_fn = fuzzy_verification(
-            p=p_probs,
-            q=q_probs,
-            draft_token=draft_token,
-            T=action.threshold,
-            generator=generator,
+        next_context = list(context_tokens)
+        next_draft_tokens = list(draft_tokens) + [int(draft_token)]
+        next_q_list = list(q_list) + [q_probs]
+        next_k = len(next_draft_tokens)
+        next_K = float(K_prev)
+        q_next = next_token_probs_tensor(
+            draft_model,
+            next_context + next_draft_tokens,
+            common_vocab_n,
         )
-        emitted_token = draft_token if accepted else corrective_fn(generator)
-        next_k = min(k + 1, config.gamma_max) if accepted else 0
-        d_step = tv_distance_step(p_probs, q_probs, action.threshold)
+        next_H = entropy(q_next)
+        next_state_idx = state_space.encode(next_H, next_K, next_k)
+        emitted_token = int(draft_token)
+        proposed = 1
+    else:
+        if not draft_tokens:
+            p_block = block_next_token_probs_tensor(target_model, context_tokens, [], common_vocab_n)
+            p_probs = p_block[0]
+            emitted_token = _sample_token(p_probs, generator)
+            emitted_tokens = [int(emitted_token)]
+            next_K = kl_divergence(q_probs, p_probs)
+            accepted = 0
+        else:
+            p_block = block_next_token_probs_tensor(
+                target_model,
+                context_tokens,
+                draft_tokens,
+                common_vocab_n,
+            )
+            p_list = p_block[:-1]
+            p_bonus = p_block[-1]
+            n_accepted, corrective_token = verify_draft_chain(
+                p_list=p_list,
+                q_list=q_list,
+                draft_tokens=draft_tokens,
+                T=action.threshold,
+                generator=generator,
+                p_bonus=p_bonus,
+            )
+            accepted = int(n_accepted)
+            emitted_tokens = list(draft_tokens[:n_accepted]) + [int(corrective_token)]
+            K_values = [kl_divergence(q, p) for q, p in zip(q_list, p_list, strict=True)]
+            next_K = float(sum(K_values) / len(K_values)) if K_values else float(K_prev)
+            d_step = float(
+                sum(tv_distance_step(p, q, action.threshold) for p, q in zip(p_list, q_list, strict=True))
+                / max(len(q_list), 1)
+            )
+            emitted_token = int(emitted_tokens[-1])
+        emitted_count = len(emitted_tokens)
+        next_context = list(context_tokens) + emitted_tokens
+        next_draft_tokens = []
+        next_q_list = []
+        next_k = 0
+        q_next = next_token_probs_tensor(draft_model, next_context, common_vocab_n)
+        next_H = entropy(q_next)
+        next_state_idx = state_space.encode(next_H, next_K, next_k)
 
-    next_context = list(context_tokens) + [int(emitted_token)]
-    p_next = next_token_probs_tensor(target_model, next_context, common_vocab_n)
-    q_next = next_token_probs_tensor(draft_model, next_context, common_vocab_n)
-    next_H = entropy(q_next)
-    next_K = kl_divergence(q_next, p_next)
-    next_state_idx = state_space.encode(next_H, next_K, next_k)
     elapsed_ms = (time.perf_counter() - started) * 1000.0
-    reward = float((1 if accepted else 0) - config.c_time * elapsed_ms - config.kappa * d_step)
+    reward = float(emitted_count - config.c_time * elapsed_ms - config.kappa * d_step)
 
     return {
         "next_context": next_context,
+        "next_draft_tokens": next_draft_tokens,
+        "next_q_list": next_q_list,
         "next_k": next_k,
         "next_state_idx": next_state_idx,
         "next_H": next_H,
@@ -111,6 +156,7 @@ def _transition_from_action(
         "accepted": int(accepted),
         "proposed": int(proposed),
         "emitted_token": int(emitted_token),
+        "emitted_count": int(emitted_count),
         "step_time_ms": elapsed_ms,
         "d_step": d_step,
     }
@@ -140,13 +186,19 @@ def collect_traces(
     for trace_idx in range(n_traces):
         raw_prompt = prompts[trace_idx % len(prompts)]
         context_tokens = _ensure_prompt_tokens(target_model, raw_prompt)
+        draft_tokens: list[int] = []
+        q_list: list[torch.Tensor] = []
+        K_prev = float(config.K_init)
         k = 0
 
         for rollout_step in range(max(2, config.gamma_max + 2)):
-            p_probs = next_token_probs_tensor(target_model, context_tokens, common_vocab_n)
-            q_probs = next_token_probs_tensor(draft_model, context_tokens, common_vocab_n)
+            q_probs = next_token_probs_tensor(
+                draft_model,
+                context_tokens + draft_tokens,
+                common_vocab_n,
+            )
             H = entropy(q_probs)
-            K = kl_divergence(q_probs, p_probs)
+            K = float(K_prev)
             state_idx = state_space.encode(H, K, k)
             _, i_K, _ = state_space.decode(state_idx)
             additive_form = config.quality_risk_form == "additive"
@@ -165,10 +217,12 @@ def collect_traces(
                     target_model=target_model,
                     draft_model=draft_model,
                     context_tokens=context_tokens,
+                    draft_tokens=draft_tokens,
+                    q_list=q_list,
                     k=k,
                     action=action,
-                    p_probs=p_probs,
                     q_probs=q_probs,
+                    K_prev=K_prev,
                     state_space=state_space,
                     generator=generator,
                     config=config,
@@ -176,14 +230,14 @@ def collect_traces(
                 )
                 if additive_form:
                     reward = (
-                        float(result["accepted"])
+                        float(result["emitted_count"])
                         - config.c_time * float(result["step_time_ms"])
                         - config.kappa * float(result["d_step"])
                         - state_penalty
                     )
                 else:
                     reward = (
-                        float(result["accepted"])
+                        float(result["emitted_count"])
                         - config.c_time * float(result["step_time_ms"])
                         - config.kappa * risk_weight * float(result["d_step"])
                     )
@@ -201,6 +255,7 @@ def collect_traces(
                         "accepted": result["accepted"],
                         "proposed": result["proposed"],
                         "emitted_token": result["emitted_token"],
+                        "emitted_count": result["emitted_count"],
                         "step_time_ms": result["step_time_ms"],
                         "d_step": result["d_step"],
                         "H": H,
@@ -218,6 +273,9 @@ def collect_traces(
             chosen_action_idx = valid_action_indices[chosen_offset]
             chosen_result = results_by_action[chosen_action_idx]
             context_tokens = chosen_result["next_context"]
+            draft_tokens = chosen_result["next_draft_tokens"]
+            q_list = chosen_result["next_q_list"]
+            K_prev = float(chosen_result["next_K"])
             k = int(chosen_result["next_k"])
 
     pd.DataFrame.from_records(records).to_parquet(output_path, index=False)
