@@ -35,42 +35,29 @@ Combine. □
 
 ---
 
-## Theorem B — Additive Quality-Risk Preserves Optimality
+## Theorem B — Corrected Reward-Shaping Statement
 
-**Setting.** The original reward `r(s, a) = \text{accepted} − c_{time} \cdot t − κ \cdot d_{step}` is shaped to encode risk aversion in high-uncertainty (high `K`) and long-streak (high `k`) states. Two parameterisations are possible:
+**Correction.** The previous claim that an arbitrary state-only additive penalty
+`r'(s, a) = r(s, a) - λ(s)` preserves the optimal policy is false for a general
+MDP. Although `λ(s)` can be pulled out of the current-state maximisation, actions
+change the distribution of future states, and therefore change the future
+penalty stream. A simple counterexample is an action that moves into a heavily
+penalised state versus an action that avoids it.
 
-- *Multiplicative (legacy).* `r_{mult}(s, a) = \text{accepted} − c_{time} \cdot t − κ \cdot w(s) \cdot d_{step}`, where `w(s) = 1 + q_K \cdot (i_K / (N_K{-}1)) + q_k \cdot (k / γ_{max})`. The weight `w` depends on the state but multiplies the action-dependent quantity `d_{step}`. This couples state and action in a non-linear way and **breaks Bellman linearity**: there is no known convergence proof for VI on this form.
-- *Additive (Theorem-B-correct).* `r_{add}(s, a) = \text{accepted} − c_{time} \cdot t − κ \cdot d_{step} − λ(s)`, where `λ(s) = q_K \cdot (i_K / (N_K{-}1)) + q_k \cdot (k / γ_{max})` depends only on the state.
+**Valid replacement.** A policy-invariance theorem should use standard
+potential-based reward shaping,
 
-**Claim (Theorem B).** For any state-dependent function `λ: S → ℝ`, the optimal policy `π^\star_{add}` of the MDP with reward `r_{add}(s, a) = r(s, a) − λ(s)` is identical to the optimal policy `π^\star` of the MDP with reward `r(s, a)`. The corresponding value functions are related by
+$$F(s,a,s') = γΦ(s') - Φ(s),$$
 
-$$V^\star_{add}(s) \;=\; V^\star(s) \;-\; \frac{\lambda(s)}{1 - \gamma} \;-\; \gamma \sum_{s'} P^{\pi^\star}(s' | s) \cdot \frac{\mathbb{E}_{\pi^\star} [\lambda(s_t) - \lambda(s)]}{1 - \gamma}.$$
+or explicitly state stronger transition assumptions under which the future
+penalty stream is action-independent. If the penalty is meant to change policy,
+use an action-coupled reward term such as `λ_continue(s)` and describe it as an
+experimental regulariser, not as an invariant transformation.
 
-In particular, the argmax over actions in each state is invariant.
-
-**Proof.** Write Bellman optimality for the shaped MDP:
-
-$$V^\star_{add}(s) = \max_a \left\{ r(s, a) - \lambda(s) + \gamma \mathbb{E}_{s' \sim P(\cdot|s,a)} [V^\star_{add}(s')] \right\}.$$
-
-Since `λ(s)` does not depend on `a`, it pulls out of the max:
-
-$$V^\star_{add}(s) = -\lambda(s) + \max_a \left\{ r(s, a) + \gamma \mathbb{E}_{s'}[V^\star_{add}(s')] \right\}.$$
-
-Define `U(s) := V^\star_{add}(s) + λ(s) / (1 - γ)`. Substituting and simplifying:
-
-$$U(s) - \frac{\lambda(s)}{1 - \gamma} = -\lambda(s) + \max_a \left\{ r(s, a) + \gamma \mathbb{E}_{s'} \left[ U(s') - \frac{\lambda(s')}{1 - \gamma} \right] \right\}.$$
-
-Collecting `λ(s) / (1 − γ)` terms and using `λ(s) − λ(s) / (1 − γ) = − γ λ(s) / (1 − γ)`:
-
-$$U(s) = \max_a \left\{ r(s, a) + \gamma \mathbb{E}_{s'}[U(s')] - \frac{\gamma}{1 - \gamma} \mathbb{E}_{s'} [\lambda(s')] + \frac{\gamma}{1 - \gamma} \lambda(s) \right\}.$$
-
-The action-dependence of the bracket is entirely in `r(s, a) + γ \E_{s'}[U(s')]`, which matches the unshaped Bellman operator. Therefore `argmax_a` is identical to that of `V^\star`. The closed-form expression for `V^\star_{add}` in terms of `V^\star` and `λ` follows by direct computation. □
-
-**Implication.** The additive form is **provably optimality-equivalent** to the unshaped MDP (the optimal policy is unchanged; only the value function is shifted by a state-dependent constant). This is a *stronger* statement than mere convergence: under the additive form, quality-risk penalties act as a value-function reweighting that does not perturb the deployed policy, which means *the additive form provides no policy benefit on its own*. The benefit comes from coupling additive reshaping with a different policy-extraction step (e.g. constrained MDP, or a different `argmax` rule that uses `λ` as a regularizer). **This clarifies a subtle point that the multiplicative form obscured.**
-
-**Refinement (action-coupled additive form).** A genuinely action-shaping additive form is `r'(s, a) = r(s, a) − λ_a(s)`, where `λ_a(s)` depends on the action class (e.g. only "continue" actions are penalised). This preserves Bellman linearity (still additive separable in (s, a)) and does change the optimal policy. We propose this as the practical replacement: `λ_{continue}(s) = q_K · (i_K / (N_K{-}1)) + q_k · (k / γ_max)`, `λ_{stop}(s) = 0`. The current additive implementation in `jointadaspec/mdp/estimation.py` is state-only (per the theorem); upgrading to the action-coupled form is a 2-line code change once thesis defense is complete.
-
-**Code-level change.** `jointadaspec/mdp/spaces.py` introduces `quality_risk_form ∈ {"multiplicative", "additive"}` (default `multiplicative` for backward compatibility) and a new helper `quality_risk_penalty(...)`. `jointadaspec/mdp/estimation.py` and `jointadaspec/mdp/traces.py` branch on this flag. Coverage: `tests/test_mdp_solver.py::test_quality_risk_additive_form_preserves_bellman_shift` (added).
+**Code implication.** The `quality_risk_form` flag is retained as an experimental
+reward-shaping option. Thesis text should not claim that the state-only additive
+variant leaves the optimal policy unchanged. New reports must say whether a run
+uses multiplicative, state-additive, or action-coupled reward shaping.
 
 ---
 
@@ -135,8 +122,8 @@ This is still loose at the absolute scale but **bounds the cascade suboptimality
 
 | File | Change | Rationale |
 |---|---|---|
-| `jointadaspec/mdp/spaces.py` | Added `quality_risk_form` field to `MDPConfig`; added `quality_risk_penalty(...)` helper. | Theorem B parameterisation. |
-| `jointadaspec/mdp/estimation.py` | Branches reward computation on `quality_risk_form`. | Bellman-correct additive form. |
+| `jointadaspec/mdp/spaces.py` | Added `quality_risk_form` field to `MDPConfig`; added `quality_risk_penalty(...)` helper. | Experimental reward-shaping parameterisation. |
+| `jointadaspec/mdp/estimation.py` | Branches reward computation on `quality_risk_form`. | Keeps legacy and shaped rewards explicit. |
 | `jointadaspec/mdp/traces.py` | Branches reward column on `quality_risk_form`. | Consistent with estimation. |
 | `jointadaspec/inference/policy.py` | Serialises `quality_risk_form` in policy metadata. | Round-trip consistency. |
 | `jointadaspec/baselines/cascade_common.py` | Serialises `quality_risk_form` in cascade metadata. | Round-trip consistency. |
@@ -147,7 +134,7 @@ Default value is `quality_risk_form="multiplicative"` to preserve backward compa
 ## Summary of Empirical Predictions
 
 1. **Theorem A:** sample complexity bound is non-vacuous at our `n_min = 5`; thesis gains a sample-complexity guarantee.
-2. **Theorem B:** state-only additive penalty leaves the deployed policy invariant; only action-coupled additive forms (or external constraints) actually shape behaviour. This is a *negative empirical prediction* — additive `quality_risk_K > 0` with `quality_risk_k > 0` should yield the *same* policy as `quality_risk_K = quality_risk_k = 0` under additive form. Verifiable in 30 minutes of CPU.
+2. **Theorem B correction:** state-only additive penalties are not generally policy-invariant; use potential-based shaping for invariance or action-coupled penalties when policy shaping is intended.
 3. **Theorem C:** cascade suboptimality bound `O(R_max · μ^\star_J(B) / (1 − γ))` is consistent with the observed `+1.7%` to `+4.3%` EM advantage of joint over cascade.
 4. **Theorem 2.4 complement:** κ-sweep traces out an empirically convex Pareto front in (EM, tok/s) space.
 
