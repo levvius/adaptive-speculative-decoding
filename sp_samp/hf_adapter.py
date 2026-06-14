@@ -392,3 +392,34 @@ class HFModel(BaseModel):
         logits = outputs.logits[:, -1, :]
         probs = torch.softmax(logits, dim=-1).squeeze(0).cpu().tolist()
         return self._validate(probs)
+
+    def next_token_probs_block(
+        self,
+        context_tokens: Sequence[int],
+        continuation_tokens: Sequence[int],
+    ) -> List[List[float]]:
+        """Return per-position next-token distributions for a speculative block.
+
+        A single causal-LM forward over ``context + continuation`` yields all
+        distributions needed to verify the continuation and sample the bonus
+        token. For a continuation of length ``n``, logits at positions
+        ``prefix_len - 1`` through ``prefix_len + n - 1`` predict the ``n`` draft
+        tokens plus the bonus token.
+        """
+        prefix = self.ensure_prefix(context_tokens)
+        continuation = [int(token) for token in continuation_tokens]
+        tokens = prefix + continuation
+        input_ids = torch.tensor([tokens], device=self.device, dtype=torch.long)
+        attention_mask = torch.ones_like(input_ids, device=self.device)
+        with torch.no_grad():
+            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
+        prefix_len = len(prefix)
+        start = max(prefix_len - 1, 0)
+        stop = start + len(continuation) + 1
+        logits = outputs.logits[:, start:stop, :]
+        if logits.shape[1] != len(continuation) + 1:
+            raise RuntimeError(
+                "Unable to extract full speculative block logits from HF forward output."
+            )
+        probs = torch.softmax(logits, dim=-1).squeeze(0).cpu()
+        return [self._validate(row.tolist()) for row in probs]
