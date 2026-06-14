@@ -54,6 +54,8 @@ BASE_FIELDS = {
 
 OPTIONAL_BASE_FIELDS = {
     "schema_version",
+    "stat_unit",
+    "target_pass_mode",
     "seed",
     "test_start_index",
     "draft2_model",
@@ -98,12 +100,17 @@ LEGACY_PROMPT_FIELDS = {
     "run",
     "seed",
     "prompt_idx",
+    "prompt_id",
+    "cluster_id",
+    "stat_unit",
     "n_tokens_generated",
     "acceptance_rate",
     "total_time_ms",
     "tokens_per_sec",
     "n_target_calls",
     "n_draft_calls",
+    "n_target_verified_positions",
+    "decoder_semantics",
     "gsm8k_exact_match",
 }
 
@@ -240,6 +247,8 @@ SUMMARY_CI_FIELDS = {
     "acceptance_rate_ci_high",
     "gsm8k_exact_match_ci_low",
     "gsm8k_exact_match_ci_high",
+    "gsm8k_exact_match_cluster_ci_low",
+    "gsm8k_exact_match_cluster_ci_high",
 }
 
 GENERAL_FIELDS = {
@@ -252,6 +261,7 @@ GENERAL_FIELDS = {
     "error_type",
     "error_message",
     "traceback",
+    "prompt_gsm8k_exact_match",
 }
 
 ALLOWED_FIELDS = (
@@ -347,12 +357,17 @@ def _validate_legacy_prompt_record(
     _check_type(record, "timestamp", "string", errors, ctx)
     _check_type(record, "decoder", "string", errors, ctx)
     _check_type(record, "prompt_idx", "number", errors, ctx)
+    _check_type(record, "prompt_id", "number", errors, ctx)
+    _check_type(record, "cluster_id", "number", errors, ctx)
+    _check_type(record, "stat_unit", "string", errors, ctx)
     _check_type(record, "n_tokens_generated", "number", errors, ctx)
     _check_type(record, "acceptance_rate", "number", errors, ctx)
     _check_type(record, "total_time_ms", "number", errors, ctx)
     _check_type(record, "tokens_per_sec", "number", errors, ctx)
     _check_type(record, "n_target_calls", "number", errors, ctx)
     _check_type(record, "n_draft_calls", "number", errors, ctx)
+    _check_type(record, "n_target_verified_positions", "number", errors, ctx)
+    _check_type(record, "decoder_semantics", "string", errors, ctx)
     _check_type(record, "run", "number", errors, ctx)
     _check_type(record, "seed", "number", errors, ctx)
     _check_type(record, "git_commit_hash", "string", errors, ctx, allow_none=True)

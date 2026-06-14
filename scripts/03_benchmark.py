@@ -318,6 +318,33 @@ def _bootstrap_ci(values: list[float], *, seed: int, n_resamples: int = 1000) ->
     return float(low), float(high)
 
 
+def _cluster_bootstrap_mean_ci(
+    prompt_values: list[tuple[int, float]],
+    *,
+    seed: int,
+    n_resamples: int = 1000,
+) -> tuple[float | None, float | None]:
+    if not prompt_values:
+        return None, None
+    clusters: dict[int, list[float]] = {}
+    for prompt_idx, value in prompt_values:
+        clusters.setdefault(int(prompt_idx), []).append(float(value))
+    cluster_means = np.asarray(
+        [float(np.mean(values)) for _, values in sorted(clusters.items())],
+        dtype=np.float64,
+    )
+    if cluster_means.size == 1:
+        value = float(cluster_means[0])
+        return value, value
+    rng = np.random.default_rng(seed)
+    samples = np.empty(n_resamples, dtype=np.float64)
+    for idx in range(n_resamples):
+        picks = rng.integers(0, cluster_means.size, size=cluster_means.size)
+        samples[idx] = float(np.mean(cluster_means[picks]))
+    low, high = np.percentile(samples, [2.5, 97.5])
+    return float(low), float(high)
+
+
 def _prompt_stats_from_result(result, *, decoder_name: str) -> dict[str, float]:
     proposed = 0
     accepted = 0
@@ -412,7 +439,9 @@ def _build_record_base(exp_cfg: DictConfig, *, method: str) -> dict[str, object]
     draft_cfg = exp_cfg.model_pairs.draft
     k_value = int(exp_cfg.get("fixed_sd_gamma", exp_cfg.get("gamma_max", 0)))
     return {
-        "schema_version": 2,
+        "schema_version": 3,
+        "stat_unit": "prompt",
+        "target_pass_mode": "batched_block",
         "method": method,
         "backend": "jointadaspec_hf",
         "target_model": _config_model_name(target_cfg),
@@ -610,11 +639,19 @@ def _summary_records(
                 total_correct = sum(int(record["gsm8k_correct"]) for record in ok_records)
                 total_total = sum(int(record["gsm8k_total"]) for record in ok_records)
                 em_ci = _bootstrap_ci(em_values, seed=789 + len(method))
+                prompt_values: list[tuple[int, float]] = []
+                for record in ok_records:
+                    for item in record.get("prompt_gsm8k_exact_match", []) or []:
+                        if isinstance(item, list) and len(item) == 2:
+                            prompt_values.append((int(item[0]), float(item[1])))
+                cluster_ci = _cluster_bootstrap_mean_ci(prompt_values, seed=987 + len(method))
                 summary_record["gsm8k_correct"] = total_correct
                 summary_record["gsm8k_total"] = total_total
                 summary_record["gsm8k_exact_match"] = 0.0 if total_total <= 0 else float(total_correct / total_total)
                 summary_record["gsm8k_exact_match_ci_low"] = em_ci[0]
                 summary_record["gsm8k_exact_match_ci_high"] = em_ci[1]
+                summary_record["gsm8k_exact_match_cluster_ci_low"] = cluster_ci[0]
+                summary_record["gsm8k_exact_match_cluster_ci_high"] = cluster_ci[1]
             if any(record.get("error_message") for record in method_records):
                 errors = [str(record["error_message"]) for record in method_records if record.get("error_message")]
                 summary_record["error_message"] = errors[0]
@@ -692,6 +729,7 @@ def main(cfg: DictConfig) -> None:
             total_steps = 0.0
             gsm8k_correct = 0
             gsm8k_total = 0
+            prompt_gsm8k_exact_match: list[list[float]] = []
             try:
                 for prompt_idx, sample in enumerate(samples):
                     prompt_ids = _encode_prompt(target_model, sample.prompt)
@@ -723,18 +761,24 @@ def main(cfg: DictConfig) -> None:
                     if gsm8k_exact_match is not None:
                         gsm8k_correct += int(gsm8k_exact_match)
                         gsm8k_total += 1
+                        prompt_gsm8k_exact_match.append([float(prompt_idx), float(gsm8k_exact_match)])
                     logger.log(
                         {
                             "decoder": method_name,
                             "run": run_index,
                             "seed": seed,
                             "prompt_idx": prompt_idx,
+                            "prompt_id": prompt_idx,
+                            "cluster_id": prompt_idx,
+                            "stat_unit": "prompt",
                             "n_tokens_generated": result.n_tokens_generated,
                             "acceptance_rate": result.acceptance_rate,
                             "total_time_ms": result.total_time_ms,
                             "tokens_per_sec": tokens_per_sec,
                             "n_target_calls": result.n_target_calls,
                             "n_draft_calls": result.n_draft_calls,
+                            "n_target_verified_positions": result.n_target_verified_positions,
+                            "decoder_semantics": result.decoder_semantics,
                             "gsm8k_exact_match": gsm8k_exact_match,
                         }
                     )
@@ -763,6 +807,7 @@ def main(cfg: DictConfig) -> None:
                     "gsm8k_correct": gsm8k_correct,
                     "gsm8k_total": gsm8k_total,
                     "gsm8k_exact_match": None if gsm8k_total <= 0 else float(gsm8k_correct / gsm8k_total),
+                    "prompt_gsm8k_exact_match": prompt_gsm8k_exact_match,
                 }
             except Exception:
                 record = {
