@@ -35,7 +35,7 @@ speculative. This result must not be presented as final evidence for block
 speculative decoding until the decoder, MDP traces, and baselines all use one
 batched target-verification phase per draft block.
 
-Full tables, 7B/1.5B null result, Theorem E ablation, and κ-sweep — see
+Full tables, 7B/1.5B null result, Experiment E ablation, and κ-sweep — see
 [`docs/RESULTS.md`](docs/RESULTS.md).
 
 ## Methods implemented
@@ -93,6 +93,7 @@ The master deck is authored with `python-pptx` from the locked numbers in
 
 - [`docs/RESULTS.md`](docs/RESULTS.md) — full benchmark tables (locked + historical runs)
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — post-thesis future work
+- [`docs/REPRODUCIBILITY_RELEASE.md`](docs/REPRODUCIBILITY_RELEASE.md) — release checklist for rerun-ready thesis results
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — local checks and PR workflow
 - [`papers/Козин_newera.pdf`](papers/Козин_newera.pdf) — full master's thesis (RU, PDF; DOCX alongside)
 - [`papers/pres.md`](papers/pres.md) — defence presentation plan + 10-minute speech (RU)
