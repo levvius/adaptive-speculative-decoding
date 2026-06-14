@@ -1,0 +1,448 @@
+# Instincts generated from https://github.com/levvius/adaptive-speculative-decoding
+# Generated: 2026-06-14T18:51:34.112Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: adaptive-speculative-decoding-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: docs, refactor, feat, test, chore
+
+## Evidence
+
+- 8 commits analyzed
+- Detected conventional commit pattern
+- Examples: docs: add repository and thesis repair plan, feat: add block speculative verification core
+
+---
+id: adaptive-speculative-decoding-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Commit Length
+
+## Action
+
+Write moderate-length commit messages (~52 characters)
+
+## Evidence
+
+- Average commit message length: 52 chars
+- Based on 8 commits
+
+---
+id: adaptive-speculative-decoding-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Naming Files
+
+## Action
+
+Use snake_case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: snake_case
+
+---
+id: adaptive-speculative-decoding-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: adaptive-speculative-decoding-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: adaptive-speculative-decoding-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: adaptive-speculative-decoding-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: adaptive-speculative-decoding-workflow-documentation-and-project-guidance-update
+trigger: "when doing documentation and project guidance update"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Workflow Documentation And Project Guidance Update
+
+## Action
+
+Follow the documentation-and-project-guidance-update workflow:
+1. Edit or add documentation files in docs/, papers/, or reports/
+2. Update README.MD or CLAUDE.md as needed
+3. Commit changes with a docs: prefix
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: README.MD, CLAUDE.md, docs/RESULTS.md
+
+---
+id: adaptive-speculative-decoding-workflow-core-feature-or-refactor-with-tests
+trigger: "when doing core feature or refactor with tests"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Workflow Core Feature Or Refactor With Tests
+
+## Action
+
+Follow the core-feature-or-refactor-with-tests workflow:
+1. Modify or add core implementation files in jointadaspec/ or sp_samp/
+2. Update or add corresponding test files in tests/
+3. Commit changes with feat: or refactor: prefix
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: jointadaspec/utils/probs.py, sp_samp/hf_adapter.py, jointadaspec/baselines/fixed_sd.py
+
+---
+id: adaptive-speculative-decoding-instinct-file-naming
+trigger: "When creating or renaming a source file"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Instinct File Naming
+
+## Action
+
+Use snake_case for file names
+
+## Evidence
+
+- Pattern in files: jointadaspec/utils/probs.py, sp_samp/hf_adapter.py
+
+---
+id: adaptive-speculative-decoding-instinct-function-naming
+trigger: "When defining a function"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Instinct Function Naming
+
+## Action
+
+Use camelCase for function names
+
+## Evidence
+
+- Naming convention specified in analysis
+
+---
+id: adaptive-speculative-decoding-instinct-class-naming
+trigger: "When defining a class"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Instinct Class Naming
+
+## Action
+
+Use PascalCase for class names
+
+## Evidence
+
+- Naming convention specified in analysis
+
+---
+id: adaptive-speculative-decoding-instinct-constant-naming
+trigger: "When defining a constant"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Naming convention specified in analysis
+
+---
+id: adaptive-speculative-decoding-instinct-import-style
+trigger: "When importing modules in Python files"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Instinct Import Style
+
+## Action
+
+Use relative imports
+
+## Evidence
+
+- Import style specified in analysis
+
+---
+id: adaptive-speculative-decoding-instinct-export-style
+trigger: "When exporting functions or classes from a module"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Export style specified in analysis
+
+---
+id: adaptive-speculative-decoding-instinct-test-location
+trigger: "When adding or updating tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Instinct Test Location
+
+## Action
+
+Place test files in the separate tests/ directory
+
+## Evidence
+
+- Pattern in files: tests/test_verification.py, tests/test_inference.py
+
+---
+id: adaptive-speculative-decoding-instinct-test-type
+trigger: "When writing tests"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Instinct Test Type
+
+## Action
+
+Write unit tests for core logic
+
+## Evidence
+
+- testTypes: unit
+- Pattern in files: tests/test_mdp_solver.py
+
+---
+id: adaptive-speculative-decoding-instinct-test-pattern
+trigger: "When naming test files"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Instinct Test Pattern
+
+## Action
+
+Name test files as test_<module>.py
+
+## Evidence
+
+- Pattern in files: tests/test_verification.py, tests/test_cascade.py
+
+---
+id: adaptive-speculative-decoding-instinct-commit-format
+trigger: "When making a commit"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Instinct Commit Format
+
+## Action
+
+Use a conventional commit prefix (docs:, feat:, refactor:, test:, chore:), followed by a concise description
+
+## Evidence
+
+- Seen in commit: docs: add repository and thesis repair plan
+- Seen in commit: feat: add block speculative verification core
+
+---
+id: adaptive-speculative-decoding-instinct-commit-length
+trigger: "When writing a commit message"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Instinct Commit Length
+
+## Action
+
+Keep the commit message around 50 characters
+
+## Evidence
+
+- averageLength: 52
+- Pattern in commit examples
+
+---
+id: adaptive-speculative-decoding-instinct-docs-workflow
+trigger: "When someone needs to revise documentation, mark legacy results, or update project/thesis guidance"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Instinct Docs Workflow
+
+## Action
+
+Edit or add documentation files in docs/, papers/, or reports/, update README.MD or CLAUDE.md as needed, and commit changes with a docs: prefix
+
+## Evidence
+
+- Workflow: documentation-and-project-guidance-update
+- Seen in commit: docs: mark legacy results and update project guidance
+
+---
+id: adaptive-speculative-decoding-instinct-core-feature-refactor-workflow
+trigger: "When someone implements a new core feature or refactors core logic, and needs to update or add tests"
+confidence: 0.88
+domain: workflow
+source: repo-analysis
+source_repo: levvius/adaptive-speculative-decoding
+---
+
+# Adaptive Speculative Decoding Instinct Core Feature Refactor Workflow
+
+## Action
+
+Modify or add core implementation files in jointadaspec/ or sp_samp/, update or add corresponding test files in tests/, and commit changes with feat: or refactor: prefix
+
+## Evidence
+
+- Workflow: core-feature-or-refactor-with-tests
+- Seen in commit: feat: add block speculative verification core
+- Seen in commit: refactor: migrate jointadaspec decoders to block verification
+
