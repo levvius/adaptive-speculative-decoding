@@ -278,7 +278,7 @@ JointAdaSpec limitations:
 
 ### JointAdaSpec — primary results (RTX 5090, GSM8K zero-shot CoT)
 
-**Headline result — LOCKED.** Qwen 14B → 0.5B (Run 1 final sprint, 2026-05-14, **500 prompts × 3 seeds = paired n=1500**, McNemar):
+**Status — LEGACY LOCKED.** Qwen 14B → 0.5B (Run 1 final sprint, 2026-05-14, **500 prompts × 3 seeds = paired n=1500**, McNemar). These numbers are preserved as the locked thesis-history artifact, but they are not final block speculative-decoding evidence until the repair plan in `docs/REPAIR_PLAN_REPO_THESIS.md` lands and the experiments are rerun with one target verification pass per draft block:
 
 | Method | EM | tok/s | vs speculative | Paired Δ EM vs target_only | 95% CI | p |
 |---|---:|---:|---:|---:|---:|---:|
@@ -287,7 +287,7 @@ JointAdaSpec limitations:
 | cascade_verif_then_length | 57.13% | 10.29 | 2.11× | +4.20% | [0.87%, 7.67%] | 0.0149 ✓ |
 | **jointadaspec** | **57.00%** | **10.84** | **2.22×** | **+4.07%** | **[0.67%, 7.47%]** | **0.0203 ✓** |
 
-At the locked sample size (n=1500) the **adaptive-control family** (both joint and cascade) significantly beats `target_only` by ~`+4%` EM at `~2.2×` the throughput of vanilla speculative (`p < 0.05`). This is the defensible headline.
+At the locked sample size (n=1500) the **legacy adaptive-control family** (both joint and cascade) significantly beats `target_only` by ~`+4%` EM at `~2.2×` the throughput of vanilla speculative (`p < 0.05`). Treat this as a legacy thesis claim pending the block-SD rerun.
 
 **Honest caveat — joint ties cascade.** Head-to-head paired, `jointadaspec − cascade_verif_then_length = −0.13%`, `p = 0.96`: the two are statistically indistinguishable. The larger `+8.67%` margin and the joint-over-cascade edge seen in the earlier 100-prompt crosscheck (jointadaspec `+8.67%` p=0.0137, cascade `+7.00%`) were small-`n` noise that washed out at power. Reports: `reports/{pareto,ablation,jointadaspec_quality}_qwen14b_0p5b_lock_2026-05-14.*`, `reports/threshold_surface_qwen14b_0p5b_lock_2026-05-14/`.
 
@@ -312,7 +312,7 @@ At `n = 1500` on the 7B/1.5B pair, **neither adaptive method shows a quality gai
 
 Verdict: the early small-`n` positive was noise; on two fresh well-powered windows the joint policy is at/below target. Slice-independent null on 7B/1.5B.
 
-**Theorem E — adaptive control vs FIXED fuzzy threshold (14B/0.5B, n=300, 2026-05-27).** Ablation against `fuzzy_sd` (fixed γ=8, fixed T ∈ {1.0, 1.25, 1.5, 2.0}) — the missing baseline. JointAdaSpec dominates every fixed-T baseline on BOTH dimensions:
+**Experiment E — adaptive control vs FIXED fuzzy threshold (14B/0.5B, n=300, 2026-05-27).** Ablation against `fuzzy_sd` (fixed γ=8, fixed T ∈ {1.0, 1.25, 1.5, 2.0}) — the missing baseline. This is an empirical ablation, not a theorem:
 
 | Method | EM | tok/s | accept | paired vs joint |
 |---|---:|---:|---:|---:|
@@ -322,7 +322,7 @@ Verdict: the early small-`n` positive was noise; on two fresh well-powered windo
 | fuzzy_sd_T=2.0 | 53.33% | 3.06 | 17.4% | joint +4.67%, p=0.243 |
 | **jointadaspec** | **58.00%** | **11.12** | **55.1%** | — |
 
-JointAdaSpec is **+4 to +8% more accurate AND ~3.7× faster** than any fixed-fuzzy-T baseline. Fills the eval gap and shows the adaptive controller is empirically non-trivial vs non-adaptive baselines. Reports: `outputs/jointadaspec_qwen14b_0p5b_fuzzy_ablation_2026-05-25/`, figure `reports/thesis_figs/fig_E_adaptivity_ablation.pdf`.
+Under the legacy implementation, JointAdaSpec is descriptively **+4 to +8% more accurate AND ~3.7× faster** than any fixed-fuzzy-T baseline. Final claims require the block-SD rerun and prompt-level clustered statistics. Reports: `outputs/jointadaspec_qwen14b_0p5b_fuzzy_ablation_2026-05-25/`, figure `reports/thesis_figs/fig_E_adaptivity_ablation.pdf`.
 
 **κ-sweep — joint vs cascade across the Lagrange trade-off knob (7B/1.5B, 6 κ × n=300, 2026-05-26).** For each κ ∈ {0, 1, 5, 20, 50, 100} the joint and cascade policies were re-solved on the May-5 traces and benchmarked on a fixed slice. `tok/s` is essentially flat across κ (16.28–16.55); EM varies non-monotonically (joint 55.7–60.3%, cascade 55.0–61.0%); **joint ≈ cascade at every κ** (≤3% gap throughout). The joint=cascade equivalence is robust to the trade-off knob, not just the default value. (Theorem-2.4 convexity is not cleanly demonstrated at n=300/κ — honestly noted.) Figure `reports/thesis_figs/fig_bonus_kappa_sweep.pdf`.
 
