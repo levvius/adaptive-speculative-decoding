@@ -59,7 +59,7 @@ class MDPConfig:
             raise ValueError("quality_risk_K and quality_risk_k must be non-negative.")
         if self.quality_risk_form not in ("multiplicative", "additive"):
             raise ValueError(
-                "quality_risk_form must be 'multiplicative' (legacy) or 'additive' (Theorem-B-correct)."
+                "quality_risk_form must be 'multiplicative' (legacy) or 'additive' (experimental)."
             )
 
     @classmethod
@@ -110,10 +110,11 @@ def quality_risk_weight(config: MDPConfig, *, i_K: int, k: int) -> float:
 
 
 def quality_risk_penalty(config: MDPConfig, *, i_K: int, k: int) -> float:
-    """State-dependent additive penalty for the Theorem-B-correct reward form.
+    """State-dependent additive penalty kept separate from action terms.
 
-    Defined so that the optimal policy is invariant under the substitution
-    ``r(s,a) -> r(s,a) - λ(s)`` (state-only shift; action argmax preserved).
+    This experimental branch avoids multiplying action-dependent losses by a
+    state-only factor, but a state-only reward shift is not generally
+    policy-invariant in the discounted MDP.
     """
     K_bin_norm = 0.0 if config.N_K <= 1 else float(i_K) / float(config.N_K - 1)
     k_norm = 0.0 if config.gamma_max <= 0 else float(k) / float(config.gamma_max)
