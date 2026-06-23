@@ -31,6 +31,14 @@ from jointadaspec.baselines import (
     VanillaARDecoder,
 )
 from jointadaspec.inference import JointAdaSpecDecoder, JointAdaSpecPolicy
+from jointadaspec.semantics import (
+    ACTION_SPACE_VERSION,
+    BENCHMARK_SCHEMA_VERSION,
+    BLOCK_DECODER_SEMANTICS,
+    TARGET_ONLY_DECODER_SEMANTICS,
+    TARGET_PASS_BATCHED_BLOCK,
+    TARGET_PASS_TARGET_ONLY,
+)
 from jointadaspec.utils.manifest import write_manifest
 from jointadaspec.utils import ExperimentLogger, load_model_pair
 from sp_samp.gsm8k import answers_equivalent, extract_final_answer, extract_reference_answer, load_gsm8k
@@ -438,10 +446,14 @@ def _build_record_base(exp_cfg: DictConfig, *, method: str) -> dict[str, object]
     target_cfg = exp_cfg.model_pairs.target
     draft_cfg = exp_cfg.model_pairs.draft
     k_value = int(exp_cfg.get("fixed_sd_gamma", exp_cfg.get("gamma_max", 0)))
+    target_pass_mode = _target_pass_mode_for_method(method)
+    decoder_semantics = _decoder_semantics_for_method(method)
     return {
-        "schema_version": 3,
+        "schema_version": BENCHMARK_SCHEMA_VERSION,
         "stat_unit": "prompt",
-        "target_pass_mode": "batched_block",
+        "action_space_version": ACTION_SPACE_VERSION,
+        "target_pass_mode": target_pass_mode,
+        "decoder_semantics": decoder_semantics,
         "method": method,
         "backend": "jointadaspec_hf",
         "target_model": _config_model_name(target_cfg),
@@ -474,6 +486,18 @@ def _build_record_base(exp_cfg: DictConfig, *, method: str) -> dict[str, object]
         "branch_prune_threshold": 0.0,
         "eval_task": str(exp_cfg.datasets.name),
     }
+
+
+def _target_pass_mode_for_method(method: str) -> str:
+    if method in {"target_only", "vanilla_ar"}:
+        return TARGET_PASS_TARGET_ONLY
+    return TARGET_PASS_BATCHED_BLOCK
+
+
+def _decoder_semantics_for_method(method: str) -> str:
+    if method in {"target_only", "vanilla_ar"}:
+        return TARGET_ONLY_DECODER_SEMANTICS
+    return BLOCK_DECODER_SEMANTICS
 
 
 def _record_resume_key(exp_cfg: DictConfig, *, method: str, seed: int) -> str:
@@ -770,7 +794,10 @@ def main(cfg: DictConfig) -> None:
                             "prompt_idx": prompt_idx,
                             "prompt_id": prompt_idx,
                             "cluster_id": prompt_idx,
+                            "schema_version": BENCHMARK_SCHEMA_VERSION,
                             "stat_unit": "prompt",
+                            "action_space_version": ACTION_SPACE_VERSION,
+                            "target_pass_mode": _target_pass_mode_for_method(method_name),
                             "n_tokens_generated": result.n_tokens_generated,
                             "acceptance_rate": result.acceptance_rate,
                             "total_time_ms": result.total_time_ms,

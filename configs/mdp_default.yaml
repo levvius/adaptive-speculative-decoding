@@ -7,8 +7,8 @@ gamma_max: 8        # maximum draft window length (k ∈ {0, …, gamma_max})
 N_H: 20             # number of bins along H axis  → |S| = N_H * N_K * (gamma_max+1)
 N_K: 20             # number of bins along K axis
 
-# Action space — verification threshold geometric grid on [1.0, 4.0]
-T_levels:           # |A_verif| = 8 per a_length ∈ {stop, continue}
+# Action space — one continue action plus one verify@T action per threshold.
+T_levels:           # |A| = 1 + len(T_levels); stop is only a legacy input alias.
   - 1.00
   - 1.22
   - 1.49

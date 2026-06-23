@@ -29,6 +29,24 @@ def _bootstrap_ci(values: np.ndarray, *, seed: int, n_resamples: int = 10000) ->
     return float(low), float(high)
 
 
+def _cluster_bootstrap_ci(
+    prompt_values: list[tuple[int, float]],
+    *,
+    seed: int,
+    n_resamples: int = 10000,
+) -> tuple[float, float]:
+    if not prompt_values:
+        return float("nan"), float("nan")
+    clusters: dict[int, list[float]] = {}
+    for prompt_idx, value in prompt_values:
+        clusters.setdefault(int(prompt_idx), []).append(float(value))
+    cluster_means = np.asarray(
+        [float(np.mean(values)) for _, values in sorted(clusters.items())],
+        dtype=np.float64,
+    )
+    return _bootstrap_ci(cluster_means, seed=seed, n_resamples=n_resamples)
+
+
 def _mcnemar_pvalue(wins: int, losses: int) -> float | None:
     total = wins + losses
     if total == 0:
@@ -36,6 +54,26 @@ def _mcnemar_pvalue(wins: int, losses: int) -> float | None:
     if binomtest is None:
         return None
     return float(binomtest(min(wins, losses), total, 0.5).pvalue)
+
+
+def _with_holm_adjustment(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    indexed_pvalues = [
+        (idx, float(row["mcnemar_p"]))
+        for idx, row in enumerate(rows)
+        if row.get("mcnemar_p") is not None
+    ]
+    indexed_pvalues.sort(key=lambda item: item[1])
+    m = len(indexed_pvalues)
+    running_max = 0.0
+    for rank, (idx, pvalue) in enumerate(indexed_pvalues, start=1):
+        adjusted = min(1.0, (m - rank + 1) * pvalue)
+        running_max = max(running_max, adjusted)
+        rows[idx]["holm_p"] = running_max
+        rows[idx]["holm_significant_0p05"] = running_max <= 0.05
+    for row in rows:
+        row.setdefault("holm_p", None)
+        row.setdefault("holm_significant_0p05", False)
+    return rows
 
 
 def _method_summary(frame: pd.DataFrame) -> list[dict[str, object]]:
@@ -73,15 +111,21 @@ def _paired_comparisons(
         if paired.empty:
             continue
         diff = (paired[method] - paired[baseline]).to_numpy(dtype=np.float64)
+        prompt_values = []
+        for (_seed, prompt_idx), row_values in paired.iterrows():
+            prompt_values.append(
+                (int(prompt_idx), float(row_values[method] - row_values[baseline]))
+            )
         wins = int(((paired[method] == 1.0) & (paired[baseline] == 0.0)).sum())
         losses = int(((paired[method] == 0.0) & (paired[baseline] == 1.0)).sum())
         ties = int((paired[method] == paired[baseline]).sum())
-        low, high = _bootstrap_ci(diff, seed=20260508 + len(method))
+        low, high = _cluster_bootstrap_ci(prompt_values, seed=20260508 + len(method))
         rows.append(
             {
                 "method": method,
                 "baseline": baseline,
                 "paired_n": int(len(paired)),
+                "cluster_n": int(len({prompt_idx for _seed, prompt_idx in paired.index})),
                 "mean_diff": float(diff.mean()),
                 "ci_low": low,
                 "ci_high": high,
@@ -91,7 +135,7 @@ def _paired_comparisons(
                 "mcnemar_p": _mcnemar_pvalue(wins, losses),
             }
         )
-    return rows
+    return _with_holm_adjustment(rows)
 
 
 def _fmt_pct(value: object) -> str:
@@ -163,18 +207,21 @@ def write_report(
             "",
             "## Paired EM Comparisons",
             "",
-            "| Method | Baseline | Paired n | EM diff | 95% CI | Wins | Losses | Ties | p-value |",
-            "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+            "| Method | Baseline | Paired n | Clusters | EM diff | Cluster 95% CI | Wins | Losses | Ties | p-value | Holm p |",
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for row in comparisons:
         pvalue = row["mcnemar_p"]
         pvalue_text = "-" if pvalue is None else f"{float(pvalue):.4f}"
+        holm_p = row["holm_p"]
+        holm_text = "-" if holm_p is None else f"{float(holm_p):.4f}"
         lines.append(
-            "| {method} | {baseline} | {paired_n} | {diff} | [{low}, {high}] | {wins} | {losses} | {ties} | {pvalue} |".format(
+            "| {method} | {baseline} | {paired_n} | {cluster_n} | {diff} | [{low}, {high}] | {wins} | {losses} | {ties} | {pvalue} | {holm_p} |".format(
                 method=row["method"],
                 baseline=row["baseline"],
                 paired_n=row["paired_n"],
+                cluster_n=row["cluster_n"],
                 diff=_fmt_pct(row["mean_diff"]),
                 low=_fmt_pct(row["ci_low"]),
                 high=_fmt_pct(row["ci_high"]),
@@ -182,6 +229,7 @@ def write_report(
                 losses=row["losses"],
                 ties=row["ties"],
                 pvalue=pvalue_text,
+                holm_p=holm_text,
             )
         )
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

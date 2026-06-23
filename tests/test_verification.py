@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import torch
 
-from jointadaspec.utils.probs import block_next_token_probs_tensor
+from jointadaspec.utils.probs import block_next_token_probs_tensor, next_token_probs_tensor
 from jointadaspec.core.verification import (
     fuzzy_verification,
     modified_rejection_sampling,
@@ -93,3 +93,42 @@ def test_block_next_token_probs_uses_block_model_api_once() -> None:
     assert len(probs) == 4
     assert model.block_calls == 1
     assert model.next_calls == 0
+
+
+def test_block_next_token_probs_match_sequential_prefixes_with_vocab_truncation() -> None:
+    class ContextModel:
+        vocab_size = 4
+
+        def next_token_probs(self, context_tokens):
+            offset = (sum(context_tokens) + len(context_tokens)) % self.vocab_size
+            raw = torch.arange(1, self.vocab_size + 1, dtype=torch.float32)
+            return torch.roll(raw, shifts=int(offset)).tolist()
+
+        def next_token_probs_block(self, context_tokens, continuation_tokens):
+            return [
+                self.next_token_probs(list(context_tokens) + list(continuation_tokens[:idx]))
+                for idx in range(len(continuation_tokens) + 1)
+            ]
+
+    model = ContextModel()
+    context: list[int] = []
+    continuation = [2, 1, 3]
+    block_probs = block_next_token_probs_tensor(
+        model,
+        context,
+        continuation,
+        vocab_size=3,
+    )
+    sequential_probs = [
+        next_token_probs_tensor(
+            model,
+            context + continuation[:idx],
+            vocab_size=3,
+        )
+        for idx in range(len(continuation) + 1)
+    ]
+
+    assert len(block_probs) == len(continuation) + 1
+    for block, sequential in zip(block_probs, sequential_probs, strict=True):
+        assert block.shape[0] == 3
+        assert torch.allclose(block, sequential)

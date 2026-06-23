@@ -21,7 +21,7 @@ Three new theorems and two strengthened existing claims. Full statements, proofs
 | `jointadaspec/mdp/traces.py` | Trace-stored reward column branches on `quality_risk_form`. |
 | `jointadaspec/inference/policy.py` | Policy metadata serialises `quality_risk_form`. |
 | `jointadaspec/baselines/cascade_common.py` | Cascade metadata serialises `quality_risk_form`. |
-| `tests/test_mdp_solver.py` | Added `test_quality_risk_additive_form_preserves_bellman_shift` and `test_quality_risk_form_validation`. |
+| `tests/test_mdp_solver.py` | Covers additive state-penalty reward computation and `quality_risk_form` validation. |
 
 All 72 tests pass (`make test`). `make check` clean.
 

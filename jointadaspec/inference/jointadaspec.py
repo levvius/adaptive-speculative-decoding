@@ -10,6 +10,7 @@ from jointadaspec.core.features import entropy, kl_divergence
 from jointadaspec.core.sd_base import GenerationResult, SpeculativeDecoder
 from jointadaspec.core.verification import tv_distance_step, verify_draft_chain
 from jointadaspec.inference.policy import JointAdaSpecPolicy
+from jointadaspec.semantics import BLOCK_DECODER_SEMANTICS
 from jointadaspec.utils.probs import (
     block_next_token_probs_tensor,
     common_vocab_size,
@@ -58,6 +59,7 @@ class JointAdaSpecDecoder(SpeculativeDecoder):
 
         started = self._start_timer(self.device)
         while len(generated_ids) < max_new_tokens:
+            remaining = max_new_tokens - len(generated_ids)
             k = len(draft_tokens)
             draft_context = context_tokens + draft_tokens
             q_probs = next_token_probs_tensor(self.draft_model, draft_context, self.common_vocab_n)
@@ -66,6 +68,7 @@ class JointAdaSpecDecoder(SpeculativeDecoder):
             H = entropy(q_probs)
             action_length, threshold = self.policy.get_action(H=H, K=K_prev, k=k)
             must_verify = k >= self.policy.config.gamma_max
+            must_verify = must_verify or (bool(draft_tokens) and k >= remaining)
             should_continue = action_length == "continue" and not must_verify
 
             if should_continue:
@@ -158,5 +161,5 @@ class JointAdaSpecDecoder(SpeculativeDecoder):
             n_tokens_generated=len(generated_ids),
             per_step_metrics=per_step_metrics,
             n_target_verified_positions=n_target_verified_positions,
-            decoder_semantics="block_sd_v2",
+            decoder_semantics=BLOCK_DECODER_SEMANTICS,
         )

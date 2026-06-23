@@ -16,7 +16,8 @@ def pretty_method_name(method: str) -> str:
         "speculative": "speculative",
         "specdecpp": "adaptive_length",
         "adaptive_length": "adaptive_length",
-        "cascade_length_then_verif": "cascade_len_then_verif",
+        "cascade_len_then_verif": "cascade_length_then_verif",
+        "cascade_length_then_verif": "cascade_length_then_verif",
         "cascade_verif_then_length": "cascade_verif_then_length",
     }
     return mapping.get(method, method)
@@ -150,6 +151,11 @@ def load_summary_rows(paths: list[Path], manifest_path: Path | None = None) -> l
         if summary_records:
             for record in summary_records:
                 dataset_name = infer_dataset_name(record, path)
+                em_ci_low = record.get("gsm8k_exact_match_cluster_ci_low")
+                em_ci_high = record.get("gsm8k_exact_match_cluster_ci_high")
+                if em_ci_low is None or em_ci_high is None:
+                    em_ci_low = record.get("gsm8k_exact_match_ci_low")
+                    em_ci_high = record.get("gsm8k_exact_match_ci_high")
                 rows.append(
                     {
                         "dataset_name": dataset_name,
@@ -161,8 +167,10 @@ def load_summary_rows(paths: list[Path], manifest_path: Path | None = None) -> l
                         "acceptance_rate_ci_low": record.get("acceptance_rate_ci_low"),
                         "acceptance_rate_ci_high": record.get("acceptance_rate_ci_high"),
                         "gsm8k_exact_match": record.get("gsm8k_exact_match"),
-                        "gsm8k_exact_match_ci_low": record.get("gsm8k_exact_match_ci_low"),
-                        "gsm8k_exact_match_ci_high": record.get("gsm8k_exact_match_ci_high"),
+                        "gsm8k_exact_match_ci_low": em_ci_low,
+                        "gsm8k_exact_match_ci_high": em_ci_high,
+                        "gsm8k_exact_match_cluster_ci_low": record.get("gsm8k_exact_match_cluster_ci_low"),
+                        "gsm8k_exact_match_cluster_ci_high": record.get("gsm8k_exact_match_cluster_ci_high"),
                         "source_path": str(path),
                         "manifest_path": None if manifest_path is None else str(manifest_path),
                     }

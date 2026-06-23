@@ -9,6 +9,11 @@ from typing import Any
 import numpy as np
 
 from jointadaspec.mdp.spaces import ActionSpace, MDPConfig, StateSpace
+from jointadaspec.semantics import (
+    mdp_config_hash,
+    require_semantic_metadata,
+    semantic_metadata,
+)
 
 
 class JointAdaSpecPolicy:
@@ -30,32 +35,22 @@ class JointAdaSpecPolicy:
             raise ValueError(
                 f"Expected pi_star shape {(config.num_states,)}, got {self.pi_star.shape}."
             )
+        if self.pi_star.size and (
+            int(self.pi_star.min()) < 0 or int(self.pi_star.max()) >= config.num_actions
+        ):
+            raise ValueError(
+                "pi_star contains action indices outside the configured action space."
+            )
         self.V_star = None if V_star is None else np.asarray(V_star, dtype=np.float64)
         self.Q_star = None if Q_star is None else np.asarray(Q_star, dtype=np.float64)
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        metadata = {
-            "config": {
-                "H_max": self.config.H_max,
-                "K_max": self.config.K_max,
-                "gamma_max": self.config.gamma_max,
-                "N_H": self.config.N_H,
-                "N_K": self.config.N_K,
-                "T_levels": list(self.config.T_levels),
-                "lambda_discount": self.config.lambda_discount,
-                "epsilon_convergence": self.config.epsilon_convergence,
-                "max_vi_iterations": self.config.max_vi_iterations,
-                "kappa": self.config.kappa,
-                "alpha_smooth": self.config.alpha_smooth,
-                "nu_min": self.config.nu_min,
-                "c_time": self.config.c_time,
-                "K_init": self.config.K_init,
-                "quality_risk_K": self.config.quality_risk_K,
-                "quality_risk_k": self.config.quality_risk_k,
-                "quality_risk_form": self.config.quality_risk_form,
-            }
-        }
+        metadata = semantic_metadata(
+            config=self.config,
+            policy_kind="jointadaspec",
+            num_actions=self.action_space.num_actions,
+        )
         payload: dict[str, Any] = {
             "pi_star": self.pi_star,
             "metadata_json": np.array(json.dumps(metadata), dtype=np.str_),
@@ -69,8 +64,21 @@ class JointAdaSpecPolicy:
     @classmethod
     def load(cls, path: Path) -> "JointAdaSpecPolicy":
         payload = np.load(path, allow_pickle=False)
-        metadata = json.loads(str(payload["metadata_json"].item()))
+        try:
+            metadata = json.loads(str(payload["metadata_json"].item()))
+        except KeyError as exc:
+            raise ValueError(
+                f"{path} is missing metadata_json. Regenerate the policy with "
+                "action_space_version=2 and decoder_semantics=block_verify_v1."
+            ) from exc
         config = MDPConfig.from_mapping(metadata["config"])
+        require_semantic_metadata(
+            metadata,
+            artifact_label=str(path),
+            expected_policy_kind="jointadaspec",
+            expected_num_actions=ActionSpace(config).num_actions,
+            expected_config_hash=mdp_config_hash(config),
+        )
         V_star = payload["V_star"] if "V_star" in payload else None
         Q_star = payload["Q_star"] if "Q_star" in payload else None
         return cls(config=config, pi_star=payload["pi_star"], V_star=V_star, Q_star=Q_star)

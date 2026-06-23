@@ -7,6 +7,7 @@ from typing import Any
 import torch
 
 from jointadaspec.core.sd_base import GenerationResult, SpeculativeDecoder
+from jointadaspec.semantics import TARGET_ONLY_DECODER_SEMANTICS
 from jointadaspec.utils.probs import next_token_probs_tensor
 
 
@@ -43,4 +44,5 @@ class VanillaARDecoder(SpeculativeDecoder):
             n_draft_calls=0,
             n_tokens_generated=len(generated_ids),
             per_step_metrics=[],
+            decoder_semantics=TARGET_ONLY_DECODER_SEMANTICS,
         )

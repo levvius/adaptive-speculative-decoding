@@ -48,7 +48,7 @@ CONFIGS = {
 
 
 def _c4_violation_mask(rewards: np.ndarray, cfg) -> np.ndarray:
-    """State is in B if any threshold-pair supermodularity delta is negative."""
+    """State is in B if verify reward decreases for any adjacent threshold pair."""
     aspace, sspace = ActionSpace(cfg), StateSpace(cfg)
     viol = np.zeros(cfg.num_states, dtype=bool)
     for s in range(cfg.num_states):
@@ -56,12 +56,7 @@ def _c4_violation_mask(rewards: np.ndarray, cfg) -> np.ndarray:
         if k >= cfg.gamma_max:
             continue
         for lo, hi in zip(cfg.T_levels[:-1], cfg.T_levels[1:]):
-            d = (
-                rewards[s, aspace.encode("continue", hi)]
-                - rewards[s, aspace.encode("continue", lo)]
-                - rewards[s, aspace.encode("stop", hi)]
-                + rewards[s, aspace.encode("stop", lo)]
-            )
+            d = rewards[s, aspace.encode("verify", hi)] - rewards[s, aspace.encode("verify", lo)]
             if d < -1e-9:
                 viol[s] = True
                 break

@@ -9,6 +9,8 @@ from typing import Any
 
 import torch
 
+from jointadaspec.semantics import BLOCK_DECODER_SEMANTICS
+
 
 @dataclass
 class GenerationResult:
@@ -38,7 +40,7 @@ class GenerationResult:
     n_target_verified_positions: int = 0
     """Number of target positions scored inside speculative verification blocks."""
 
-    decoder_semantics: str = "legacy_token_step"
+    decoder_semantics: str = BLOCK_DECODER_SEMANTICS
     """Semantic contract used by the decoder implementation."""
 
 

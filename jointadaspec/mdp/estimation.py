@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
+from pathlib import Path
 from typing import Iterable
 
 import numpy as np
@@ -16,6 +18,11 @@ from jointadaspec.mdp.spaces import (
     StateSpace,
     quality_risk_penalty,
     quality_risk_weight,
+)
+from jointadaspec.semantics import (
+    mdp_config_hash,
+    require_semantic_metadata,
+    trace_metadata_path,
 )
 
 
@@ -76,13 +83,41 @@ def estimate_mdp_parameters(traces_path: str | bytes | "os.PathLike[str]", confi
     """Estimate sparse transitions and rewards from trace Parquet."""
     state_space = StateSpace(config)
     action_space = ActionSpace(config)
+    meta_path = trace_metadata_path(Path(traces_path))
+    if not meta_path.exists():
+        raise ValueError(
+            f"Trace metadata sidecar not found: {meta_path}. Regenerate traces with "
+            "action_space_version=2 and decoder_semantics=block_verify_v1."
+        )
+    metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    require_semantic_metadata(
+        metadata,
+        artifact_label=str(meta_path),
+        expected_num_actions=action_space.num_actions,
+        expected_config_hash=mdp_config_hash(config),
+    )
     frame = pd.read_parquet(traces_path)
 
     if frame.empty:
         raise ValueError("Trace table is empty.")
+    expected_records = metadata.get("num_records")
+    if expected_records is not None and int(expected_records) != int(len(frame)):
+        raise ValueError(
+            f"Trace metadata num_records={expected_records} does not match parquet rows={len(frame)}."
+        )
 
     S = config.num_states
     A = config.num_actions
+    required_columns = {"state_idx", "action_idx", "next_state_idx", "step_time_ms", "d_step"}
+    missing_columns = sorted(required_columns - set(frame.columns))
+    if missing_columns:
+        raise ValueError(f"Trace table missing required columns: {', '.join(missing_columns)}")
+    if int(frame["state_idx"].min()) < 0 or int(frame["state_idx"].max()) >= S:
+        raise ValueError(f"Trace state_idx values are outside [0, {S}).")
+    if int(frame["next_state_idx"].min()) < 0 or int(frame["next_state_idx"].max()) >= S:
+        raise ValueError(f"Trace next_state_idx values are outside [0, {S}).")
+    if int(frame["action_idx"].min()) < 0 or int(frame["action_idx"].max()) >= A:
+        raise ValueError(f"Trace action_idx values are outside [0, {A}).")
     additive_form = config.quality_risk_form == "additive"
     risk_weights = np.ones(S, dtype=np.float64)
     state_penalties = np.zeros(S, dtype=np.float64)

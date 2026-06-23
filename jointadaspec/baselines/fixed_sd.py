@@ -9,6 +9,7 @@ import torch
 from jointadaspec.core.features import entropy, kl_divergence
 from jointadaspec.core.sd_base import GenerationResult, SpeculativeDecoder
 from jointadaspec.core.verification import verify_draft_chain
+from jointadaspec.semantics import BLOCK_DECODER_SEMANTICS
 from jointadaspec.utils.probs import (
     block_next_token_probs_tensor,
     common_vocab_size,
@@ -85,7 +86,7 @@ def _generate_windowed_sd(
                     "H": 0.0,
                     "K": 0.0,
                     "k": 0,
-                    "action_length": "stop",
+                    "action_length": "verify",
                     "threshold": threshold,
                     "accepted": False,
                 }
@@ -133,7 +134,7 @@ def _generate_windowed_sd(
                     n_tokens_generated=len(generated_ids),
                     per_step_metrics=per_step_metrics,
                     n_target_verified_positions=n_target_verified_positions,
-                    decoder_semantics="block_sd_v2",
+                    decoder_semantics=BLOCK_DECODER_SEMANTICS,
                 )
 
         if len(generated_ids) < max_new_tokens:
@@ -152,7 +153,7 @@ def _generate_windowed_sd(
         n_tokens_generated=len(generated_ids),
         per_step_metrics=per_step_metrics,
         n_target_verified_positions=n_target_verified_positions,
-        decoder_semantics="block_sd_v2",
+        decoder_semantics=BLOCK_DECODER_SEMANTICS,
     )
 
 

@@ -248,6 +248,12 @@ def _compute_c3(rewards: np.ndarray, config: MDPConfig) -> dict[str, Any]:
 
 
 def _compute_c4(rewards: np.ndarray, config: MDPConfig) -> dict[str, Any]:
+    """Verify-threshold reward monotonicity for action-space v2.
+
+    The repaired action space has one threshold-free ``continue`` action and
+    one ``verify@T`` action per threshold, so C4 no longer forms boxes over a
+    length axis. It checks that raising T does not reduce verify reward.
+    """
     action_space = ActionSpace(config)
     state_space = StateSpace(config)
     nonnegative = 0
@@ -269,6 +275,7 @@ def _compute_c4(rewards: np.ndarray, config: MDPConfig) -> dict[str, Any]:
         "fraction_nonnegative": fraction,
         "target": 0.9,
         "boxes": int(total),
+        "criterion": "verify@T reward is nondecreasing over adjacent T levels",
     }
 
 
@@ -431,8 +438,8 @@ def _write_plots(
         out_path=out_dir / "c3_supermod_fractions.png",
     )
     _plot_fraction_bars(
-        {"joint_length_x_threshold": c4_report["fraction_nonnegative"]},
-        title="C4 supermodularity fractions",
+        {"verify_threshold_monotonicity": c4_report["fraction_nonnegative"]},
+        title="C4 verify-threshold monotonicity",
         out_path=out_dir / "c4_supermod_fractions.png",
     )
     _plot_n1_heatmap(diff_union=diff_union, config=config, out_path=out_dir / "n1_divergence_heatmap.png")

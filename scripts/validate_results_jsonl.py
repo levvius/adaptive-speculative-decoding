@@ -6,6 +6,21 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from jointadaspec.semantics import (
+    ACTION_SPACE_VERSION,
+    BENCHMARK_SCHEMA_VERSION,
+    BLOCK_DECODER_SEMANTICS,
+    TARGET_ONLY_DECODER_SEMANTICS,
+    TARGET_PASS_BATCHED_BLOCK,
+    TARGET_PASS_LEGACY_SEQUENTIAL,
+    TARGET_PASS_SEQUENTIAL_FALLBACK,
+    TARGET_PASS_TARGET_ONLY,
+)
+
 
 METHODS = {
     "baseline",
@@ -54,8 +69,10 @@ BASE_FIELDS = {
 
 OPTIONAL_BASE_FIELDS = {
     "schema_version",
+    "action_space_version",
     "stat_unit",
     "target_pass_mode",
+    "decoder_semantics",
     "seed",
     "test_start_index",
     "draft2_model",
@@ -91,6 +108,19 @@ OPTIONAL_BASE_FIELDS = {
     "consensus_disable_escalation",
     "consensus_val_accuracy",
     "consensus_val_macro_f1",
+}
+
+TARGET_PASS_MODES = {
+    TARGET_PASS_TARGET_ONLY,
+    TARGET_PASS_BATCHED_BLOCK,
+    TARGET_PASS_SEQUENTIAL_FALLBACK,
+    TARGET_PASS_LEGACY_SEQUENTIAL,
+}
+
+DECODER_SEMANTICS = {
+    BLOCK_DECODER_SEMANTICS,
+    TARGET_ONLY_DECODER_SEMANTICS,
+    TARGET_PASS_LEGACY_SEQUENTIAL,
 }
 
 LEGACY_PROMPT_FIELDS = {
@@ -368,6 +398,9 @@ def _validate_legacy_prompt_record(
     _check_type(record, "n_draft_calls", "number", errors, ctx)
     _check_type(record, "n_target_verified_positions", "number", errors, ctx)
     _check_type(record, "decoder_semantics", "string", errors, ctx)
+    _check_type(record, "schema_version", "number", errors, ctx)
+    _check_type(record, "action_space_version", "number", errors, ctx)
+    _check_type(record, "target_pass_mode", "string", errors, ctx)
     _check_type(record, "run", "number", errors, ctx)
     _check_type(record, "seed", "number", errors, ctx)
     _check_type(record, "git_commit_hash", "string", errors, ctx, allow_none=True)
@@ -409,6 +442,41 @@ def _validate_record(
     _check_type(record, "max_samples", "number", errors, ctx)
     _check_type(record, "turn_index", "number", errors, ctx)
 
+    schema_version = record.get("schema_version")
+    if schema_version is not None:
+        _check_type(record, "schema_version", "number", errors, ctx)
+        if isinstance(schema_version, (int, float)) and int(schema_version) != BENCHMARK_SCHEMA_VERSION:
+            errors.append(
+                f"{ctx}: unsupported schema_version '{schema_version}', expected {BENCHMARK_SCHEMA_VERSION}."
+            )
+    if schema_version == BENCHMARK_SCHEMA_VERSION:
+        required_semantic_fields = {
+            "action_space_version",
+            "stat_unit",
+            "target_pass_mode",
+            "decoder_semantics",
+        }
+        _require_keys(record, required_semantic_fields, errors, ctx)
+        _check_type(record, "action_space_version", "number", errors, ctx)
+        _check_type(record, "stat_unit", "string", errors, ctx)
+        _check_type(record, "target_pass_mode", "string", errors, ctx)
+        _check_type(record, "decoder_semantics", "string", errors, ctx)
+        action_space_version = record.get("action_space_version")
+        if not isinstance(action_space_version, (int, float)) or int(action_space_version) != ACTION_SPACE_VERSION:
+            errors.append(
+                f"{ctx}: action_space_version must be {ACTION_SPACE_VERSION} for schema v3 records."
+            )
+        if record.get("stat_unit") != "prompt":
+            errors.append(f"{ctx}: stat_unit must be 'prompt' for schema v3 records.")
+        if record.get("target_pass_mode") not in TARGET_PASS_MODES:
+            errors.append(
+                f"{ctx}: unsupported target_pass_mode '{record.get('target_pass_mode')}'."
+            )
+        if record.get("decoder_semantics") not in DECODER_SEMANTICS:
+            errors.append(
+                f"{ctx}: unsupported decoder_semantics '{record.get('decoder_semantics')}'."
+            )
+
     status = record.get("status")
     if status not in STATUSES:
         errors.append(f"{ctx}: unsupported status '{status}'.")
@@ -416,6 +484,20 @@ def _validate_record(
     method = record.get("method")
     if not _supports_method(method):
         errors.append(f"{ctx}: unsupported method '{method}'.")
+    if schema_version == BENCHMARK_SCHEMA_VERSION and record.get("backend") == "jointadaspec_hf":
+        is_target_only = method in {"target_only", "vanilla_ar"}
+        expected_pass_mode = TARGET_PASS_TARGET_ONLY if is_target_only else TARGET_PASS_BATCHED_BLOCK
+        expected_semantics = (
+            TARGET_ONLY_DECODER_SEMANTICS if is_target_only else BLOCK_DECODER_SEMANTICS
+        )
+        if record.get("target_pass_mode") != expected_pass_mode:
+            errors.append(
+                f"{ctx}: method '{method}' must use target_pass_mode={expected_pass_mode!r}."
+            )
+        if record.get("decoder_semantics") != expected_semantics:
+            errors.append(
+                f"{ctx}: method '{method}' must use decoder_semantics={expected_semantics!r}."
+            )
 
     for key in SYSTEM_FIELDS:
         if key in record:
@@ -468,6 +550,7 @@ def _validate_record(
             _check_type(record, key, "string", errors, ctx, allow_none=True)
         elif key in {
             "schema_version",
+            "action_space_version",
             "seed",
             "test_start_index",
             "autojudge_threshold_used",

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from datetime import UTC, datetime
 import json
 from pathlib import Path
@@ -23,6 +22,7 @@ from jointadaspec.mdp.spaces import (
     quality_risk_penalty,
     quality_risk_weight,
 )
+from jointadaspec.semantics import TRACE_SCHEMA_VERSION, semantic_metadata
 from jointadaspec.utils.probs import (
     block_next_token_probs_tensor,
     common_vocab_size,
@@ -280,13 +280,20 @@ def collect_traces(
 
     pd.DataFrame.from_records(records).to_parquet(output_path, index=False)
 
-    meta = {
-        "created_at": datetime.now(UTC).isoformat(),
-        "git_commit": _git_commit_or_none(),
-        "n_traces": n_traces,
-        "num_records": len(records),
-        "config": asdict(config),
-    }
+    meta = semantic_metadata(
+        config=config,
+        num_actions=action_space.num_actions,
+    )
+    meta.update(
+        {
+            "created_at": datetime.now(UTC).isoformat(),
+            "git_commit": _git_commit_or_none(),
+            "trace_schema_version": TRACE_SCHEMA_VERSION,
+            "n_traces": n_traces,
+            "num_records": len(records),
+            "artifact_kind": "traces",
+        }
+    )
     meta_path = output_path.with_name(f"{output_path.stem}_meta.json")
     meta_path.write_text(json.dumps(meta, indent=2, sort_keys=True), encoding="utf-8")
     return output_path

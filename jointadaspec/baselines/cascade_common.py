@@ -9,28 +9,11 @@ from typing import Any
 import numpy as np
 
 from jointadaspec.mdp.spaces import ActionSpace, MDPConfig, StateSpace
-
-
-def _config_payload(config: MDPConfig) -> dict[str, Any]:
-    return {
-        "H_max": config.H_max,
-        "K_max": config.K_max,
-        "gamma_max": config.gamma_max,
-        "N_H": config.N_H,
-        "N_K": config.N_K,
-        "T_levels": list(config.T_levels),
-        "lambda_discount": config.lambda_discount,
-        "epsilon_convergence": config.epsilon_convergence,
-        "max_vi_iterations": config.max_vi_iterations,
-        "kappa": config.kappa,
-        "alpha_smooth": config.alpha_smooth,
-        "nu_min": config.nu_min,
-        "c_time": config.c_time,
-        "K_init": config.K_init,
-        "quality_risk_K": config.quality_risk_K,
-        "quality_risk_k": config.quality_risk_k,
-        "quality_risk_form": config.quality_risk_form,
-    }
+from jointadaspec.semantics import (
+    mdp_config_hash,
+    require_semantic_metadata,
+    semantic_metadata,
+)
 
 
 class CascadePolicy:
@@ -66,6 +49,12 @@ class CascadePolicy:
         }.items():
             if value.shape != expected:
                 raise ValueError(f"Expected {name} shape {expected}, got {value.shape}.")
+            if value.size and (
+                int(value.min()) < 0 or int(value.max()) >= config.num_actions
+            ):
+                raise ValueError(
+                    f"{name} contains action indices outside the configured action space."
+                )
         self.V_star = None if V_star is None else np.asarray(V_star, dtype=np.float64)
 
     def get_action(self, H: float, K: float, k: int) -> tuple[str, float]:
@@ -75,11 +64,12 @@ class CascadePolicy:
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        metadata = {
-            "policy_kind": "cascade",
-            "cascade_order": self.cascade_order,
-            "config": _config_payload(self.config),
-        }
+        metadata = semantic_metadata(
+            config=self.config,
+            policy_kind="cascade",
+            num_actions=self.action_space.num_actions,
+        )
+        metadata["cascade_order"] = self.cascade_order
         payload: dict[str, Any] = {
             "pi_star": self.pi_star,
             "length_policy": self.length_policy,
@@ -93,8 +83,21 @@ class CascadePolicy:
     @classmethod
     def load(cls, path: Path) -> "CascadePolicy":
         payload = np.load(path, allow_pickle=False)
-        metadata = json.loads(str(payload["metadata_json"].item()))
+        try:
+            metadata = json.loads(str(payload["metadata_json"].item()))
+        except KeyError as exc:
+            raise ValueError(
+                f"{path} is missing metadata_json. Regenerate the cascade policy with "
+                "action_space_version=2 and decoder_semantics=block_verify_v1."
+            ) from exc
         config = MDPConfig.from_mapping(metadata["config"])
+        require_semantic_metadata(
+            metadata,
+            artifact_label=str(path),
+            expected_policy_kind="cascade",
+            expected_num_actions=ActionSpace(config).num_actions,
+            expected_config_hash=mdp_config_hash(config),
+        )
         V_star = payload["V_star"] if "V_star" in payload else None
         return cls(
             config=config,

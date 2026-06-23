@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from scipy import sparse
 
 from jointadaspec.baselines import (
@@ -105,3 +106,18 @@ def test_cascade_policy_roundtrip_preserves_quality_risk_fields(tmp_path) -> Non
 
     assert loaded.config.quality_risk_K == 0.5
     assert loaded.config.quality_risk_k == 0.25
+
+
+def test_cascade_policy_loader_rejects_legacy_npz_without_semantic_metadata(tmp_path) -> None:
+    config = MDPConfig(N_H=1, N_K=1, gamma_max=1, T_levels=(1.0,))
+    pi_star = np.zeros(config.num_states, dtype=np.int32)
+    path = tmp_path / "legacy_cascade.npz"
+    np.savez_compressed(
+        path,
+        pi_star=pi_star,
+        length_policy=pi_star,
+        verif_policy=pi_star,
+    )
+
+    with pytest.raises(ValueError, match="metadata_json"):
+        CascadePolicy.load(path)

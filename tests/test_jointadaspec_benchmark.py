@@ -6,6 +6,12 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
+from jointadaspec.semantics import (
+    BLOCK_DECODER_SEMANTICS,
+    TARGET_ONLY_DECODER_SEMANTICS,
+    TARGET_PASS_BATCHED_BLOCK,
+    TARGET_PASS_TARGET_ONLY,
+)
 from sp_samp.gsm8k import GSM8KSample
 
 
@@ -75,3 +81,31 @@ def test_load_eval_samples_default_start_index_is_zero(monkeypatch) -> None:
 
     assert len(samples) == 3
     assert "question 0" in samples[0].prompt
+
+
+def test_record_base_uses_per_method_target_pass_metadata() -> None:
+    module = _load_benchmark_module()
+    cfg = OmegaConf.create(
+        {
+            "model_pairs": {
+                "target": {"hf_model": "target", "tokenizer": "tok", "device": "cpu"},
+                "draft": {"hf_model": "draft", "tokenizer": "tok", "device": "cpu"},
+            },
+            "datasets": {
+                "name": "gsm8k",
+                "path": "dataset.jsonl",
+                "max_new_tokens": 8,
+                "test_max_samples": 2,
+            },
+            "fixed_sd_gamma": 4,
+            "gamma_max": 4,
+        }
+    )
+
+    target_only = module._build_record_base(cfg, method="target_only")
+    joint = module._build_record_base(cfg, method="jointadaspec")
+
+    assert target_only["target_pass_mode"] == TARGET_PASS_TARGET_ONLY
+    assert target_only["decoder_semantics"] == TARGET_ONLY_DECODER_SEMANTICS
+    assert joint["target_pass_mode"] == TARGET_PASS_BATCHED_BLOCK
+    assert joint["decoder_semantics"] == BLOCK_DECODER_SEMANTICS

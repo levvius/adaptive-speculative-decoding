@@ -1,11 +1,11 @@
 # JointAdaSpec — Theory Improvements (2026-05-15)
 
-This document presents three new theorems strengthening the JointAdaSpec thesis and reframes two existing claims (Theorems 2.3, 2.4) with empirical grounding. All results refer to the tabular MDP defined in `jointadaspec/mdp/spaces.py` with discount γ = 0.99, |S| = N_H · N_K · (γ_max+1) = 3,600 states, |A| = 2 · |T_levels| = 16 actions.
+This document presents three new theorems strengthening the JointAdaSpec thesis and reframes two existing claims (Theorems 2.3, 2.4) with empirical grounding. All results refer to the tabular MDP defined in `jointadaspec/mdp/spaces.py` with discount γ = 0.99, |S| = N_H · N_K · (γ_max+1) = 3,600 states, |A| = 1 + |T_levels| = 9 actions.
 
 ## Notation
 
 - `s = (i_H, i_K, k) ∈ S`: discretised state (entropy bin, KL bin, accepted-streak length).
-- `a = (a_length, T) ∈ A`: joint action over draft-length decision and fuzzy-verification threshold.
+- `a ∈ {continue} ∪ {verify@T : T ∈ T_levels}`: continue drafting or verify the accumulated block at threshold `T`.
 - `r(s, a) = accepted(s,a) − c_time · t(s,a) − κ · d_step(s,a) [− λ(s)]`: scalar reward (penalty term `λ(s)` optional, see Theorem B).
 - `P(s' | s, a)`: true transition kernel. `\hat P` denotes the Laplace-smoothed empirical estimate from traces.
 - `V^π(s) = E_π[ Σ_t γ^t r(s_t, a_t) | s_0 = s ]`: discounted value of policy π.
@@ -29,7 +29,7 @@ $$\|\hat V - V^\star\|_\infty \;\leq\; \frac{2 R_{\max}}{(1-\gamma)^2} \sqrt{\fr
 
 Combine. □
 
-**Implication.** With our configuration (α = 1, γ = 0.99, |S| = 3,600, |A| = 16, R_max ≈ 2, n_min = ν_min = 5), the bound evaluates to roughly `O(R_max / (1-γ)^2 · \sqrt{(\log |S||A|/δ)/n_min}) + O(α|S|R_max / (1-γ) n_min)`. The bound is loose but non-vacuous: it formally establishes that the empirical optimal value converges to the true optimal value at rate `1/\sqrt{n_min}` plus a smoothing-bias term that decays like `α/n_min`. **The thesis can now state a sample-complexity guarantee for the trace-based MDP estimation pipeline, which previously was left as an unstated assumption.**
+**Implication.** With our configuration (α = 1, γ = 0.99, |S| = 3,600, |A| = 9, R_max ≈ 2, n_min = ν_min = 5), the bound evaluates to roughly `O(R_max / (1-γ)^2 · \sqrt{(\log |S||A|/δ)/n_min}) + O(α|S|R_max / (1-γ) n_min)`. The bound is loose but non-vacuous: it formally establishes that the empirical optimal value converges to the true optimal value at rate `1/\sqrt{n_min}` plus a smoothing-bias term that decays like `α/n_min`. **The thesis can now state a sample-complexity guarantee for the trace-based MDP estimation pipeline, which previously was left as an unstated assumption.**
 
 **Verification path.** Theorem A is a *standard* tabular-MDP result; no code change is required. It is included to formalise what the pipeline already does. The bound's tightness improves quadratically in `1-γ` if a smaller γ is acceptable (γ = 0.9 would tighten the bound by ~100×).
 
@@ -125,11 +125,11 @@ This is still loose at the absolute scale but **bounds the cascade suboptimality
 | `jointadaspec/mdp/spaces.py` | Added `quality_risk_form` field to `MDPConfig`; added `quality_risk_penalty(...)` helper. | Experimental reward-shaping parameterisation. |
 | `jointadaspec/mdp/estimation.py` | Branches reward computation on `quality_risk_form`. | Keeps legacy and shaped rewards explicit. |
 | `jointadaspec/mdp/traces.py` | Branches reward column on `quality_risk_form`. | Consistent with estimation. |
-| `jointadaspec/inference/policy.py` | Serialises `quality_risk_form` in policy metadata. | Round-trip consistency. |
-| `jointadaspec/baselines/cascade_common.py` | Serialises `quality_risk_form` in cascade metadata. | Round-trip consistency. |
-| `tests/test_mdp_solver.py` | Added `test_quality_risk_additive_form_preserves_bellman_shift`, `test_quality_risk_form_validation`. | Coverage. |
+| `jointadaspec/inference/policy.py` | Serialises `quality_risk_form`, `action_space_version`, and `decoder_semantics` in policy metadata. | Rejects legacy policies after the block-verification repair. |
+| `jointadaspec/baselines/cascade_common.py` | Serialises the same semantic metadata for cascade policies. | Prevents mixing cascade artifacts across action-space versions. |
+| `tests/test_mdp_solver.py` | Covers additive state-penalty reward computation and `quality_risk_form` validation. | Coverage. |
 
-Default value is `quality_risk_form="multiplicative"` to preserve backward compatibility with all existing policies (14B/0.5B 2026-04-28 anchor, 7B/1.5B 2026-05-05 primary). New experiments will opt in to `additive`.
+Default value is `quality_risk_form="multiplicative"` to preserve the reward branch. Existing pre-repair policies are now treated as legacy artifacts and must be regenerated with `action_space_version=2` before use.
 
 ## Summary of Empirical Predictions
 
