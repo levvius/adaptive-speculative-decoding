@@ -7,7 +7,7 @@ This addendum extends `reports/dissertation_review_2026-05-05.md`. It records th
 Three new theorems and two strengthened existing claims. Full statements, proofs, and empirical predictions live in `reports/theory_improvements_2026-05-15.md`.
 
 - **Theorem A — Robust VI under observational bias.** Tabular sample-complexity bound on `\|\hat V - V^\star\|_\infty` with Hoeffding concentration + Laplace-prior bias. Formalises what the trace-based pipeline already does. Non-vacuous at our `n_min = 5`. No code change required.
-- **Theorem B — Additive quality-risk preserves optimality.** State-only additive penalty `λ(s)` is Bellman-invariant; only action-coupled forms shape policy. Replaces the multiplicative `1 + q_K · K_norm + q_k · k_norm` weight (which broke Bellman linearity). Code change applied to `jointadaspec/mdp/spaces.py`, `mdp/estimation.py`, `mdp/traces.py`. Backward-compatible via `quality_risk_form` flag (default `multiplicative`).
+- **Theorem B — corrected reward shaping.** The earlier state-only additive invariance claim is invalid in a general MDP. Use potential-based shaping for policy invariance, or action-coupled penalties when policy shaping is intended. The `quality_risk_form` flag remains an experimental reward option, not an invariance proof.
 - **Theorem C — Threshold-monotonicity relaxation (C4 bound).** Cascade suboptimality `≤ 2 R_max · μ^\star_J(B) / (1 − γ)` where `B` is the C4-violating subset. Reframes C4 failure (3.45% pass rate) as a *quantitatively bounded relaxation* rather than a categorical violation. Empirically consistent with observed +1.7% to +4.3% joint-vs-cascade EM advantage.
 - **Theorem 2.3 (Joint–Cascade Dominance) — grounded empirically.** Strict dominance now backed by N1 (`8.69%` of states diverge; `μ(divergence) = 0.20`) + observed EM advantage on 14B/0.5B.
 - **Theorem 2.4 (Pareto Scalarization) — empirical complement.** κ-sweep on existing traces produces empirical Pareto front in (EM, tok/s) space; verifies convexity hypothesis without GPU.
@@ -45,7 +45,7 @@ The complementary cascade result on held-out is `−2.37% EM` (significant at p=
 
 Per Theorem B, the multiplicative form is theoretically unjustified. Two responses:
 1. **For thesis presentation:** the existing anchor results (multiplicative form) are *consistent estimators* — the value-iteration fixed point exists empirically (`solve_log.json` shows convergence on both). They just lack a contraction-based convergence proof. Treat as heuristic shaping; report results honestly.
-2. **For future work:** repeat with `quality_risk_form='additive'` to verify policy-level equivalence (Theorem B predicts the deployed policy under state-only additive penalties equals the unshaped one; multiplicative-form anchor results stand as separate heuristic data).
+2. **For future work:** repeat with explicit potential-based or action-coupled reward shaping; do not claim state-only additive penalties are policy-equivalent without extra transition assumptions.
 
 ## Action items consumed in this sprint
 

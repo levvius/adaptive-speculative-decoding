@@ -8,7 +8,17 @@ Implementation and benchmark of **joint adaptive control over draft length and v
 threshold** for speculative LLM decoding, formalised as a tabular MDP. Companion code for the
 master's thesis (магистерская диссертация) *JointAdaSpec* (Kozin A. A., 2026).
 
-## Headline result
+## Current status
+
+This repository is in a repair pass after a thesis/code audit found that the
+current JointAdaSpec benchmark path does not yet implement the advertised block
+speculative-decoding verification semantics end to end. The historical numbers
+below are preserved for traceability, but they are **legacy results** until the
+block-verification implementation is landed and the experiments are rerun.
+
+Repair plan: [`docs/REPAIR_PLAN_REPO_THESIS.md`](docs/REPAIR_PLAN_REPO_THESIS.md).
+
+## Legacy headline result
 
 Qwen2.5 14B → 0.5B, GSM8K, n = 1500 paired (McNemar), RTX 5090:
 
@@ -19,11 +29,13 @@ Qwen2.5 14B → 0.5B, GSM8K, n = 1500 paired (McNemar), RTX 5090:
 | cascade_verif_then_length | 57.13% | 10.29 | +4.20% | 0.015 ✓ |
 | **jointadaspec** | **57.00%** | **10.84** | **+4.07%** | **0.020 ✓** |
 
-JointAdaSpec significantly outperforms `target_only` at p < 0.05 and recovers **2.22×** throughput
-versus vanilla speculative. Joint ≈ cascade (Δ = −0.13%, p = 0.96) is the analytical prediction
-of Theorem D (advantage on the C4-violating set is ε-small).
+Under the legacy implementation, JointAdaSpec significantly outperforms
+`target_only` at p < 0.05 and recovers **2.22×** throughput versus vanilla
+speculative. This result must not be presented as final evidence for block
+speculative decoding until the decoder, MDP traces, and baselines all use one
+batched target-verification phase per draft block.
 
-Full tables, 7B/1.5B null result, Theorem E ablation, and κ-sweep — see
+Full tables, 7B/1.5B null result, Experiment E ablation, and κ-sweep — see
 [`docs/RESULTS.md`](docs/RESULTS.md).
 
 ## Methods implemented
@@ -81,6 +93,7 @@ The master deck is authored with `python-pptx` from the locked numbers in
 
 - [`docs/RESULTS.md`](docs/RESULTS.md) — full benchmark tables (locked + historical runs)
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — post-thesis future work
+- [`docs/REPRODUCIBILITY_RELEASE.md`](docs/REPRODUCIBILITY_RELEASE.md) — release checklist for rerun-ready thesis results
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — local checks and PR workflow
 - [`papers/Козин_newera.pdf`](papers/Козин_newera.pdf) — full master's thesis (RU, PDF; DOCX alongside)
 - [`papers/pres.md`](papers/pres.md) — defence presentation plan + 10-minute speech (RU)

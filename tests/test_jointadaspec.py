@@ -39,7 +39,7 @@ def _interaction_transitions(config: MDPConfig) -> sparse.csr_matrix:
         for action_idx in range(config.num_actions):
             action = action_space.decode(action_idx)
             next_state = s2
-            if action.length_action == "continue" and state_idx == s0 and action.threshold == 2.0:
+            if action.length_action == "continue" and state_idx == s0:
                 next_state = s1
             row_idx = state_idx * config.num_actions + action_idx
             rows.append(row_idx)
@@ -60,13 +60,11 @@ def _interaction_rewards(config: MDPConfig) -> np.ndarray:
         _, _, k = state_space.decode(state_idx)
         for action_idx in range(config.num_actions):
             action = action_space.decode(action_idx)
-            if k == 0 and action.length_action == "stop":
+            if k == 0 and action.is_verify:
                 rewards[state_idx, action_idx] = 1.0
-            elif k == 0 and action.length_action == "continue" and action.threshold == 1.0:
+            elif k == 0 and action.length_action == "continue":
                 rewards[state_idx, action_idx] = 0.0
-            elif k == 0 and action.length_action == "continue" and action.threshold == 2.0:
-                rewards[state_idx, action_idx] = 1.0
-            elif k == 1 and action.length_action == "stop":
+            elif k == 1 and action.is_verify:
                 rewards[state_idx, action_idx] = 5.0
             elif k == 1 and action.length_action == "continue":
                 rewards[state_idx, action_idx] = -5.0
@@ -136,8 +134,8 @@ def test_policy_npz_roundtrip(tmp_path) -> None:
     action_space = ActionSpace(config)
     state_space = StateSpace(config)
     pi_star = np.zeros(config.num_states, dtype=np.int32)
-    continue_idx = action_space.encode("continue", 2.0)
-    stop_idx = action_space.encode("stop", 1.0)
+    continue_idx = action_space.encode("continue", 1.0)
+    stop_idx = action_space.encode("verify", 1.0)
     for state_idx in range(config.num_states):
         _, _, k = state_space.decode(state_idx)
         pi_star[state_idx] = stop_idx if k >= config.gamma_max else continue_idx
@@ -182,8 +180,8 @@ def test_verify_conditions_smoke(tmp_path) -> None:
     config = MDPConfig(N_H=4, N_K=1, gamma_max=1, T_levels=(1.0, 2.0))
     state_space = StateSpace(config)
     action_space = ActionSpace(config)
-    stop_idx = action_space.encode("stop", 1.0)
-    stop_any_idx = action_space.encode("stop", 2.0)
+    stop_idx = action_space.encode("verify", 1.0)
+    stop_any_idx = action_space.encode("verify", 2.0)
     pi_star = np.full(config.num_states, stop_idx, dtype=np.int32)
     policy = JointAdaSpecPolicy(config=config, pi_star=pi_star, V_star=np.zeros(config.num_states))
     policy_path = tmp_path / "policy.npz"
@@ -200,11 +198,12 @@ def test_verify_conditions_smoke(tmp_path) -> None:
                     "rollout_step": 0,
                     "state_idx": state_idx,
                     "action_idx": stop_idx,
-                    "action_length": "stop",
+                    "action_length": "verify",
                     "threshold": 1.0,
                     "reward": 5.0 - H,
                     "next_state_idx": state_idx,
                     "accepted": 1,
+                    "emitted_count": 1,
                     "proposed": 0,
                     "emitted_token": 0,
                     "step_time_ms": 0.1,
@@ -223,11 +222,12 @@ def test_verify_conditions_smoke(tmp_path) -> None:
                     "rollout_step": 0,
                     "state_idx": state_idx,
                     "action_idx": stop_any_idx,
-                    "action_length": "stop",
+                    "action_length": "verify",
                     "threshold": 2.0,
                     "reward": 5.0 - H,
                     "next_state_idx": state_idx,
                     "accepted": 1,
+                    "emitted_count": 1,
                     "proposed": 0,
                     "emitted_token": 0,
                     "step_time_ms": 0.1,
@@ -252,6 +252,6 @@ def test_verify_conditions_smoke(tmp_path) -> None:
         seed=42,
     )
 
-    c1_stop = report["checks"]["c1"]["per_action"]["stop@1"]
+    c1_stop = report["checks"]["c1"]["per_action"]["verify@1"]
     assert c1_stop["rho_H"] < 0.0
     assert c1_stop["rho_H_ci"][1] < 0.1

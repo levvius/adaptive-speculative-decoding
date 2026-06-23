@@ -1,6 +1,17 @@
 # Results Overview
 
-## Final Locked Results (2026-05-14 — 2026-05-27)
+## Status: Legacy Until Block-SD Rerun
+
+The tables below preserve the locked thesis artifacts and historical reports.
+After the 2026 audit, these JointAdaSpec numbers are treated as **legacy
+results** because the decoder and several baselines did not consistently use a
+single target-model verification phase for each drafted block. They remain useful
+for debugging, regression tests, and thesis-history traceability, but they must
+not be used as final evidence for block speculative-decoding speedup until the
+repair plan in `docs/REPAIR_PLAN_REPO_THESIS.md` is implemented and the benchmark
+suite is rerun.
+
+## Legacy Locked Results (2026-05-14 — 2026-05-27)
 
 ### Run 1 — Qwen 14B → 0.5B (primary, locked 2026-05-14)
 
@@ -38,7 +49,7 @@ Three independent held-out windows all confirm the null:
 
 The early +3.50% was small-n noise. Low model-power ratio (4.7×) on a single GPU is insufficient. Report: `reports/jointadaspec_quality_qwen7b_1p5b_quality_tri_2026-05-20.md`.
 
-### Theorem E — Adaptive vs fixed fuzzy threshold (14B/0.5B, n=300, 2026-05-27)
+### Experiment E — Adaptive vs fixed fuzzy threshold (14B/0.5B, n=300, 2026-05-27)
 
 | Method | EM | tok/s | accept | paired vs joint |
 |---|---:|---:|---:|---:|
@@ -48,7 +59,11 @@ The early +3.50% was small-n noise. Low model-power ratio (4.7×) on a single GP
 | fuzzy_sd_T=2.0 | 53.33% | 3.06 | 17.4% | joint +4.67% |
 | **jointadaspec** | **58.00%** | **11.12** | **55.1%** | — |
 
-JointAdaSpec is **+4–8% more accurate AND ~3.7× faster** than any fixed-T baseline. Figure: `reports/thesis_figs/fig_E_adaptivity_ablation.pdf`. Output dir: `outputs/jointadaspec_qwen14b_0p5b_fuzzy_ablation_2026-05-25/`.
+This is an ablation experiment, not a mathematical theorem. The observed EM
+differences are descriptive under the legacy implementation and require the
+block-SD rerun plus prompt-level clustered statistics before they can be used as
+final claims. Figure: `reports/thesis_figs/fig_E_adaptivity_ablation.pdf`.
+Output dir: `outputs/jointadaspec_qwen14b_0p5b_fuzzy_ablation_2026-05-25/`.
 
 ### Theorem D — Exact value gap joint vs cascade (2026-05-25)
 

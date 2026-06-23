@@ -19,12 +19,30 @@ class ToyModelAdapter:
         return self.model.next_token_probs(context_tokens)
 
 
+class CountingBlockModel(ToyModelAdapter):
+    def __init__(self, model: FixedModel) -> None:
+        super().__init__(model)
+        self.next_calls = 0
+        self.block_calls = 0
+
+    def next_token_probs(self, context_tokens):
+        self.next_calls += 1
+        return super().next_token_probs(context_tokens)
+
+    def next_token_probs_block(self, context_tokens, continuation_tokens):
+        self.block_calls += 1
+        return [
+            self.model.next_token_probs(list(context_tokens) + list(continuation_tokens[:idx]))
+            for idx in range(len(continuation_tokens) + 1)
+        ]
+
+
 def _build_policy(config: MDPConfig) -> JointAdaSpecPolicy:
     action_space = ActionSpace(config)
     state_space = StateSpace(config)
     pi_star = np.zeros(config.num_states, dtype=np.int32)
     continue_idx = action_space.encode("continue", 1.0)
-    stop_idx = action_space.encode("stop", 1.0)
+    stop_idx = action_space.encode("verify", 1.0)
     for state_idx in range(config.num_states):
         _, _, k = state_space.decode(state_idx)
         pi_star[state_idx] = stop_idx if k >= config.gamma_max else continue_idx
@@ -46,7 +64,7 @@ def test_get_action_valid() -> None:
     config = MDPConfig(N_H=2, N_K=2, gamma_max=2, T_levels=(1.0, 2.0))
     policy = _build_policy(config)
     action_length, threshold = policy.get_action(H=0.5, K=0.5, k=0)
-    assert action_length in {"stop", "continue"}
+    assert action_length in {"verify", "continue"}
     assert threshold in config.T_levels
 
 
@@ -63,4 +81,22 @@ def test_jointadaspec_decoder_toy_run() -> None:
 
     assert result.n_tokens_generated == 5
     assert result.acceptance_rate > 0.0
-    assert result.n_target_calls == result.n_draft_calls
+    assert result.n_target_calls < result.n_draft_calls
+    assert result.decoder_semantics == "block_sd_v2"
+
+
+def test_jointadaspec_decoder_verifies_block_with_one_target_call() -> None:
+    config = MDPConfig(N_H=1, N_K=1, gamma_max=3, T_levels=(1.0,))
+    policy = _build_policy(config)
+    target = CountingBlockModel(FixedModel([0.8, 0.2]))
+    draft = CountingBlockModel(FixedModel([0.8, 0.2]))
+    decoder = JointAdaSpecDecoder(target_model=target, draft_model=draft, policy=policy)
+    generator = torch.Generator(device="cpu")
+    generator.manual_seed(0)
+
+    result = decoder.generate(prompt_ids=[0], max_new_tokens=4, generator=generator)
+
+    assert result.n_target_calls == 1
+    assert target.block_calls == 1
+    assert target.next_calls == 0
+    assert result.n_target_verified_positions == 4

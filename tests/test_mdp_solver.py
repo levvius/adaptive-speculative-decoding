@@ -32,7 +32,7 @@ def _deterministic_transitions(config: MDPConfig) -> sparse.csr_matrix:
 def test_state_action_counts() -> None:
     config = MDPConfig()
     assert config.num_states == 3600
-    assert config.num_actions == 16
+    assert config.num_actions == 9
 
 
 def test_vi_converges() -> None:
@@ -47,9 +47,8 @@ def test_vi_converges() -> None:
     transitions = _deterministic_transitions(config)
     rewards = np.zeros((config.num_states, config.num_actions), dtype=np.float64)
     rewards[:, 0] = 0.5
-    rewards[:, 1] = 0.4
-    rewards[:, 2] = 1.0
-    rewards[:, 3] = 0.2
+    rewards[:, 1] = 1.0
+    rewards[:, 2] = 0.2
 
     V_star, pi_star, solve_log = solve_mdp(transitions, rewards, config)
 
@@ -63,10 +62,10 @@ def test_gamma_max_masks_continue_actions() -> None:
     config = MDPConfig(N_H=1, N_K=1, gamma_max=1, T_levels=(1.0, 2.0), max_vi_iterations=50)
     transitions = _deterministic_transitions(config)
     rewards = np.zeros((config.num_states, config.num_actions), dtype=np.float64)
-    rewards[:, 2:] = 100.0
+    action_space = ActionSpace(config)
+    rewards[:, action_space.continue_action_indices] = 100.0
 
     _, pi_star, _ = solve_mdp(transitions, rewards, config)
-    action_space = ActionSpace(config)
     state_space = StateSpace(config)
     for state_idx in range(config.num_states):
         _, _, k = state_space.decode(state_idx)
@@ -86,7 +85,7 @@ def _single_reward_trace(tmp_path, config: MDPConfig, *, H: float, K: float, k: 
     state_space = StateSpace(config)
     action_space = ActionSpace(config)
     state_idx = state_space.encode(H=H, K=K, k=k)
-    action_idx = action_space.encode("continue", config.T_levels[-1])
+    action_idx = action_space.encode("verify", config.T_levels[-1])
     path = tmp_path / f"trace_{K}_{k}.parquet"
     pd.DataFrame.from_records(
         [

@@ -161,7 +161,7 @@ def _sorted_action_indices(config: MDPConfig) -> list[int]:
     return sorted(
         range(config.num_actions),
         key=lambda idx: (
-            0 if action_space.decode(idx).length_action == "stop" else 1,
+            0 if action_space.decode(idx).length_action == "continue" else 1,
             action_space.decode(idx).threshold,
         ),
     )
@@ -257,16 +257,9 @@ def _compute_c4(rewards: np.ndarray, config: MDPConfig) -> dict[str, Any]:
         if k >= config.gamma_max:
             continue
         for low_threshold, high_threshold in zip(config.T_levels[:-1], config.T_levels[1:]):
-            stop_low = action_space.encode("stop", low_threshold)
-            stop_high = action_space.encode("stop", high_threshold)
-            continue_low = action_space.encode("continue", low_threshold)
-            continue_high = action_space.encode("continue", high_threshold)
-            delta = (
-                rewards[state_idx, continue_high]
-                - rewards[state_idx, continue_low]
-                - rewards[state_idx, stop_high]
-                + rewards[state_idx, stop_low]
-            )
+            verify_low = action_space.encode("verify", low_threshold)
+            verify_high = action_space.encode("verify", high_threshold)
+            delta = rewards[state_idx, verify_high] - rewards[state_idx, verify_low]
             total += 1
             if delta >= -1.0e-9:
                 nonnegative += 1

@@ -17,7 +17,11 @@ class JointAction:
 
     @property
     def is_stop(self) -> bool:
-        return self.length_action == "stop"
+        return self.length_action in {"verify", "stop"}
+
+    @property
+    def is_verify(self) -> bool:
+        return self.length_action in {"verify", "stop"}
 
 
 @dataclass(frozen=True)
@@ -72,7 +76,7 @@ class MDPConfig:
 
     @property
     def num_actions(self) -> int:
-        return 2 * len(self.T_levels)
+        return 1 + len(self.T_levels)
 
 
 @dataclass(frozen=True)
@@ -133,21 +137,24 @@ class ActionSpace:
     config: MDPConfig
 
     def __post_init__(self) -> None:
-        actions: list[JointAction] = []
+        actions: list[JointAction] = [JointAction(length_action="continue", threshold=1.0)]
         for threshold in self.config.T_levels:
-            actions.append(JointAction(length_action="stop", threshold=float(threshold)))
-        for threshold in self.config.T_levels:
-            actions.append(JointAction(length_action="continue", threshold=float(threshold)))
+            actions.append(JointAction(length_action="verify", threshold=float(threshold)))
         object.__setattr__(self, "actions", tuple(actions))
         object.__setattr__(
             self,
+            "verify_action_indices",
+            tuple(idx for idx, action in enumerate(actions) if action.is_verify),
+        )
+        object.__setattr__(
+            self,
             "stop_action_indices",
-            tuple(idx for idx, action in enumerate(actions) if action.is_stop),
+            tuple(idx for idx, action in enumerate(actions) if action.is_verify),
         )
         object.__setattr__(
             self,
             "continue_action_indices",
-            tuple(idx for idx, action in enumerate(actions) if not action.is_stop),
+            tuple(idx for idx, action in enumerate(actions) if action.length_action == "continue"),
         )
 
     @property
@@ -158,6 +165,10 @@ class ActionSpace:
         return self.actions[action_idx]
 
     def encode(self, length_action: str, threshold: float) -> int:
+        if length_action == "stop":
+            length_action = "verify"
+        if length_action == "continue":
+            return self.continue_action_indices[0]
         for idx, action in enumerate(self.actions):
             if action.length_action == length_action and action.threshold == float(threshold):
                 return idx
@@ -165,5 +176,5 @@ class ActionSpace:
 
     def valid_action_indices(self, k: int) -> tuple[int, ...]:
         if k >= self.config.gamma_max:
-            return self.stop_action_indices
+            return self.verify_action_indices
         return tuple(range(self.num_actions))

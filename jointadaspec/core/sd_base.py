@@ -35,6 +35,12 @@ class GenerationResult:
     per_step_metrics: list[dict[str, Any]] = field(default_factory=list)
     """Per-iteration diagnostics: H, K, k, action_length, T, accepted."""
 
+    n_target_verified_positions: int = 0
+    """Number of target positions scored inside speculative verification blocks."""
+
+    decoder_semantics: str = "legacy_token_step"
+    """Semantic contract used by the decoder implementation."""
+
 
 class SpeculativeDecoder(ABC):
     """Common interface for all speculative-decoding variants.

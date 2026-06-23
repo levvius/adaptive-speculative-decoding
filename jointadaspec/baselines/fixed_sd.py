@@ -9,7 +9,11 @@ import torch
 from jointadaspec.core.features import entropy, kl_divergence
 from jointadaspec.core.sd_base import GenerationResult, SpeculativeDecoder
 from jointadaspec.core.verification import verify_draft_chain
-from jointadaspec.utils.probs import common_vocab_size, next_token_probs_tensor
+from jointadaspec.utils.probs import (
+    block_next_token_probs_tensor,
+    common_vocab_size,
+    next_token_probs_tensor,
+)
 
 
 def _generate_windowed_sd(
@@ -33,6 +37,7 @@ def _generate_windowed_sd(
     accepted_total = 0
     n_target_calls = 0
     n_draft_calls = 0
+    n_target_verified_positions = 0
 
     started = SpeculativeDecoder._start_timer(device)
     while len(generated_ids) < max_new_tokens:
@@ -56,14 +61,11 @@ def _generate_windowed_sd(
             token = int(torch.multinomial(q_probs, num_samples=1, generator=generator).item())
             draft_tokens.append(token)
             q_list.append(q_probs)
-            p_probs = next_token_probs_tensor(target_model, draft_context, common_vocab_n)
-            p_list.append(p_probs)
-            n_target_calls += 1
 
             per_step_metrics.append(
                 {
                     "H": H,
-                    "K": kl_divergence(q_probs, p_probs),
+                    "K": 0.0,
                     "k": k,
                     "action_length": "continue",
                     "threshold": threshold,
@@ -74,6 +76,7 @@ def _generate_windowed_sd(
         if should_force_target or not draft_tokens:
             p_probs = next_token_probs_tensor(target_model, context_tokens, common_vocab_n)
             n_target_calls += 1
+            n_target_verified_positions += 1
             token = int(torch.multinomial(p_probs, num_samples=1, generator=generator).item())
             context_tokens.append(token)
             generated_ids.append(token)
@@ -91,8 +94,18 @@ def _generate_windowed_sd(
                 break
             continue
 
-        p_bonus = next_token_probs_tensor(target_model, context_tokens + draft_tokens, common_vocab_n)
+        p_block = block_next_token_probs_tensor(
+            target_model,
+            context_tokens,
+            draft_tokens,
+            common_vocab_n,
+        )
         n_target_calls += 1
+        n_target_verified_positions += len(draft_tokens) + 1
+        p_list = p_block[:-1]
+        p_bonus = p_block[-1]
+        for idx, metric in enumerate(per_step_metrics[-len(draft_tokens):]):
+            metric["K"] = kl_divergence(q_list[idx], p_list[idx])
         proposed += len(draft_tokens)
         n_accepted, corrective_token = verify_draft_chain(
             p_list=p_list,
@@ -119,6 +132,8 @@ def _generate_windowed_sd(
                     n_draft_calls=n_draft_calls,
                     n_tokens_generated=len(generated_ids),
                     per_step_metrics=per_step_metrics,
+                    n_target_verified_positions=n_target_verified_positions,
+                    decoder_semantics="block_sd_v2",
                 )
 
         if len(generated_ids) < max_new_tokens:
@@ -136,6 +151,8 @@ def _generate_windowed_sd(
         n_draft_calls=n_draft_calls,
         n_tokens_generated=len(generated_ids),
         per_step_metrics=per_step_metrics,
+        n_target_verified_positions=n_target_verified_positions,
+        decoder_semantics="block_sd_v2",
     )
 
 

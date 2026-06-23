@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import torch
 
+from jointadaspec.utils.probs import block_next_token_probs_tensor
 from jointadaspec.core.verification import (
     fuzzy_verification,
     modified_rejection_sampling,
@@ -68,3 +69,27 @@ def test_verify_draft_chain_stops_at_first_reject() -> None:
 
     assert n_accepted == 0
     assert corrective in {0, 1}
+
+
+def test_block_next_token_probs_uses_block_model_api_once() -> None:
+    class BlockModel:
+        vocab_size = 2
+
+        def __init__(self) -> None:
+            self.block_calls = 0
+            self.next_calls = 0
+
+        def next_token_probs(self, context_tokens):
+            self.next_calls += 1
+            return [0.5, 0.5]
+
+        def next_token_probs_block(self, context_tokens, continuation_tokens):
+            self.block_calls += 1
+            return [[0.5, 0.5] for _ in range(len(continuation_tokens) + 1)]
+
+    model = BlockModel()
+    probs = block_next_token_probs_tensor(model, [0], [1, 1, 0], vocab_size=2)
+
+    assert len(probs) == 4
+    assert model.block_calls == 1
+    assert model.next_calls == 0
