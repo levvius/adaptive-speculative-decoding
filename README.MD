@@ -114,15 +114,18 @@ make jointadaspec-full MODEL_PAIR=qwen14b_0p5b
 Pipeline stages: `01_collect_traces` → `02_solve_mdp` → `03_benchmark` →
 `04_verify_conditions` → `05_write_manifest`.
 
-Build the defence deck in the three most common formats (PPTX + PDF + HTML):
+Build the legacy auto-deck in the three most common formats (PPTX + PDF + HTML):
 
 ```bash
 make slides   # -> papers/dist/JointAdaSpec_defense.{pptx,pdf,html}
 ```
 
-The master deck is authored with `python-pptx` from
-[`papers/pres.md`](papers/pres.md); the PDF and self-contained HTML are derived
-via LibreOffice.
+`make slides` rebuilds the **legacy 14-slide** auto-deck. The current defence
+structure is **12 slides** (less theory, more results): its authoring source is
+[`papers/pres.md`](papers/pres.md) (plan + ~7-minute speech) and
+[`papers/claude_design.md`](papers/claude_design.md) (design brief), from which
+the authoritative visual deck is generated. The PDF and self-contained HTML of
+the legacy deck are derived via LibreOffice.
 
 ## Repository structure
 
@@ -145,9 +148,9 @@ via LibreOffice.
 - [`docs/REPRODUCIBILITY_RELEASE.md`](docs/REPRODUCIBILITY_RELEASE.md) — release checklist for rerun-ready thesis results
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — local checks and PR workflow
 - [`papers/ИС61_fpm_КозинАА_2026.docx`](papers/ИС61_fpm_КозинАА_2026.docx) — master's thesis text (RU, DOCX)
-- [`papers/pres.md`](papers/pres.md) — defence presentation plan + 5–5.5 minute speech (RU)
-- [`papers/claude_design.md`](papers/claude_design.md) — slide-deck design brief for building the visual deck
-- [`papers/dist/`](papers/dist/) — built defence deck in three formats (PPTX · PDF · HTML); rebuild with `make slides`
+- [`papers/pres.md`](papers/pres.md) — defence presentation plan (12 slides) + ~7-minute speech (RU)
+- [`papers/claude_design.md`](papers/claude_design.md) — slide-deck design brief (12 slides) for building the visual deck
+- [`papers/dist/`](papers/dist/) — legacy 14-slide auto-deck in three formats (PPTX · PDF · HTML); rebuild with `make slides`
 - [`papers/ВКР_тезисы_и_структура.md`](papers/ВКР_тезисы_и_структура.md) — thesis defence guide (RU)
 - [`CODEX.MD`](CODEX.MD) — chronological change log with file-level detail
 

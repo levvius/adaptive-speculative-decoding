@@ -2,6 +2,13 @@
 # -*- coding: utf-8 -*-
 """Build the JointAdaSpec defense deck (14 slides, 16:9) as a .pptx.
 
+LEGACY NOTE: this auto-builder produces the earlier 14-slide deck. The current
+defense structure is 12 slides (less theory, more results, no standalone
+speculative-decoding primer) — see ``papers/pres.md`` and
+``papers/claude_design.md``; the authoritative visual deck is built from that
+brief. This script is kept as a reproducible legacy artifact and is not the
+source of truth for the slide structure.
+
 Content is taken verbatim from ``papers/pres.md`` and the visual system from
 ``papers/claude_design.md``. Historical large-scale numbers are shown as
 artifact-backed thesis-snapshot results, not as post-defense block-v1 reruns. The honest framing
