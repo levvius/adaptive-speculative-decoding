@@ -73,7 +73,7 @@ Full tables, 7B/1.5B null result, Experiment E ablation, and κ-sweep — see
 
 ```bash
 make setup        # CPU install (uses pip + requirements.txt)
-make test         # 72 unit tests, ~5 s
+make test         # full pytest suite; 94 passed on v1-defense
 make bench-toy    # toy benchmark without HF models
 ```
 
@@ -105,7 +105,7 @@ via LibreOffice.
 | `benchmarks/` | Unified benchmark runner (`bench_speculative.py`) |
 | `scripts/` | Pipeline stages and orchestration shell scripts |
 | `configs/` | Model / method / experiment JSON presets + Hydra YAML |
-| `tests/` | 72 unit tests covering all methods and MDP solver |
+| `tests/` | Full pytest suite covering all methods and the MDP solver (94 passed on v1-defense) |
 | `notebooks/thesis_plots.ipynb` | Defence figures with Russian explanations |
 | `reports/`, `outputs/` | Benchmark artifacts, manifests, figures |
 | `papers/` | Master's thesis ([DOCX](papers/Козин_newera.docx), clickable TOC · [PDF](papers/Козин_newera.pdf)), defence deck plan + speech, design brief, built deck in `papers/dist/` (Russian) |
@@ -114,6 +114,7 @@ via LibreOffice.
 
 - [`docs/RESULTS.md`](docs/RESULTS.md) — full benchmark tables (locked + historical runs)
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — post-thesis future work
+- [`docs/DEFENSE_BLOCKV1_RUN_2026-06-27.md`](docs/DEFENSE_BLOCKV1_RUN_2026-06-27.md) — bounded 24h block-v1 validation runbook/status template
 - [`docs/REPRODUCIBILITY_RELEASE.md`](docs/REPRODUCIBILITY_RELEASE.md) — release checklist for rerun-ready thesis results
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — local checks and PR workflow
 - [`papers/Козин_newera.pdf`](papers/Козин_newera.pdf) — full master's thesis (RU, PDF; DOCX alongside)

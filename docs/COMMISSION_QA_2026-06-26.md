@@ -51,3 +51,11 @@ metadata. Calling it final would mix two incompatible semantic versions.
 The tag freezes the exact defense snapshot. It prevents accidental later commits
 from changing what the committee sees during questions.
 
+## What about the 24-hour block-v1 validation run?
+
+It is a bounded pipeline validation, not a new headline benchmark. If it
+completes, it shows that fresh traces, a fresh 9-action policy, and a small
+benchmark run end-to-end under the repaired `block_verify_v1` semantics. If GPU
+preflight fails, I do not present new block-v1 benchmark claims and keep the
+defense on the repaired implementation, semantic artifact validation, CPU/CI
+checks, and the reproducible rerun protocol.

@@ -27,14 +27,15 @@ make setup-gpu
 
 ## Checks Before PR
 
-GitHub Actions CI (`.github/workflows/ci.yml`) runs on every push and PR: it installs
-CPU-only PyTorch, validates configs, and runs the unit test suite on Python 3.12.
+GitHub Actions CI (`.github/workflows/ci.yml`) runs on pull requests and pushes
+to `main`: it installs CPU-only PyTorch, validates configs, and runs the unit
+test suite on Python 3.12.
 
 Run the same checks locally before opening a PR:
 
 ```bash
 make check   # compileall + JSON config validation
-make test    # pytest -q (72 unit tests, ~5s on CPU)
+make test    # pytest -q (full suite; 94 passed on v1-defense)
 ```
 
 For benchmark-related changes, also run at least one smoke benchmark:
