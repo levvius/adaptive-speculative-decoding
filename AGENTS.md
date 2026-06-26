@@ -278,7 +278,7 @@ JointAdaSpec limitations:
 
 ### JointAdaSpec — primary results (RTX 5090, GSM8K zero-shot CoT)
 
-**Status — LEGACY LOCKED.** Qwen 14B → 0.5B (Run 1 final sprint, 2026-05-14, **500 prompts × 3 seeds = paired n=1500**, McNemar). These numbers are preserved for thesis-history traceability, but after the 2026-06-26 defense audit they are **not final block-v1 evidence**: the locked report points to a pre-repair 16-action policy artifact, while the current repaired code path expects block-v1 semantics and a 9-action policy.
+**Status — THESIS SNAPSHOT LOCKED.** Qwen 14B → 0.5B (Run 1 final sprint, 2026-05-14, **500 prompts × 3 seeds = paired n=1500**, McNemar). These numbers are artifact-backed thesis results for the immutable `v1-defense` snapshot. The `main` branch is the place for future block-v1 reruns with regenerated 9-action policies and stricter artifact metadata.
 
 | Method | EM | tok/s | vs speculative | Paired Δ EM vs target_only | 95% CI | p |
 |---|---:|---:|---:|---:|---:|---:|
@@ -287,7 +287,7 @@ JointAdaSpec limitations:
 | cascade_verif_then_length | 57.13% | 10.29 | 2.11× | +4.20% | [0.87%, 7.67%] | 0.0149 ✓ |
 | **jointadaspec** | **57.00%** | **10.84** | **2.22×** | **+4.07%** | **[0.67%, 7.47%]** | **0.0203 ✓** |
 
-Under the pre-repair artifacts, the **adaptive-control family** (both joint and cascade) beat `target_only` by ~`+4%` EM at `~2.2×` the throughput of vanilla speculative (`p < 0.05`). Treat this as legacy motivation only, not as a final block-v1 benchmark claim. The defensible defense snapshot is the MDP formulation, theory, repaired block-v1 implementation, semantic artifact validation, and reproducible rerun protocol.
+Within the archived thesis snapshot, the **adaptive-control family** (both joint and cascade) beat `target_only` by ~`+4%` EM at `~2.2×` the throughput of vanilla speculative (`p < 0.05`). The defensible defense snapshot is the MDP formulation, theory, repaired block-v1 implementation, semantic artifact validation, artifact-backed Run 1/Run 2/Experiment E evidence, and reproducible future-rerun protocol.
 
 **Honest caveat — joint ties cascade.** Head-to-head paired, `jointadaspec − cascade_verif_then_length = −0.13%`, `p = 0.96`: the two are statistically indistinguishable. The larger `+8.67%` margin and the joint-over-cascade edge seen in the earlier 100-prompt crosscheck (jointadaspec `+8.67%` p=0.0137, cascade `+7.00%`) were small-`n` noise that washed out at power. Reports: `reports/{pareto,ablation,jointadaspec_quality}_qwen14b_0p5b_lock_2026-05-14.*`, `reports/threshold_surface_qwen14b_0p5b_lock_2026-05-14/`.
 
@@ -312,7 +312,7 @@ At `n = 1500` on the 7B/1.5B pair, **neither adaptive method shows a quality gai
 
 Verdict: the early small-`n` positive was noise; on two fresh well-powered windows the joint policy is at/below target. Slice-independent null on 7B/1.5B.
 
-**Experiment E — adaptive control vs FIXED fuzzy threshold (14B/0.5B, n=300, 2026-05-27).** Ablation against `fuzzy_sd` (fixed γ=8, fixed T ∈ {1.0, 1.25, 1.5, 2.0}) — the missing baseline. This is an empirical ablation, not a theorem, and remains pre-repair evidence until rerun under block-v1 artifacts:
+**Experiment E — adaptive control vs FIXED fuzzy threshold (14B/0.5B, n=300, 2026-05-27).** Ablation against `fuzzy_sd` (fixed γ=8, fixed T ∈ {1.0, 1.25, 1.5, 2.0}) — the missing baseline. This is an empirical ablation, not a theorem, and is part of the artifact-backed thesis snapshot:
 
 | Method | EM | tok/s | accept | paired vs joint |
 |---|---:|---:|---:|---:|
@@ -322,7 +322,7 @@ Verdict: the early small-`n` positive was noise; on two fresh well-powered windo
 | fuzzy_sd_T=2.0 | 53.33% | 3.06 | 17.4% | joint +4.67%, p=0.243 |
 | **jointadaspec** | **58.00%** | **11.12** | **55.1%** | — |
 
-Under the legacy implementation, JointAdaSpec is descriptively **+4 to +8% more accurate AND ~3.7× faster** than any fixed-fuzzy-T baseline. It supports the motivation for adaptive control, but final block-v1 claims require rerun with regenerated 9-action artifacts and prompt-clustered statistics. Reports: `outputs/jointadaspec_qwen14b_0p5b_fuzzy_ablation_2026-05-25/`, figure `reports/thesis_figs/fig_E_adaptivity_ablation.pdf`.
+Under the archived thesis-snapshot implementation, JointAdaSpec is descriptively **+4 to +8% more accurate AND ~3.7× faster** than any fixed-fuzzy-T baseline. It supports the motivation for adaptive control, but future main-branch claims require rerun with regenerated 9-action artifacts and prompt-clustered statistics. Reports: `outputs/jointadaspec_qwen14b_0p5b_fuzzy_ablation_2026-05-25/`, figure `reports/thesis_figs/fig_E_adaptivity_ablation.pdf`.
 
 **κ-sweep — joint vs cascade across the Lagrange trade-off knob (7B/1.5B, 6 κ × n=300, 2026-05-26).** For each κ ∈ {0, 1, 5, 20, 50, 100} the joint and cascade policies were re-solved on the May-5 traces and benchmarked on a fixed slice. `tok/s` is essentially flat across κ (16.28–16.55); EM varies non-monotonically (joint 55.7–60.3%, cascade 55.0–61.0%); **joint ≈ cascade at every κ** (≤3% gap throughout). The joint=cascade equivalence is robust to the trade-off knob, not just the default value. (Theorem-2.4 convexity is not cleanly demonstrated at n=300/κ — honestly noted.) Figure `reports/thesis_figs/fig_bonus_kappa_sweep.pdf`.
 
@@ -349,7 +349,7 @@ Three new theorems strengthen the dissertation; see `reports/theory_improvements
 
 ### Known limitations (honest reporting)
 
-- **Joint = cascade at power; the contribution is the adaptive control *family*.** On locked 14B/0.5B (n=1500) `jointadaspec − cascade_verif_then_length = −0.13%`, p=0.96 — a tie; on 7B/1.5B both are at/below target. *But*: Experiment E (n=300 ablation) gives pre-repair evidence that JointAdaSpec can outperform FIXED fuzzy_sd_T baselines. The defended contribution is therefore (a) the unified MDP framework + corrected theory (A/B/C/D/2.3/2.4), (b) repaired block-v1 implementation and artifact validation, and (c) a reproducible rerun path for final benchmark claims.
+- **Joint = cascade at power; the contribution is the adaptive control *family*.** On locked 14B/0.5B (n=1500) `jointadaspec − cascade_verif_then_length = −0.13%`, p=0.96 — a tie; on 7B/1.5B both are at/below target. *But*: Experiment E (n=300 ablation) gives thesis-snapshot evidence that JointAdaSpec can outperform FIXED fuzzy_sd_T baselines. The defended contribution is therefore (a) the unified MDP framework + corrected theory (A/B/C/D/2.3/2.4), (b) repaired block-v1 implementation and artifact validation, and (c) a reproducible future-rerun path for post-defense benchmark claims.
 - **Speed honesty.** Plain target AR is the *fastest* method on both pairs (14B: target 14.45 > joint 10.84 > vanilla-spec 4.88 tok/s). The reported "2.22× vs vanilla speculative" / "3.7× vs fuzzy_sd" speedups are **relative to other speculative variants**, not relative to plain AR. The honest framing is "adaptive speculative decoding *recovers* throughput that vanilla speculative would lose," not "faster than baseline."
 - **Quality gain is non-monotonic in acceptance (Theorem G).** Churn rate ~45% is flat across acceptance levels; net Δ EM is **+7.4% at low/mid joint-acceptance, −2.6% at high acceptance** — over-trusting the 0.5B draft degrades quality. The headline +4% is a blend; the controller's "sweet spot" is moderate acceptance.
 - **7B/1.5B null is slice-independent.** Three held-out windows: +3.50% (n=200, noise) → −1.47% (n=1500) → −2.53% (n=1500). The method gives no quality benefit on the low-ratio (4.7×) pair.

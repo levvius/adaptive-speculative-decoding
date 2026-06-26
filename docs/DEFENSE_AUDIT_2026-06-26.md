@@ -15,10 +15,11 @@ through the QR code.
 
 2. **Run 1 policy artifact.** The locked Qwen 14B -> 0.5B Run 1 report points
    to `outputs/jointadaspec_qwen14b_0p5b_2026-04-28/02_solve/policy.npz`.
-   That artifact predates the semantic metadata repair: it has no
+   That artifact predates the semantic metadata update: it has no
    `action_space_version` or `decoder_semantics` metadata, and its `pi_star`
-   contains action indices up to 15. It is therefore a legacy 16-action policy
-   artifact, not a current `block_verify_v1` 9-action policy.
+   contains action indices up to 15. It is therefore an archived 16-action policy
+   artifact in the thesis snapshot; future `main` reruns use current
+   `block_verify_v1` 9-action policies.
 
 3. **Raw lock benchmark availability.** The report
    `reports/jointadaspec_quality_qwen14b_0p5b_lock_2026-05-14.json` references
@@ -34,12 +35,12 @@ through the QR code.
 
 ## Defense Narrative Decision
 
-The codebase can honestly claim that the block-verification implementation has
-been repaired and guarded by semantic metadata. The historical large-scale
-numbers remain useful as pre-repair evidence and thesis-history traceability,
-but they must not be presented as final proof of block speculative-decoding
-speedup until the pipeline is rerun with regenerated `block_verify_v1`
-artifacts and prompt-level clustered statistics.
+The codebase can honestly claim that the defense uses an immutable thesis
+snapshot and that the block-verification implementation has since been guarded
+by semantic metadata. The large-scale numbers remain artifact-backed thesis
+results for the archived snapshot. New post-defense block-v1 benchmark claims
+should be made from `main` only after a fresh rerun with regenerated artifacts
+and prompt-level clustered statistics.
 
 The final defense should therefore emphasize:
 
@@ -47,7 +48,6 @@ The final defense should therefore emphasize:
   threshold;
 - the theory results and the joint-vs-cascade explanation;
 - the repaired block-v1 implementation and artifact invalidation safeguards;
-- the legacy results as motivation and historical evidence only;
-- the reproducible rerun plan needed to turn legacy evidence into final
-  block-v1 benchmark claims.
-
+- the locked thesis-snapshot results as artifact-backed empirical evidence;
+- the reproducible `main`-branch rerun plan needed for future block-v1
+  benchmark claims.

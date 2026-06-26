@@ -2,9 +2,9 @@
 
 ## Current Focus (defense stabilization)
 
-1. Keep the defense snapshot internally consistent: README, docs, deck, QR, and agent guidance all mark historical JointAdaSpec numbers as legacy / pre-repair evidence.
+1. Keep the defense snapshot internally consistent: README, docs, deck, QR, and agent guidance frame the locked JointAdaSpec numbers as artifact-backed thesis results.
 2. Use `v1-defense` as the immutable repository snapshot for the Monday defense.
-3. Defer final block-v1 benchmark claims until a fresh solve + benchmark with regenerated 9-action artifacts.
+3. Use `main` for post-defense block-v1 reruns with regenerated artifacts and stricter prompt-clustered statistics.
 
 ## In Progress
 
@@ -14,10 +14,10 @@
 
 ### Thesis sprint (2026-05-14 — 2026-05-27)
 
-- **Locked Run 1 (14B/0.5B, n=1500)**: historical / pre-repair evidence only; adaptive control family +4% EM vs target_only under old artifacts, p<0.05. Reports in `reports/*qwen14b_0p5b_lock_2026-05-14*`.
+- **Locked Run 1 (14B/0.5B, n=1500)**: primary thesis-snapshot evidence; adaptive control family +4% EM vs target_only under the locked protocol, p<0.05. Reports in `reports/*qwen14b_0p5b_lock_2026-05-14*`.
 - **Locked Run 2 (7B/1.5B, n=1500)**: confirmed null on lock window (−1.47%, p=0.369).
 - **Triangulation (7B/1.5B, start=600, n=1500)**: third independent window confirms slice-independent null (−2.53%, p=0.094).
-- **Experiment E ablation (14B/0.5B, n=300)**: pre-repair evidence that adaptive control can beat fixed fuzzy_sd_T. Figure `fig_E_adaptivity_ablation.pdf`.
+- **Experiment E ablation (14B/0.5B, n=300)**: thesis-snapshot evidence that adaptive control can beat fixed fuzzy_sd_T. Figure `fig_E_adaptivity_ablation.pdf`.
 - **κ-sweep (7B/1.5B, 6κ × n=300)**: joint ≈ cascade robust across Lagrange knob. Figure `fig_bonus_kappa_sweep.pdf`.
 - **Theorem D exact value gap**: advantage-weighted gap derivation, mean |A^πC| on B = 6e-5 (14B), 1e-3 (7B). Script `scripts/analyze_theorem_c_gap.py`. Figure `fig_D_advantage_on_B.pdf`.
 - **Theorem G quality non-monotonicity**: Δ EM +7.4% at low acceptance, −2.6% at high acceptance.

@@ -149,7 +149,7 @@ def process(xml, npages, total):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--docx", default=os.path.join(os.path.dirname(__file__), "Козин_newera.docx"))
+    ap.add_argument("--docx", default=os.path.join(os.path.dirname(__file__), "ИС61_fpm_КозинАА_2026.docx"))
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     if not os.path.exists(args.docx):

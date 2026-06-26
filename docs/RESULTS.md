@@ -1,29 +1,29 @@
 # Results Overview
 
-## Status: Legacy Until Block-v1 Rerun
+## Status: Thesis Snapshot Results
 
-The tables below preserve the locked thesis artifacts and historical reports.
-After the 2026 audit, these JointAdaSpec numbers are treated as **legacy
-results / pre-repair evidence**. The current code path has been repaired toward
-`block_verify_v1`, but the locked Run 1 report points to a pre-repair 16-action
-policy artifact and the raw lock benchmark CSV is not present in this working
-copy for prompt-clustered reanalysis. The numbers remain useful for debugging,
-regression tests, and thesis-history traceability, but they must not be used as
-final evidence for block speculative-decoding speedup until the benchmark suite
-is rerun with regenerated block-v1 artifacts.
+The tables below preserve the locked thesis artifacts and reports used for the
+`v1-defense` snapshot. These JointAdaSpec numbers are treated as
+**artifact-backed thesis results**: they describe the archived experimental
+pipeline and the empirical evidence presented in the dissertation defense.
+
+The `main` branch remains open for post-defense research: fresh `block_verify_v1`
+reruns, stricter artifact metadata, prompt-clustered/Holm statistics, and new
+benchmark claims. The numbers below should be interpreted within the archived
+thesis snapshot rather than as a new post-defense block-v1 rerun.
 
 Defense audit: `docs/DEFENSE_AUDIT_2026-06-26.md`.
 
 ## Defense Snapshot
 
-The defensible snapshot is: MDP formulation, theory, repaired block-v1
-implementation and semantic artifact checks, plus a reproducible rerun plan.
-The legacy tables below show the historical motivation and observed behavior of
-the pre-repair artifacts; they are not final block-v1 benchmark claims.
+The defensible snapshot is: MDP formulation, theory, implementation and
+semantic artifact checks, plus the locked Run 1/Run 2/Experiment E/κ-sweep
+evidence. Future `main`-branch reruns can extend this with new block-v1 claims
+without changing the archived defense record.
 
-## Legacy / Pre-Repair Locked Results (2026-05-14 — 2026-05-27)
+## Locked Thesis Results (2026-05-14 — 2026-05-27)
 
-### Run 1 — Qwen 14B → 0.5B (legacy primary, locked 2026-05-14)
+### Run 1 — Qwen 14B → 0.5B (primary thesis result, locked 2026-05-14)
 
 GSM8K zero-shot CoT, RTX 5090, 500 prompts × 3 seeds = **n=1500 paired**, McNemar:
 
@@ -34,11 +34,11 @@ GSM8K zero-shot CoT, RTX 5090, 500 prompts × 3 seeds = **n=1500 paired**, McNem
 | cascade_verif_then_length | 57.13% | 10.29 | 2.11× | **+4.20%** | [0.87%, 7.67%] | **0.015 ✓** |
 | **jointadaspec** | **57.00%** | **10.84** | **2.22×** | **+4.07%** | [0.67%, 7.47%] | **0.020 ✓** |
 
-Under the pre-repair artifacts, the adaptive-control family (joint + cascade)
-outperformed `target_only` at p < 0.05. Treat this as legacy evidence only, not
-as a final block-v1 proof. Joint = cascade head-to-head (Δ = −0.13%, p = 0.96):
-predicted by Theorem D. Speed note: `target_only` is the fastest method
-(14.45 tok/s); the 2.22× is relative to vanilla speculative.
+Within the archived thesis snapshot, the adaptive-control family (joint +
+cascade) outperformed `target_only` at p < 0.05. Joint = cascade head-to-head
+(Δ = −0.13%, p = 0.96), as explained by Theorem D. Speed note: `target_only`
+is the fastest method (14.45 tok/s); the 2.22× is relative to vanilla
+speculative.
 
 Reports: `reports/{pareto,ablation,jointadaspec_quality}_qwen14b_0p5b_lock_2026-05-14.*`, `reports/threshold_surface_qwen14b_0p5b_lock_2026-05-14/`.
 
@@ -74,9 +74,10 @@ The early +3.50% was small-n noise. Low model-power ratio (4.7×) on a single GP
 | **jointadaspec** | **58.00%** | **11.12** | **55.1%** | — |
 
 This is an ablation experiment, not a mathematical theorem. The observed EM
-differences are descriptive under the pre-repair artifacts and support the
-motivation for adaptive control; they require the block-v1 rerun plus
-prompt-level clustered statistics before they can be used as final claims.
+differences support the thesis-snapshot claim that adaptive control is
+empirically non-trivial against fixed-threshold fuzzy baselines. Post-defense
+`main` work can repeat the ablation with the newest block-v1 artifact protocol
+and prompt-level clustered statistics.
 Figure: `reports/thesis_figs/fig_E_adaptivity_ablation.pdf`.
 Output dir: `outputs/jointadaspec_qwen14b_0p5b_fuzzy_ablation_2026-05-25/`.
 

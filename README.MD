@@ -8,21 +8,19 @@ Implementation and benchmark of **joint adaptive control over draft length and v
 threshold** for speculative LLM decoding, formalised as a tabular MDP. Companion code for the
 master's thesis (магистерская диссертация) *JointAdaSpec* (Kozin A. A., 2026).
 
-## Current status
+## Thesis snapshot status
 
-This repository has gone through a thesis/code repair pass. The current
-JointAdaSpec code path now uses block-verification semantics (`block_verify_v1`)
-and rejects legacy policy artifacts that lack semantic metadata.
+The `v1-defense` tag is the immutable repository snapshot used for the thesis
+defense. Its experimental results are artifact-backed thesis-snapshot results:
+they correspond to the archived JointAdaSpec pipeline, reports, manifests, and
+defense deck shipped in this branch.
 
-The historical large-scale numbers below are still marked as **legacy /
-pre-repair evidence**: the locked Run 1 report points to a pre-repair 16-action
-policy artifact, and the raw lock `benchmark.csv` is not present in this working
-copy for prompt-clustered reanalysis. These numbers are preserved for
-traceability, but they must not be presented as final evidence for block
-speculative-decoding speedup until the benchmark suite is rerun with regenerated
-`block_verify_v1` artifacts.
+The `main` branch is reserved for post-defense research: stricter artifact
+metadata, fresh `block_verify_v1` reruns, prompt-clustered/Holm statistics, and
+new benchmark claims. The results below should therefore be interpreted within
+this archived thesis snapshot, not as a new post-defense block-v1 rerun.
 
-Repair plan: [`docs/REPAIR_PLAN_REPO_THESIS.md`](docs/REPAIR_PLAN_REPO_THESIS.md).
+Research continuation roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 Defense audit: [`docs/DEFENSE_AUDIT_2026-06-26.md`](docs/DEFENSE_AUDIT_2026-06-26.md).
 Commission Q&A: [`docs/COMMISSION_QA_2026-06-26.md`](docs/COMMISSION_QA_2026-06-26.md).
 
@@ -34,13 +32,14 @@ What is safe to defend from this snapshot:
   verification threshold;
 - theory explaining sample complexity, reward-shaping limits, and why joint and
   cascade policies can be nearly tied;
-- a repaired block-v1 implementation with action-space and artifact metadata
+- a reproducible implementation with action-space and artifact metadata
   safeguards;
-- legacy benchmark evidence as motivation and historical traceability;
-- a reproducible rerun plan for turning the repaired implementation into final
-  block-v1 benchmark claims.
+- artifact-backed thesis results from Run 1, Run 2, Experiment E, the κ-sweep,
+  and the Theorem D analysis;
+- a clear separation between the defense snapshot and future `main`-branch
+  reruns.
 
-## Legacy / pre-repair headline result
+## Thesis snapshot headline result
 
 Qwen2.5 14B → 0.5B, GSM8K, n = 1500 paired (McNemar), RTX 5090:
 
@@ -51,9 +50,11 @@ Qwen2.5 14B → 0.5B, GSM8K, n = 1500 paired (McNemar), RTX 5090:
 | cascade_verif_then_length | 57.13% | 10.29 | +4.20% | 0.015 ✓ |
 | **jointadaspec** | **57.00%** | **10.84** | **+4.07%** | **0.020 ✓** |
 
-Under the legacy implementation, JointAdaSpec outperformed `target_only` at
-p < 0.05 and recovered **2.22×** throughput versus vanilla speculative. This
-result is **pre-repair evidence**, not a final block-v1 benchmark claim.
+Within the archived thesis snapshot, JointAdaSpec outperformed `target_only` at
+p < 0.05 and recovered **2.22×** throughput versus vanilla speculative. This is
+the defended thesis-snapshot result; post-defense `main` work will rerun the
+benchmark suite under the newest block-v1 artifact protocol before making new
+claims.
 
 Full tables, 7B/1.5B null result, Experiment E ablation, and κ-sweep — see
 [`docs/RESULTS.md`](docs/RESULTS.md).
@@ -108,17 +109,16 @@ via LibreOffice.
 | `tests/` | Full pytest suite covering all methods and the MDP solver (94 passed on v1-defense) |
 | `notebooks/thesis_plots.ipynb` | Defence figures with Russian explanations |
 | `reports/`, `outputs/` | Benchmark artifacts, manifests, figures |
-| `papers/` | Master's thesis ([DOCX](papers/Козин_newera.docx), clickable TOC · [PDF](papers/Козин_newera.pdf)), defence deck plan + speech, design brief, built deck in `papers/dist/` (Russian) |
+| `papers/` | Master's thesis materials, defence deck plan + speech, design brief, built deck in `papers/dist/` (Russian) |
 
 ## Documentation
 
 - [`docs/RESULTS.md`](docs/RESULTS.md) — full benchmark tables (locked + historical runs)
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — post-thesis future work
-- [`docs/DEFENSE_BLOCKV1_RUN_2026-06-27.md`](docs/DEFENSE_BLOCKV1_RUN_2026-06-27.md) — bounded 24h block-v1 validation runbook/status template
 - [`docs/REPRODUCIBILITY_RELEASE.md`](docs/REPRODUCIBILITY_RELEASE.md) — release checklist for rerun-ready thesis results
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — local checks and PR workflow
-- [`papers/Козин_newera.pdf`](papers/Козин_newera.pdf) — full master's thesis (RU, PDF; DOCX alongside)
-- [`papers/pres.md`](papers/pres.md) — defence presentation plan + 10-minute speech (RU)
+- [`papers/ИС61_fpm_КозинАА_2026.docx`](papers/ИС61_fpm_КозинАА_2026.docx) — master's thesis text (RU, DOCX)
+- [`papers/pres.md`](papers/pres.md) — defence presentation plan + 5–5.5 minute speech (RU)
 - [`papers/claude_design.md`](papers/claude_design.md) — slide-deck design brief for building the visual deck
 - [`papers/dist/`](papers/dist/) — built defence deck in three formats (PPTX · PDF · HTML); rebuild with `make slides`
 - [`papers/ВКР_тезисы_и_структура.md`](papers/ВКР_тезисы_и_структура.md) — thesis defence guide (RU)

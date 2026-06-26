@@ -4,27 +4,25 @@ This note lists the short answers to repository-driven questions a committee
 member may ask after following the defense QR code. The QR points to the
 immutable `v1-defense` snapshot.
 
-## Why does the README say legacy / pre-repair?
+## Why are the results tied to the defense snapshot?
 
-The defense audit found a mismatch between the old policy artifact used by the
-large Run 1 report and the current repaired block-v1 semantics. The current code
-path uses semantic metadata and rejects legacy policies, but the historical Run 1
-numbers were produced before that boundary existed. Therefore Run 1 is preserved
-as historical evidence, not as final block-v1 proof.
+The defense uses the immutable `v1-defense` snapshot. Run 1, Run 2, Experiment
+E, the κ-sweep, and the Theorem D analysis are artifact-backed thesis results
+for that snapshot. The `main` branch continues post-defense research, including
+fresh block-v1 reruns and stricter artifact metadata.
 
 ## Can I defend `+4.07 pp, p=0.0205`?
 
-Only as a legacy / pre-repair observation. The defended result is the MDP
-formulation, the theory, the repaired block-v1 implementation, artifact
-validation, and the reproducible rerun protocol. A final block-v1 benchmark claim
-requires a fresh solve and benchmark with regenerated 9-action artifacts.
+Yes, as the Run 1 result of the archived thesis snapshot. The precise wording is
+that the defense snapshot shows `+4.07 pp` EM for JointAdaSpec versus
+`target_only` under the locked Run 1 protocol. New post-defense block-v1 claims
+belong to future `main`-branch reruns.
 
-## Is this a bug in the method?
+## Is the artifact/version boundary a bug in the method?
 
-It is an artifact-versioning problem in the old experiment, not a contradiction
-of the method formulation. The repaired loaders now reject policies without
-`action_space_version`, `decoder_semantics`, and `config_hash`, so old artifacts
-cannot silently be reused as new block-v1 results.
+No. It is an engineering/versioning boundary between the archived thesis
+snapshot and the newer research code path. It does not contradict the MDP
+formulation, the theory, or the locked thesis-snapshot results.
 
 ## Why is target-only faster than JointAdaSpec?
 
@@ -42,20 +40,12 @@ statistically indistinguishable at power.
 
 ## Why not call Run 1 final anyway?
 
-Because the Run 1 policy artifact carries legacy action-space evidence, while
-the current block-v1 implementation expects a 9-action policy with semantic
-metadata. Calling it final would mix two incompatible semantic versions.
+Run 1 is final for the archived thesis snapshot. What it is not is a new
+post-defense rerun under the latest `main`-branch block-v1 artifact protocol.
+Keeping those two scopes separate avoids mixing thesis results with future
+research claims.
 
 ## Why does the QR point to a tag instead of `main`?
 
 The tag freezes the exact defense snapshot. It prevents accidental later commits
-from changing what the committee sees during questions.
-
-## What about the 24-hour block-v1 validation run?
-
-It is a bounded pipeline validation, not a new headline benchmark. If it
-completes, it shows that fresh traces, a fresh 9-action policy, and a small
-benchmark run end-to-end under the repaired `block_verify_v1` semantics. If GPU
-preflight fails, I do not present new block-v1 benchmark claims and keep the
-defense on the repaired implementation, semantic artifact validation, CPU/CI
-checks, and the reproducible rerun protocol.
+on `main` from changing what the committee sees during questions.

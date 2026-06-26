@@ -1,7 +1,7 @@
 # Reproducibility Release Checklist
 
-Use this checklist before presenting repaired JointAdaSpec results as final thesis
-evidence.
+Use this checklist before presenting post-defense JointAdaSpec rerun results as
+new benchmark evidence.
 
 ## Code State
 
@@ -59,7 +59,7 @@ benchmarks. Do not use smoke metrics as final evidence.
 
 ## RTX 5090 Rerun Boundary
 
-The repaired implementation must be benchmarked on the RTX 5090 host before
+The current implementation should be benchmarked on the RTX 5090 host before
 updating final thesis claims:
 
 ```bash
@@ -72,7 +72,7 @@ which artifacts were reused and why reuse is methodologically valid.
 
 ## Reporting Rules
 
-- Label pre-repair numbers as legacy.
+- Label thesis-snapshot numbers as archived results.
 - Report speed relative to both `target_only` and vanilla speculative.
 - Use prompt-level clustered confidence intervals for GSM8K exact match.
 - Correct for multiple comparisons when reporting secondary sweeps.

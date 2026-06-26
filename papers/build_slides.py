@@ -4,10 +4,10 @@
 
 Content is taken verbatim from ``papers/pres.md`` and the visual system from
 ``papers/claude_design.md``. Historical large-scale numbers are shown as
-legacy / pre-repair evidence, not as final block-v1 proof. The honest framing
+artifact-backed thesis-snapshot results, not as post-defense block-v1 reruns. The honest framing
 (AR is the fastest method; "2.22×" is relative to vanilla speculative decoding;
 joint ≈ cascade is a statistical tie; 7B/1.5B is a null; rerun is required for
-final block-v1 benchmark claims) is preserved exactly.
+future main-branch benchmark claims) is preserved exactly.
 
 Output: ``papers/dist/JointAdaSpec_defense.pptx``. The PDF and HTML renditions
 are produced from this file by ``scripts/build_slides.sh`` via LibreOffice.
@@ -201,7 +201,7 @@ def slide_title(prs):
     for i, (txt, c, b, sz) in enumerate([
         ("Выпускная квалификационная работа (магистерская диссертация)", GRAPHITE, True, 18),
         ("Козин Александр Александрович", GRAPHITE, False, 18),
-        ("Научный руководитель: ______________________", CAPTION, False, 15),
+        ("Научный руководитель: Калайдина Г.В.", CAPTION, False, 15),
         ("Кубанский государственный университет · факультет прикладной математики", CAPTION, False, 15),
         ("кафедра математического моделирования · Краснодар, 2026", CAPTION, False, 15),
     ]):
@@ -410,7 +410,7 @@ def _results_table(slide, L, T, W, H):
 
 def slide_results_main(prs):
     s = new_slide(prs)
-    header(s, "Legacy evidence: пара 14B / 0.5B", "pre-repair artifact · GSM8K · n = 1500", 9)
+    header(s, "Thesis snapshot: пара 14B / 0.5B", "artifact-backed result · GSM8K · n = 1500", 9)
     _results_table(s, 0.85, 1.55, 8.5, 2.5)
     # big-number callout (green: statistically significant)
     panel = rrect(s, 0.85, 4.35, 5.6, 2.4, LIGHT, line=GREEN)
@@ -418,23 +418,23 @@ def slide_results_main(prs):
     p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
     run(p, "+4,07 п.п.", size=50, color=GREEN, bold=True)
     p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
-    run(p2, "legacy EM к target (p = 0,0205)", size=15, color=GRAPHITE)
+    run(p2, "snapshot EM к target (p = 0,0205)", size=15, color=GRAPHITE)
     p3 = tf.add_paragraph(); p3.alignment = PP_ALIGN.CENTER
     run(p3, "2,22× ", size=26, color=INDIGO, bold=True)
     run(p3, "пропускной способности (к ванильному SD)", size=14, color=CAPTION)
     p4 = tf.add_paragraph(); p4.alignment = PP_ALIGN.CENTER
-    run(p4, "не финальный block-v1 claim без rerun", size=12, color=AMBER, bold=True)
+    run(p4, "artifact-backed thesis result; fresh claims — в main", size=12, color=AMBER, bold=True)
     picture(s, "fig1_pareto.png", cx=9.85, cy=4.35, box_w=6.6, box_h=2.5)
     tf2 = textbox(s, 6.7, 5.7, 6.3, 0.8)
     p = add_para(tf2, True); p.alignment = PP_ALIGN.CENTER
     run(p, "Парето-фронт: прямая генерация (target_only) — самая быстрая точка.", size=13, color=CAPTION, italic=True)
-    notes(s, "Это исторический крупный прогон и мотивационное свидетельство. После аудита он помечен "
-             "как legacy evidence: финальный block-v1 claim требует rerun с новой 9-action policy.")
+    notes(s, "Это зафиксированный artifact-backed результат snapshot ВКР. Новые post-defense block-v1 claims "
+             "делаются отдельно в main, чтобы не смешивать поколения артефактов.")
 
 
 def slide_ablation(prs):
     s = new_slide(prs)
-    header(s, "Адаптивность нетривиальна: эксперимент E", "pre-repair ablation · n = 300", 10)
+    header(s, "Адаптивность нетривиальна: эксперимент E", "thesis-snapshot ablation · n = 300", 10)
     picture(s, "fig_E_adaptivity_ablation.png", cx=SW / 2, cy=4.0, box_w=11.4, box_h=4.0)
     panel = rrect(s, 2.4, 6.15, 8.5, 0.95, LIGHT, line=GREEN)
     tf = panel.text_frame; tf.vertical_anchor = MSO_ANCHOR.MIDDLE; tf.word_wrap = True
@@ -446,9 +446,9 @@ def slide_ablation(prs):
     run(p, " (11,12 против ≈ 3,0 ток/с).", size=16, color=GRAPHITE)
     tf2 = textbox(s, 2.4, 7.03, 8.5, 0.35)
     pp = add_para(tf2, True); pp.alignment = PP_ALIGN.CENTER
-    run(pp, "Мотивационная ablation evidence; финальный block-v1 результат требует rerun.", size=10, color=AMBER, bold=True)
-    notes(s, "Нужна ли адаптивность, если порог можно подобрать? Pre-repair ablation показывает "
-             "мотивацию, но финальный block-v1 результат требует повторного прогона.")
+    run(pp, "Ablation evidence для snapshot ВКР; новые block-v1 claims требуют rerun в main.", size=10, color=AMBER, bold=True)
+    notes(s, "Нужна ли адаптивность, если порог можно подобрать? Thesis-snapshot ablation показывает "
+             "мотивацию, а новые post-defense claims выносятся в main.")
 
 
 def slide_honest(prs):
@@ -501,8 +501,8 @@ def slide_defense(prs):
     items = [
         "Совместное управление (длина, порог) формализуемо как конечный MDP (≈ 3600 состояний), решаемый точно методом value iteration без обучения нейросетевых модулей.",
         "Доказаны выборочная сложность (A), исправленная reward-shaping формулировка (B), оценка и точный разрыв совместной и каскадной политик (C, D), слабое доминирование (2.3) и Парето-скаляризация (2.4).",
-        "Реализован block-v1 pipeline с семантической валидацией: legacy 16-action policies не переиспользуются как новые результаты.",
-        "Legacy-прогоны показывают потенциал; финальный block-v1 claim требует rerun. Установлены границы применимости: joint ≈ cascade и нуль на низком отношении мощностей.",
+        "Реализован block-v1 pipeline с семантической валидацией: разные поколения policies не смешиваются неявно.",
+        "Зафиксированные прогоны показывают потенциал; fresh block-v1 claims выносятся в post-defense main. Установлены границы применимости: joint ≈ cascade и нуль на низком отношении мощностей.",
     ]
     tf = textbox(s, 0.95, 1.6, 11.6, 5.3)
     for i, it in enumerate(items):
@@ -526,7 +526,7 @@ def slide_thanks(prs):
     p3 = tf.add_paragraph(); p3.space_before = Pt(24)
     run(p3, "Репозиторий: код, 94 pytest-теста, манифесты воспроизводимости,", size=15, color=CAPTION)
     p4 = tf.add_paragraph()
-    run(p4, "полный текст ВКР и план презентации.", size=15, color=CAPTION)
+    run(p4, "текст ВКР, deck, audit/Q&A и артефакты.", size=15, color=CAPTION)
     p5 = tf.add_paragraph(); p5.space_before = Pt(10)
     run(p5, "github.com/levvius/adaptive-speculative-decoding/tree/v1-defense", size=13, color=TURQUOISE, bold=True, name=MONO)
     qr = os.path.join(HERE, "repo_qr.png")
@@ -535,7 +535,7 @@ def slide_thanks(prs):
         tf2 = textbox(s, 9.0, 5.2, 2.8, 0.4)
         pp = add_para(tf2, True); pp.alignment = PP_ALIGN.CENTER
         run(pp, "→ репозиторий", size=12, color=CAPTION)
-    notes(s, "Весь код, тесты, манифесты и полный текст работы открыты — QR ведёт на immutable snapshot v1-defense. "
+    notes(s, "Код, тесты, манифесты, deck, audit/Q&A и текст работы открыты — QR ведёт на immutable snapshot v1-defense. "
              "Спасибо за внимание, готов ответить на вопросы.")
 
 

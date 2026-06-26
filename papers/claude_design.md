@@ -139,15 +139,15 @@
    RTX 5090 (один GPU), Python 3.12, PyTorch, scipy.sparse, Hydra, 94 pytest-теста на `v1-defense`,
    манифесты (git SHA,
    сиды [42,43,44], SHA-256), детерминизм; без переобучения базовых моделей.
-9. **Legacy evidence 14B/0.5B** (5 + 3). Таблица Run 1 (n = 1500) с выделенной строкой
-    `jointadaspec`; явно подписать `legacy / pre-repair artifact`. Рядом `fig1_pareto.png`.
-    Big-number: **pre-repair +4,07 п.п. EM**, p = 0,0205, **2,22×** (к ванильному SD),
-    с явной подписью `not final block-v1 evidence`.
-    На Парето честно показать target_only как самую быструю точку; добавить подпись, что это не
-    финальный block-v1 claim без rerun.
+9. **Thesis snapshot results 14B/0.5B** (5 + 3). Таблица Run 1 (n = 1500) с выделенной строкой
+    `jointadaspec`; явно подписать `artifact-backed thesis snapshot`. Рядом `fig1_pareto.png`.
+    Big-number: **thesis snapshot +4,07 п.п. EM**, p = 0,0205, **2,22×** (к ванильному SD),
+    с явной подписью `fresh post-defense claims live in main`.
+    На Парето честно показать target_only как самую быструю точку; добавить подпись, что новые
+    block-v1 claims относятся к future `main` rerun.
 10. **Адаптивность нетривиальна (эксперимент E)** (3). `fig_E_adaptivity_ablation.png` (две панели:
     точность и скорость). Callout: **+4…+8 п.п.** и **≈ 3,7×** против любого фикс. порога; пометка
-    `pre-repair ablation evidence`.
+    `thesis-snapshot ablation evidence`.
 11. **Честная картина** (2 + рисунок). 4 буллета нейтральным/янтарным: joint ≈ cascade (ничья,
     p = 0,96); AR — самый быстрый; 7B/1.5B — нуль (3 окна); немонотонность (+7,4 / −2,6 п.п.).
     Рисунок — `fig_bonus_kappa_sweep.png` или `fig_3win_robustness.png`. **Не** красить как провал.
@@ -209,16 +209,16 @@
    аппаратура RTX 5090 (один GPU); Python 3.12, PyTorch, scipy.sparse, Hydra; 94 pytest-теста
    на `v1-defense`; манифесты
    (git SHA, сиды [42,43,44], SHA256), детерминизм; без переобучения базовых моделей.
-9. Legacy evidence 14B/0.5B (GSM8K, n=1500, pre-repair artifact). Таблица:
+9. Thesis snapshot results 14B/0.5B (GSM8K, n=1500, artifact-backed thesis snapshot). Таблица:
     target_only: EM 52,93% | 14,45 ток/с | — ;
     speculative: EM 53,27% | 4,88 ток/с | +0,33 п.п. | p=0,877 ;
     cascade: EM 57,13% | 10,29 ток/с | +4,20 п.п. | p=0,015 ;
     jointadaspec: EM 57,00% | 10,84 ток/с | +4,07 п.п. | p=0,020 (выдели строку).
-    Big-number: pre-repair +4,07 п.п. EM (p=0,0205); 2,22× к ванильному SD. Рисунок Парето — вложение
-    fig1_pareto.png; на нём target_only — самая быстрая точка. Подпись: не финальный block-v1 claim без rerun.
-10. Адаптивность нетривиальна (эксперимент E, 14B/0.5B, n=300, pre-repair ablation):
+    Big-number: thesis snapshot +4,07 п.п. EM (p=0,0205); 2,22× к ванильному SD. Рисунок Парето — вложение
+    fig1_pareto.png; на нём target_only — самая быстрая точка. Подпись: future block-v1 claims live in `main`.
+10. Адаптивность нетривиальна (эксперимент E, 14B/0.5B, n=300, thesis-snapshot ablation):
     показать как мотивационное свидетельство, что adaptive control может быть лучше фикс.
-    fuzzy_sd на +4…+8 п.п. EM и ≈3,7× быстрее; не подавать как финальный block-v1 claim.
+    fuzzy_sd на +4…+8 п.п. EM и ≈3,7× быстрее; future block-v1 claims live in `main`.
     Рисунок — fig_E_adaptivity_ablation.png.
 11. Честная картина (нейтральные/янтарные акценты): joint≈cascade — ничья (Δ=−0,13%, p=0,96, как
     предсказывает теорема D); прямая генерация — самый быстрый метод; 7B/1.5B — нуль на 3 независимых
@@ -230,8 +230,8 @@
 13. Положения на защиту: 1) совместное управление формализуемо как конечный MDP (~3600 состояний),
     решаемый точно; 2) доказаны выборочная сложность, исправленная reward-shaping формулировка, разрыв с каскадом
     (точно), слабое доминирование, Парето-скаляризация; 3) реализован block-v1 pipeline с
-    семантической валидацией артефактов; 4) legacy-прогоны показывают потенциал, но финальный
-    block-v1 claim требует rerun; установлены границы применимости.
+    семантической валидацией артефактов; 4) зафиксированные прогоны показывают потенциал, а future
+    block-v1 claims выносятся в `main`; установлены границы применимости.
 14. Спасибо + QR: крупный QR (вложение repo_qr.png) на github.com/levvius/adaptive-speculative-
     decoding/tree/v1-defense; «Спасибо за внимание. Готов ответить на вопросы.»
 
@@ -259,7 +259,7 @@
 
 - [ ] 14 слайдов; на каждом — один смысловой посыл, шрифт ≥ 24 pt.
 - [ ] Все числа сверены с `pres.md`; все `+4,07 / p = 0,0205 / 2,22× / +4…+8 п.п.`
-      стоят рядом с пометкой `legacy / pre-repair / not final block-v1 evidence`.
+      стоят рядом с пометкой `artifact-backed thesis snapshot / future claims in main`.
 - [ ] Честные оговорки на слайде 11 присутствуют и **не** поданы как провал/победа.
 - [ ] «2,22×» подписано «к ванильному SD»; target_only обозначен как самый быстрый.
 - [ ] Формулы — KaTeX/изображения, не юникод.

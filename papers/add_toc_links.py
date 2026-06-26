@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Make the thesis table of contents clickable, in place.
 
-The thesis ``papers/Козин_newera.docx`` carries a static table of contents:
+The thesis ``papers/ИС61_fpm_КозинАА_2026.docx`` carries a static table of contents:
 each entry is a paragraph with a right ``dot``-leader tab plus a page number,
 and every section heading in the body is just a bold paragraph (no Word
 heading style, no bookmark, no hyperlink). This script turns that static TOC
@@ -161,7 +161,7 @@ def process(xml):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--docx", default=os.path.join(os.path.dirname(__file__), "Козин_newera.docx"))
+    ap.add_argument("--docx", default=os.path.join(os.path.dirname(__file__), "ИС61_fpm_КозинАА_2026.docx"))
     ap.add_argument("--dry-run", action="store_true", help="report matches, write nothing")
     args = ap.parse_args()
 
