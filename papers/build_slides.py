@@ -425,7 +425,7 @@ def slide_results_main(prs):
     p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
     run(p, "+4,07 п.п.", size=50, color=GREEN, bold=True)
     p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
-    run(p2, "snapshot EM к target (p = 0,0205)", size=15, color=GRAPHITE)
+    run(p2, "snapshot EM к target (p = 0,0203)", size=15, color=GRAPHITE)
     p3 = tf.add_paragraph(); p3.alignment = PP_ALIGN.CENTER
     run(p3, "2,22× ", size=26, color=INDIGO, bold=True)
     run(p3, "пропускной способности (к ванильному SD)", size=14, color=CAPTION)

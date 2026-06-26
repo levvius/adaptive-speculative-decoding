@@ -11,7 +11,7 @@ E, the κ-sweep, and the Theorem D analysis are artifact-backed thesis results
 for that snapshot. The `main` branch continues post-defense research, including
 fresh block-v1 reruns and stricter artifact metadata.
 
-## Can I defend `+4.07 pp, p=0.0205`?
+## Can I defend `+4.07 pp, p=0.0203`?
 
 Yes, as the Run 1 result of the archived thesis snapshot. The precise wording is
 that the defense snapshot shows `+4.07 pp` EM for JointAdaSpec versus

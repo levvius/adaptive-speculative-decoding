@@ -86,7 +86,7 @@ immutable snapshot `v1-defense`; fresh block-v1 rerun и новые claims — �
 | cascade | 57,13 | 10,29 | +4,20 | 0,015 |
 | **jointadaspec** | **57,00** | **10,84** | **+4,07** | **0,020** |
 
-- Big-number: **+4,07 п.п. EM** (p = 0,0205); 10,84 ток/с = **2,22×** к ванильному SD.
+- Big-number: **+4,07 п.п. EM** (p = 0,0203); 10,84 ток/с = **2,22×** к ванильному SD.
 - Подпись: «зафиксированный artifact-backed результат ВКР; fresh block-v1 rerun — задача `main`».
 **Визуал:** таблица (строка jointadaspec выделена) + `fig1_pareto.png`; target_only — самая быстрая точка.
 

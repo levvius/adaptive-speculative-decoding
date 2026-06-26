@@ -1,4 +1,0 @@
-- experiments.output_dir=outputs/jointadaspec_smoke/01_traces
-- experiments.n_traces=1
-- experiments.datasets.train_max_samples=1
-- experiments.seed=0

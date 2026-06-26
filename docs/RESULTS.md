@@ -31,8 +31,8 @@ GSM8K zero-shot CoT, RTX 5090, 500 prompts × 3 seeds = **n=1500 paired**, McNem
 |---|---:|---:|---:|---:|---:|---:|
 | target_only | 52.93% | 14.45 | 2.96× | — | — | — |
 | speculative | 53.27% | 4.88 | 1.00× | +0.33% | [−3.00%, 3.73%] | 0.877 |
-| cascade_verif_then_length | 57.13% | 10.29 | 2.11× | **+4.20%** | [0.87%, 7.67%] | **0.015 ✓** |
-| **jointadaspec** | **57.00%** | **10.84** | **2.22×** | **+4.07%** | [0.67%, 7.47%] | **0.020 ✓** |
+| cascade_verif_then_length | 57.13% | 10.29 | 2.11× | **+4.20%** | [0.87%, 7.67%] | **0.0149 ✓** |
+| **jointadaspec** | **57.00%** | **10.84** | **2.22×** | **+4.07%** | [0.67%, 7.47%] | **0.0203 ✓** |
 
 Within the archived thesis snapshot, the adaptive-control family (joint +
 cascade) outperformed `target_only` at p < 0.05. Joint = cascade head-to-head

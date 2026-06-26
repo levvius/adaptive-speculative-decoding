@@ -1,3 +1,0 @@
-- experiments.output_dir=outputs/jointadaspec_smoke/02_solve
-- experiments.traces_path=outputs/jointadaspec_smoke/01_traces/traces.parquet
-- experiments.seed=0

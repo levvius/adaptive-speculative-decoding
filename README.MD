@@ -74,8 +74,8 @@ Qwen2.5 14B → 0.5B, GSM8K, n = 1500 paired (McNemar), RTX 5090:
 |---|---:|---:|---:|---:|
 | target_only | 52.93% | 14.45 | — | — |
 | speculative | 53.27% | 4.88 | +0.33% | 0.877 |
-| cascade_verif_then_length | 57.13% | 10.29 | +4.20% | 0.015 ✓ |
-| **jointadaspec** | **57.00%** | **10.84** | **+4.07%** | **0.020 ✓** |
+| cascade_verif_then_length | 57.13% | 10.29 | +4.20% | 0.0149 ✓ |
+| **jointadaspec** | **57.00%** | **10.84** | **+4.07%** | **0.0203 ✓** |
 
 Within the archived thesis snapshot, JointAdaSpec outperformed `target_only` at
 p < 0.05 and recovered **2.22×** throughput versus vanilla speculative. This is
@@ -151,7 +151,6 @@ the legacy deck are derived via LibreOffice.
 - [`papers/pres.md`](papers/pres.md) — defence presentation plan (12 slides) + ~7-minute speech (RU)
 - [`papers/claude_design.md`](papers/claude_design.md) — slide-deck design brief (12 slides) for building the visual deck
 - [`papers/dist/`](papers/dist/) — legacy 14-slide auto-deck in three formats (PPTX · PDF · HTML); rebuild with `make slides`
-- [`papers/ВКР_тезисы_и_структура.md`](papers/ВКР_тезисы_и_структура.md) — thesis defence guide (RU)
 - [`CODEX.MD`](CODEX.MD) — chronological change log with file-level detail
 
 ## Key constraints

@@ -1,5 +1,0 @@
-- experiments.output_dir=outputs/jointadaspec_qwen7b_1p5b_2026-04-28/03_bench_gsm8k
-- experiments.policy_path=outputs/jointadaspec_qwen7b_1p5b_2026-04-28/02_solve/policy.npz
-- experiments.datasets.test_max_samples=100
-- experiments.datasets.max_new_tokens=256
-- experiments.n_seeds=3

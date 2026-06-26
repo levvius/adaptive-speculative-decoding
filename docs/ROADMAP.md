@@ -21,7 +21,7 @@
 - **κ-sweep (7B/1.5B, 6κ × n=300)**: joint ≈ cascade robust across Lagrange knob. Figure `fig_bonus_kappa_sweep.pdf`.
 - **Theorem D exact value gap**: advantage-weighted gap derivation, mean |A^πC| on B = 6e-5 (14B), 1e-3 (7B). Script `scripts/analyze_theorem_c_gap.py`. Figure `fig_D_advantage_on_B.pdf`.
 - **Theorem G quality non-monotonicity**: Δ EM +7.4% at low acceptance, −2.6% at high acceptance.
-- **Thesis defense guide**: `papers/ВКР_тезисы_и_структура.md`.
+- **Thesis defense guide**: see `docs/COMMISSION_QA_2026-06-26.md` and `papers/pres.md`.
 
 ### Theory sprint (2026-05-15)
 

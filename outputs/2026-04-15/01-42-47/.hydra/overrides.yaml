@@ -1,4 +1,0 @@
-- experiments.output_dir=outputs/jointadaspec_qwen_2026-04-14/02_solve
-- experiments.seed=0
-- experiments.traces_path=outputs/jointadaspec_qwen_2026-04-14/01_traces_gsm8k/traces.parquet
-- +experiments.kappa_values=[0.0,0.5,1.0,2.0,5.0]
