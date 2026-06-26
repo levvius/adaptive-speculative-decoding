@@ -114,6 +114,7 @@ via LibreOffice.
 
 - [`docs/RESULTS.md`](docs/RESULTS.md) — full benchmark tables (locked + historical runs)
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — post-thesis future work
+- [`docs/DEFENSE_BLOCKV1_RUN_2026-06-27.md`](docs/DEFENSE_BLOCKV1_RUN_2026-06-27.md) — bounded 24h block-v1 validation runbook/status template
 - [`docs/REPRODUCIBILITY_RELEASE.md`](docs/REPRODUCIBILITY_RELEASE.md) — release checklist for rerun-ready thesis results
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — local checks and PR workflow
 - [`papers/Козин_newera.pdf`](papers/Козин_newera.pdf) — full master's thesis (RU, PDF; DOCX alongside)
