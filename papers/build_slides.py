@@ -370,12 +370,12 @@ def slide_impl(prs):
     _flow(s, ["01\nСбор трейсов", "02\nРешение MDP", "03\nБенчмарк", "04\nПроверка условий"],
           top=1.7, box_w=2.5, box_h=1.0, gap=0.4, size=15)
     bullets(s, [
-        ("Стек: Python 3.12, PyTorch, scipy.sparse, Hydra; ядро покрыто 72 модульными тестами.",),
+        ("Стек: Python 3.12, PyTorch, scipy.sparse, Hydra; полный pytest-набор: 94 теста на v1-defense.",),
         ("Воспроизводимость: манифесты (git SHA, сиды [42, 43, 44], SHA256), детерминированные прогоны.",),
         ("Совместимость с инференс-фреймворками без переобучения базовых моделей.",),
     ], top=3.25, size=21, gap=14)
     notes(s, "Метод реализован как воспроизводимый конвейер: каждый прогон детерминирован и "
-             "сопровождается манифестом, ядро покрыто 72 тестами.")
+             "сопровождается манифестом; на defense snapshot полный pytest-набор прошёл как 94 теста.")
 
 
 def _results_table(slide, L, T, W, H):
@@ -524,7 +524,7 @@ def slide_thanks(prs):
     p2 = tf.add_paragraph(); p2.space_before = Pt(18)
     run(p2, "Готов ответить на ваши вопросы.", size=20, color=GRAPHITE)
     p3 = tf.add_paragraph(); p3.space_before = Pt(24)
-    run(p3, "Репозиторий: код, 72 теста, манифесты воспроизводимости,", size=15, color=CAPTION)
+    run(p3, "Репозиторий: код, 94 pytest-теста, манифесты воспроизводимости,", size=15, color=CAPTION)
     p4 = tf.add_paragraph()
     run(p4, "полный текст ВКР и план презентации.", size=15, color=CAPTION)
     p5 = tf.add_paragraph(); p5.space_before = Pt(10)

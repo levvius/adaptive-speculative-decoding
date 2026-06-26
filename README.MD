@@ -73,7 +73,7 @@ Full tables, 7B/1.5B null result, Experiment E ablation, and κ-sweep — see
 
 ```bash
 make setup        # CPU install (uses pip + requirements.txt)
-make test         # 72 unit tests, ~5 s
+make test         # full pytest suite; 94 passed on v1-defense
 make bench-toy    # toy benchmark without HF models
 ```
 
@@ -105,7 +105,7 @@ via LibreOffice.
 | `benchmarks/` | Unified benchmark runner (`bench_speculative.py`) |
 | `scripts/` | Pipeline stages and orchestration shell scripts |
 | `configs/` | Model / method / experiment JSON presets + Hydra YAML |
-| `tests/` | 72 unit tests covering all methods and MDP solver |
+| `tests/` | Full pytest suite covering all methods and the MDP solver (94 passed on v1-defense) |
 | `notebooks/thesis_plots.ipynb` | Defence figures with Russian explanations |
 | `reports/`, `outputs/` | Benchmark artifacts, manifests, figures |
 | `papers/` | Master's thesis ([DOCX](papers/Козин_newera.docx), clickable TOC · [PDF](papers/Козин_newera.pdf)), defence deck plan + speech, design brief, built deck in `papers/dist/` (Russian) |
