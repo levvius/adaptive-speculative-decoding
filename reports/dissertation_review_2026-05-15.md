@@ -69,6 +69,6 @@ Per Theorem B, the multiplicative form is theoretically unjustified. Two respons
 
 - `reports/theory_improvements_2026-05-15.md` — full theorem statements and proofs.
 - `reports/dissertation_review_2026-05-05.md` — prior theory fixes (Theorems 2.3, 2.4 first-pass corrections).
-- `reports/jointadaspec_quality_qwen14b_0p5b_crosscheck_2026-05-14-final.md` — strongest anchor (+8.67% EM, p=0.0255).
+- `reports/jointadaspec_quality_qwen14b_0p5b_crosscheck_2026-05-14-final.md` — historical / superseded pre-repair anchor (+8.67% EM, p=0.0255); do not present as final block-v1 evidence after the 2026-06-26 defense audit.
 - `reports/conditions_qwen7b_1p5b_quality_2026-05-05.json` — empirical C1-C4 / N1-N2 data feeding Theorems A, C and updated 2.3.
 - `papers/ИС61_fpm_КозинАА_2026_исправлено_практика.docx` — corrected dissertation copy. Source DOCX preserved per protected-section policy; new theorems to be integrated by hand.

@@ -1,10 +1,16 @@
 # JointAdaSpec — Thesis Final Summary (target date 2026-05-20)
 
+> **Superseded / historical note (2026-06-26).** This file is preserved for
+> traceability only. The final defense narrative is in
+> `docs/DEFENSE_AUDIT_2026-06-26.md`, `docs/RESULTS.md`, and `papers/pres.md`.
+> The `+8.67%` result below was an early pre-repair anchor and must not be
+> presented as final block-v1 evidence.
+
 This document is the single-page narrative for thesis defense. It integrates the empirical anchors, the theoretical improvements, and the honest limitations.
 
 ## Headline
 
-**JointAdaSpec achieves a paired `+8.67%` GSM8K exact-match advantage over the target-only baseline on Qwen 14B → 0.5B (`p = 0.0137`, permutation test, paired n=300), while delivering `2.27×` higher throughput than vanilla speculative decoding.** This is the strongest result of the work.
+**Historical / superseded:** the early pre-repair anchor showed a paired `+8.67%` GSM8K exact-match advantage over the target-only baseline on Qwen 14B → 0.5B (`p = 0.0137`, permutation test, paired n=300), while delivering `2.27×` higher throughput than vanilla speculative decoding. This is no longer the defended headline.
 
 ## Empirical anchors
 
@@ -17,7 +23,7 @@ This document is the single-page narrative for thesis defense. It integrates the
 | cascade_verif_then_length | 56.33% | 10.2 | 2.27× | +7.00% | [+0.3%, +13.7%] | 0.048 |
 | **jointadaspec** | **58.00%** | **10.2** | **2.27×** | **+8.67%** | **[+2.0%, +15.3%]** | **0.014** |
 
-Run 1 of the final sprint (`configs/experiments/qwen25_14b_0p5b_jointadaspec_lock.yaml`) re-benchmarks this configuration at 500 prompts × 3 seeds to tighten the CI further; expected post-Run-1 p is `≲ 0.005`.
+Run 1 of the final sprint later superseded this early anchor. After the 2026-06-26 defense audit, both are treated as legacy / pre-repair evidence until regenerated under block-v1 semantics with a fresh 9-action policy.
 
 ### Secondary — Qwen 7B → 1.5B (k=8, 2026-05-12)
 
@@ -28,7 +34,7 @@ Run 1 of the final sprint (`configs/experiments/qwen25_14b_0p5b_jointadaspec_loc
 | cascade_verif_then_length | 61.33% | 15.7 | 1.56× | +2.50% | [−2.2%, +7.2%] | 0.279 |
 | **jointadaspec** | **62.33%** | **15.7** | **1.56×** | **+3.50%** | **[−1.3%, +8.3%]** | **0.146** |
 
-Run 2 of the final sprint (`configs/experiments/qwen25_7b_1p5b_jointadaspec_quality_lock.yaml`) increases paired n from 600 to 1500; expected post-Run-2 p is below 0.05 if the +3.50% effect is real.
+Run 2 of the final sprint later showed that this early positive did not survive at power on a fresh held-out window.
 
 ## Theoretical contributions
 

@@ -10,15 +10,37 @@ master's thesis (магистерская диссертация) *JointAdaSpec*
 
 ## Current status
 
-This repository is in a repair pass after a thesis/code audit found that the
-current JointAdaSpec benchmark path does not yet implement the advertised block
-speculative-decoding verification semantics end to end. The historical numbers
-below are preserved for traceability, but they are **legacy results** until the
-block-verification implementation is landed and the experiments are rerun.
+This repository has gone through a thesis/code repair pass. The current
+JointAdaSpec code path now uses block-verification semantics (`block_verify_v1`)
+and rejects legacy policy artifacts that lack semantic metadata.
+
+The historical large-scale numbers below are still marked as **legacy /
+pre-repair evidence**: the locked Run 1 report points to a pre-repair 16-action
+policy artifact, and the raw lock `benchmark.csv` is not present in this working
+copy for prompt-clustered reanalysis. These numbers are preserved for
+traceability, but they must not be presented as final evidence for block
+speculative-decoding speedup until the benchmark suite is rerun with regenerated
+`block_verify_v1` artifacts.
 
 Repair plan: [`docs/REPAIR_PLAN_REPO_THESIS.md`](docs/REPAIR_PLAN_REPO_THESIS.md).
+Defense audit: [`docs/DEFENSE_AUDIT_2026-06-26.md`](docs/DEFENSE_AUDIT_2026-06-26.md).
+Commission Q&A: [`docs/COMMISSION_QA_2026-06-26.md`](docs/COMMISSION_QA_2026-06-26.md).
 
-## Legacy headline result
+## Defense snapshot
+
+What is safe to defend from this snapshot:
+
+- a finite MDP formulation for joint control over draft length and fuzzy
+  verification threshold;
+- theory explaining sample complexity, reward-shaping limits, and why joint and
+  cascade policies can be nearly tied;
+- a repaired block-v1 implementation with action-space and artifact metadata
+  safeguards;
+- legacy benchmark evidence as motivation and historical traceability;
+- a reproducible rerun plan for turning the repaired implementation into final
+  block-v1 benchmark claims.
+
+## Legacy / pre-repair headline result
 
 Qwen2.5 14B → 0.5B, GSM8K, n = 1500 paired (McNemar), RTX 5090:
 
@@ -29,11 +51,9 @@ Qwen2.5 14B → 0.5B, GSM8K, n = 1500 paired (McNemar), RTX 5090:
 | cascade_verif_then_length | 57.13% | 10.29 | +4.20% | 0.015 ✓ |
 | **jointadaspec** | **57.00%** | **10.84** | **+4.07%** | **0.020 ✓** |
 
-Under the legacy implementation, JointAdaSpec significantly outperforms
-`target_only` at p < 0.05 and recovers **2.22×** throughput versus vanilla
-speculative. This result must not be presented as final evidence for block
-speculative decoding until the decoder, MDP traces, and baselines all use one
-batched target-verification phase per draft block.
+Under the legacy implementation, JointAdaSpec outperformed `target_only` at
+p < 0.05 and recovered **2.22×** throughput versus vanilla speculative. This
+result is **pre-repair evidence**, not a final block-v1 benchmark claim.
 
 Full tables, 7B/1.5B null result, Experiment E ablation, and κ-sweep — see
 [`docs/RESULTS.md`](docs/RESULTS.md).
@@ -72,8 +92,9 @@ Build the defence deck in the three most common formats (PPTX + PDF + HTML):
 make slides   # -> papers/dist/JointAdaSpec_defense.{pptx,pdf,html}
 ```
 
-The master deck is authored with `python-pptx` from the locked numbers in
-[`papers/pres.md`](papers/pres.md); the PDF and self-contained HTML are derived via LibreOffice.
+The master deck is authored with `python-pptx` from
+[`papers/pres.md`](papers/pres.md); the PDF and self-contained HTML are derived
+via LibreOffice.
 
 ## Repository structure
 
