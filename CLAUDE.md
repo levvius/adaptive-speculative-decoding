@@ -278,7 +278,7 @@ JointAdaSpec limitations:
 
 ### JointAdaSpec — primary results (RTX 5090, GSM8K zero-shot CoT)
 
-**Status — LEGACY LOCKED.** Qwen 14B → 0.5B (Run 1 final sprint, 2026-05-14, **500 prompts × 3 seeds = paired n=1500**, McNemar). These numbers are preserved as the locked thesis-history artifact, but they are not final block speculative-decoding evidence until the repair plan in `docs/REPAIR_PLAN_REPO_THESIS.md` lands and the experiments are rerun with one target verification pass per draft block:
+**Status — LEGACY LOCKED.** Qwen 14B → 0.5B (Run 1 final sprint, 2026-05-14, **500 prompts × 3 seeds = paired n=1500**, McNemar). These numbers are preserved as the locked thesis-history artifact, but after the 2026-06-26 defense audit they are not final block-v1 evidence: the current code path is repaired, while the locked Run 1 artifact predates semantic metadata and must be rerun with a regenerated 9-action policy for final block-v1 claims.
 
 | Method | EM | tok/s | vs speculative | Paired Δ EM vs target_only | 95% CI | p |
 |---|---:|---:|---:|---:|---:|---:|
@@ -287,7 +287,7 @@ JointAdaSpec limitations:
 | cascade_verif_then_length | 57.13% | 10.29 | 2.11× | +4.20% | [0.87%, 7.67%] | 0.0149 ✓ |
 | **jointadaspec** | **57.00%** | **10.84** | **2.22×** | **+4.07%** | **[0.67%, 7.47%]** | **0.0203 ✓** |
 
-At the locked sample size (n=1500) the **legacy adaptive-control family** (both joint and cascade) significantly beats `target_only` by ~`+4%` EM at `~2.2×` the throughput of vanilla speculative (`p < 0.05`). Treat this as a legacy thesis claim pending the block-SD rerun.
+Under the pre-repair artifacts, the **legacy adaptive-control family** (both joint and cascade) beat `target_only` by ~`+4%` EM at `~2.2×` the throughput of vanilla speculative (`p < 0.05`). Treat this as historical motivation pending the block-v1 rerun, not as a final benchmark claim.
 
 **Honest caveat — joint ties cascade.** Head-to-head paired, `jointadaspec − cascade_verif_then_length = −0.13%`, `p = 0.96`: the two are statistically indistinguishable. The larger `+8.67%` margin and the joint-over-cascade edge seen in the earlier 100-prompt crosscheck (jointadaspec `+8.67%` p=0.0137, cascade `+7.00%`) were small-`n` noise that washed out at power. Reports: `reports/{pareto,ablation,jointadaspec_quality}_qwen14b_0p5b_lock_2026-05-14.*`, `reports/threshold_surface_qwen14b_0p5b_lock_2026-05-14/`.
 

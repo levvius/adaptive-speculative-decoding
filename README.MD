@@ -24,6 +24,7 @@ speculative-decoding speedup until the benchmark suite is rerun with regenerated
 
 Repair plan: [`docs/REPAIR_PLAN_REPO_THESIS.md`](docs/REPAIR_PLAN_REPO_THESIS.md).
 Defense audit: [`docs/DEFENSE_AUDIT_2026-06-26.md`](docs/DEFENSE_AUDIT_2026-06-26.md).
+Commission Q&A: [`docs/COMMISSION_QA_2026-06-26.md`](docs/COMMISSION_QA_2026-06-26.md).
 
 ## Defense snapshot
 
