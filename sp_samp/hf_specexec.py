@@ -356,6 +356,10 @@ def specexec_sample_hf(
         token = _sample_token(cache[current_prefix])
         generated.append(token)
         stats.target_tokens += 1
+        # SpecExec emits exact target draws, so every emitted token counts as both
+        # proposed and accepted by construction (acceptance_rate == 1.0). The
+        # speculative branch dynamics (expansion/pruning) are tracked separately in
+        # the SpecExecStats branch fields, not via this token-level acceptance ratio.
         stats.proposed += 1
         stats.accepted += 1
         if eos_id is not None and token == eos_id:

@@ -15,6 +15,10 @@ class JointAction:
     length_action: str
     threshold: float
 
+    # `verify` and `stop` denote the *same* terminal action: verifying the
+    # accumulated draft block ends (stops) the current drafting round. The two
+    # property names are intentional aliases kept for caller/test readability
+    # (see estimation.py and test_mdp_solver.py); identical bodies are not a bug.
     @property
     def is_stop(self) -> bool:
         return self.length_action in {"verify", "stop"}

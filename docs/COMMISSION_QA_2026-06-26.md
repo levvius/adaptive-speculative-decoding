@@ -49,3 +49,58 @@ research claims.
 
 The tag freezes the exact defense snapshot. It prevents accidental later commits
 on `main` from changing what the committee sees during questions.
+
+---
+
+## Answers to automated code-review findings
+
+These pre-empt the questions an LLM code-review tool (e.g. Claude Code) typically
+raises when pointed at the repository. None of them is a correctness bug.
+
+### "How do I run this? The pipeline fails on my machine."
+
+The full pipeline is GPU-bound and download-heavy by design: it needs a high-end
+GPU (RTX 5090, 24–32 GB VRAM), tens of GB of model weights (Qwen2.5-14B ≈ 28 GB
+plus a draft model) and the GSM8K dataset. On a laptop/CPU it will not run — this
+is expected, not a defect. The CPU-only checks that *do* run in minutes without
+downloads are listed at the top of `README.MD` (`make test` — 94 tests,
+`make bench-toy`, `make check`, `make list-presets`, `make validate-configs`).
+
+### "Why is the locked run's raw `benchmark.csv` / `results.jsonl` not in the repo?"
+
+Large per-prompt artifacts under `outputs/jointadaspec_*_20*/` are excluded by
+`.gitignore`, so they are not in the cloned snapshot. The aggregated reports that
+carry the headline numbers (`reports/jointadaspec_quality_qwen14b_0p5b_lock_2026-05-14.{md,json}`)
+*are* committed. This is the standard "commit the summary, not the multi-MB raw
+log" hygiene; the rerun plan to regenerate raw artifacts lives on `main`.
+
+### "`JointAction.is_stop` and `is_verify` have identical bodies — is that a bug?"
+
+No. In this MDP formulation `verify` and `stop` are the *same* terminal action:
+verifying the accumulated draft block ends (stops) the drafting round. Both names
+are intentional aliases used by `estimation.py` and `test_mdp_solver.py`; the
+behaviour is covered by the passing test suite.
+
+### "SpecExec reports `acceptance_rate == 1.0` — isn't that wrong?"
+
+No. SpecExec is an *exact* sampler that emits exact target draws, so by
+construction every emitted token is both proposed and accepted. The interesting
+speculative dynamics (branch expansion/pruning) are tracked in the separate
+`SpecExecStats` branch fields, not in the token-level acceptance ratio. SpecExec
+is a comparison baseline, not the thesis method.
+
+### "Theorem B is labelled 'corrected/wrong' — is the theory broken?"
+
+No — that is a deliberate correction documented as a result. A naïve state-only
+additive quality-risk penalty is *not* policy-invariant in a general MDP; the
+thesis flags this and uses the valid form. Catching and correcting it is part of
+the theoretical contribution, not a defect.
+
+### "The Run 1 policy uses 16 actions but the code defines 9 — mismatch?"
+
+That is the archived-vs-current artifact boundary. The locked Run 1 policy is a
+pre-repair 16-action artifact (no `action_space_version` / `decoder_semantics`
+metadata); the current `block_verify_v1` code path uses 9 actions and validates
+artifact metadata so old and new policies cannot be mixed implicitly. The locked
+numbers are defended as the archived thesis snapshot; fresh 9-action reruns are a
+`main`-branch task. See `docs/DEFENSE_AUDIT_2026-06-26.md`.

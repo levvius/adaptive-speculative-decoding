@@ -23,10 +23,13 @@ through the QR code.
 
 3. **Raw lock benchmark availability.** The report
    `reports/jointadaspec_quality_qwen14b_0p5b_lock_2026-05-14.json` references
-   `outputs/jointadaspec_qwen14b_0p5b_lock_2026-05-14/03_bench_gsm8k/benchmark.csv`,
-   but that raw benchmark file is not present in this working copy. Prompt-level
-   clustered statistics for the locked run cannot be recomputed here unless the
-   raw artifact is restored from the run machine or backup.
+   `outputs/jointadaspec_qwen14b_0p5b_lock_2026-05-14/03_bench_gsm8k/benchmark.csv`.
+   That raw per-prompt file is **not committed to git** (it is excluded by the
+   `.gitignore` rule `outputs/jointadaspec_*_20*/`), so it is absent from the
+   cloned defense snapshot, even though the aggregated report (`.md`/`.json`) that
+   carries the headline numbers *is* committed. Prompt-level clustered statistics
+   for the locked run therefore cannot be recomputed from the clone unless the raw
+   artifact is restored from the run machine or backup.
 
 4. **Local checks.** `make check` passes in this working copy. Targeted pytest
    collection requires the project runtime dependencies (`torch`, `pandas`,

@@ -2,11 +2,38 @@
 
 [![CI](https://github.com/levvius/adaptive-speculative-decoding/actions/workflows/ci.yml/badge.svg)](https://github.com/levvius/adaptive-speculative-decoding/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](.python-version)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](.python-version)
 
 Implementation and benchmark of **joint adaptive control over draft length and verification
 threshold** for speculative LLM decoding, formalised as a tabular MDP. Companion code for the
 master's thesis (магистерская диссертация) *JointAdaSpec* (Kozin A. A., 2026).
+
+## ⚠️ Запуск и требования к ресурсам / Running this repo
+
+**Полный исследовательский конвейер не запускается на ноутбуке или на CPU.** Воспроизведение
+headline-результатов требует серьёзных вычислительных ресурсов и больших загрузок:
+
+- топовый GPU (использовалась NVIDIA RTX 5090; нужно ≈ 24–32 ГБ VRAM);
+- скачивание весов моделей на десятки гигабайт (Qwen2.5-14B ≈ 28 ГБ + draft-модель);
+- датасет GSM8K и ≈ 14–18 ч расчёта на один полный прогон.
+
+Без этих ресурсов сбор трейсов и бенчмарк (`make jointadaspec-full`, `make bench`, `make *-eval`)
+работать не будут — это **ожидаемое поведение**, а не поломка репозитория.
+
+**Что реально проверяется за минуты на CPU, без GPU и без скачивания моделей:**
+
+| Команда | Что делает |
+|---|---|
+| `make test` | полный pytest-набор (94 теста) |
+| `make bench-toy` | игрушечный бенчмарк без HF-моделей |
+| `make check` | синтаксис + валидация конфигов |
+| `make list-presets` | список моделей / методов / экспериментов |
+| `make validate-configs` | проверка согласованности конфигов |
+
+**EN (short).** The full pipeline needs a high-end GPU (RTX 5090, 24–32 GB VRAM), tens of GB of
+model weights (Qwen2.5-14B ≈ 28 GB) and the GSM8K dataset; it does **not** run on a laptop or on
+CPU. What *does* run on CPU in minutes without any downloads: `make test` (94 tests),
+`make bench-toy`, `make check`, `make list-presets`, `make validate-configs`.
 
 ## Thesis snapshot status
 
