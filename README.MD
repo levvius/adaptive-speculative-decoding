@@ -4,11 +4,12 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](.python-version)
 
-Implementation and benchmark of **joint adaptive control over draft length and verification
-threshold** for speculative LLM decoding, formalised as a tabular MDP. Companion code for the
-master's thesis (магистерская диссертация) *JointAdaSpec* (Kozin A. A., 2026).
+Реализация и бенчмарк **совместного адаптивного управления длиной черновика и порогом
+верификации** для спекулятивного декодирования LLM, формализованного как табличный марковский
+процесс принятия решений (MDP). Сопроводительный код к магистерской диссертации *JointAdaSpec*
+(Козин А. А., 2026).
 
-## ⚠️ Запуск и требования к ресурсам / Running this repo
+## ⚠️ Запуск и требования к ресурсам
 
 **Полный исследовательский конвейер не запускается на ноутбуке или на CPU.** Воспроизведение
 headline-результатов требует серьёзных вычислительных ресурсов и больших загрузок:
@@ -30,136 +31,127 @@ headline-результатов требует серьёзных вычисли
 | `make list-presets` | список моделей / методов / экспериментов |
 | `make validate-configs` | проверка согласованности конфигов |
 
-**EN (short).** The full pipeline needs a high-end GPU (RTX 5090, 24–32 GB VRAM), tens of GB of
-model weights (Qwen2.5-14B ≈ 28 GB) and the GSM8K dataset; it does **not** run on a laptop or on
-CPU. What *does* run on CPU in minutes without any downloads: `make test` (94 tests),
-`make bench-toy`, `make check`, `make list-presets`, `make validate-configs`.
+## Статус снимка диссертации
 
-## Thesis snapshot status
+Тег `v1-defense` — это неизменяемый снимок репозитория, использованный при защите диссертации.
+Его экспериментальные результаты подкреплены артефактами и соответствуют заархивированным в этой
+ветке конвейеру JointAdaSpec, отчётам, манифестам и презентации к защите.
 
-The `v1-defense` tag is the immutable repository snapshot used for the thesis
-defense. Its experimental results are artifact-backed thesis-snapshot results:
-they correspond to the archived JointAdaSpec pipeline, reports, manifests, and
-defense deck shipped in this branch.
+Ветка `main` зарезервирована для исследований после защиты: более строгие метаданные артефактов,
+новые прогоны `block_verify_v1`, статистика с кластеризацией по промптам и поправкой Холма, а также
+новые утверждения по бенчмаркам. Поэтому приведённые ниже результаты следует интерпретировать в
+рамках этого заархивированного снимка диссертации, а не как новый послезащитный прогон block-v1.
 
-The `main` branch is reserved for post-defense research: stricter artifact
-metadata, fresh `block_verify_v1` reruns, prompt-clustered/Holm statistics, and
-new benchmark claims. The results below should therefore be interpreted within
-this archived thesis snapshot, not as a new post-defense block-v1 rerun.
+Дорожная карта продолжения исследований: [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Аудит к защите: [`docs/DEFENSE_AUDIT_2026-06-26.md`](docs/DEFENSE_AUDIT_2026-06-26.md).
+Вопросы и ответы для комиссии: [`docs/COMMISSION_QA_2026-06-26.md`](docs/COMMISSION_QA_2026-06-26.md).
 
-Research continuation roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md).
-Defense audit: [`docs/DEFENSE_AUDIT_2026-06-26.md`](docs/DEFENSE_AUDIT_2026-06-26.md).
-Commission Q&A: [`docs/COMMISSION_QA_2026-06-26.md`](docs/COMMISSION_QA_2026-06-26.md).
+## Что выносится на защиту
 
-## Defense snapshot
+Что безопасно выносить на защиту из этого снимка:
 
-What is safe to defend from this snapshot:
+- конечную MDP-постановку для совместного управления длиной черновика и нечётким порогом
+  верификации;
+- теорию, объясняющую выборочную сложность, ограничения reward-shaping и причины, по которым
+  совместная и каскадная политики могут быть практически равны;
+- воспроизводимую реализацию с защитой по пространству действий и метаданным артефактов;
+- подкреплённые артефактами результаты диссертации из Run 1, Run 2, Эксперимента E, κ-развёртки
+  и анализа Теоремы D;
+- чёткое разделение между снимком для защиты и будущими прогонами в ветке `main`.
 
-- a finite MDP formulation for joint control over draft length and fuzzy
-  verification threshold;
-- theory explaining sample complexity, reward-shaping limits, and why joint and
-  cascade policies can be nearly tied;
-- a reproducible implementation with action-space and artifact metadata
-  safeguards;
-- artifact-backed thesis results from Run 1, Run 2, Experiment E, the κ-sweep,
-  and the Theorem D analysis;
-- a clear separation between the defense snapshot and future `main`-branch
-  reruns.
+## Ключевой результат снимка диссертации
 
-## Thesis snapshot headline result
+Qwen2.5 14B → 0.5B, GSM8K, n = 1500 парных наблюдений (критерий Макнемара), RTX 5090:
 
-Qwen2.5 14B → 0.5B, GSM8K, n = 1500 paired (McNemar), RTX 5090:
-
-| Method | EM | tok/s | Δ vs target_only | p |
+| Метод | EM | tok/s | Δ к target_only | p |
 |---|---:|---:|---:|---:|
 | target_only | 52.93% | 14.45 | — | — |
 | speculative | 53.27% | 4.88 | +0.33% | 0.877 |
 | cascade_verif_then_length | 57.13% | 10.29 | +4.20% | 0.0149 ✓ |
 | **jointadaspec** | **57.00%** | **10.84** | **+4.07%** | **0.0203 ✓** |
 
-Within the archived thesis snapshot, JointAdaSpec outperformed `target_only` at
-p < 0.05 and recovered **2.22×** throughput versus vanilla speculative. This is
-the defended thesis-snapshot result; post-defense `main` work will rerun the
-benchmark suite under the newest block-v1 artifact protocol before making new
-claims.
+В рамках заархивированного снимка диссертации JointAdaSpec превзошёл `target_only` при p < 0.05 и
+восстановил **2.22×** пропускной способности относительно ванильного speculative. Это защищаемый
+результат снимка диссертации; в послезащитной работе в ветке `main` набор бенчмарков будет
+перезапущен по новейшему протоколу артефактов block-v1, прежде чем формулировать новые утверждения.
 
-Full tables, 7B/1.5B null result, Experiment E ablation, and κ-sweep — see
+Полные таблицы, нулевой результат на 7B/1.5B, абляция Эксперимента E и κ-развёртка — см.
 [`docs/RESULTS.md`](docs/RESULTS.md).
 
-## Methods implemented
+## Реализованные методы
 
-| Method | Distribution | Idea |
+| Метод | Распределение | Идея |
 |---|---|---|
-| `baseline` | exact | Target-only autoregressive decoding |
-| `speculative` | exact | Draft proposes, target verifies (Leviathan 2022) |
-| `autojudge` | approximate | Trained classifier accepts mismatches |
-| `topk` | approximate | Accept mismatch if target token in draft top-K |
-| `specexec` | exact | Parallel speculative branches + cache reuse |
-| **`jointadaspec`** | approximate | **MDP-controlled (draft length, fuzzy threshold)** |
+| `baseline` | точное | Авторегрессионное декодирование только целевой моделью |
+| `speculative` | точное | Черновик предлагает, целевая модель проверяет (Leviathan 2022) |
+| `autojudge` | приближённое | Обученный классификатор принимает расхождения |
+| `topk` | приближённое | Принять расхождение, если токен целевой модели входит в top-K черновика |
+| `specexec` | точное | Параллельные спекулятивные ветви + переиспользование кэша |
+| **`jointadaspec`** | приближённое | **Управление через MDP (длина черновика, нечёткий порог)** |
 
-## Quick start
+## Быстрый старт
 
 ```bash
-make setup        # CPU install (uses pip + requirements.txt)
-make test         # full pytest suite; 94 passed on v1-defense
-make bench-toy    # toy benchmark without HF models
+make setup        # установка для CPU (pip + requirements.txt)
+make test         # полный набор pytest; на v1-defense прошло 94 теста
+make bench-toy    # игрушечный бенчмарк без HF-моделей
 ```
 
-Full JointAdaSpec pipeline (requires GPU):
+Полный конвейер JointAdaSpec (требуется GPU):
 
 ```bash
 make jointadaspec-full MODEL_PAIR=qwen14b_0p5b
 ```
 
-Pipeline stages: `01_collect_traces` → `02_solve_mdp` → `03_benchmark` →
+Этапы конвейера: `01_collect_traces` → `02_solve_mdp` → `03_benchmark` →
 `04_verify_conditions` → `05_write_manifest`.
 
-Build the legacy auto-deck in the three most common formats (PPTX + PDF + HTML):
+Сборка устаревшей авто-презентации в трёх наиболее распространённых форматах (PPTX + PDF + HTML):
 
 ```bash
 make slides   # -> papers/dist/JointAdaSpec_defense.{pptx,pdf,html}
 ```
 
-`make slides` rebuilds the **legacy 14-slide** auto-deck. The current defence
-structure is **12 slides** (less theory, more results): its authoring source is
-[`papers/pres.md`](papers/pres.md) (plan + ~7-minute speech) and
-[`papers/claude_design.md`](papers/claude_design.md) (design brief), from which
-the authoritative visual deck is generated. The PDF and self-contained HTML of
-the legacy deck are derived via LibreOffice.
+`make slides` пересобирает **устаревшую авто-презентацию из 14 слайдов**. Текущая структура защиты —
+**12 слайдов** (меньше теории, больше результатов): её исходники — [`papers/pres.md`](papers/pres.md)
+(план + ~7-минутная речь) и [`papers/claude_design.md`](papers/claude_design.md) (бриф по дизайну),
+из которых собирается основная визуальная презентация. PDF и автономный HTML устаревшей презентации
+получаются через LibreOffice.
 
-## Repository structure
+## Структура репозитория
 
-| Directory | Contents |
+| Каталог | Содержимое |
 |---|---|
-| `jointadaspec/` | MDP framework — state/action spaces, VI solver, decoder, baselines |
-| `sp_samp/` | Legacy speculative / AutoJudge / SpecExec / Top-K implementations |
-| `benchmarks/` | Unified benchmark runner (`bench_speculative.py`) |
-| `scripts/` | Pipeline stages and orchestration shell scripts |
-| `configs/` | Model / method / experiment JSON presets + Hydra YAML |
-| `tests/` | Full pytest suite covering all methods and the MDP solver (94 passed on v1-defense) |
-| `notebooks/thesis_plots.ipynb` | Defence figures with Russian explanations |
-| `reports/`, `outputs/` | Benchmark artifacts, manifests, figures |
-| `papers/` | Master's thesis materials, defence deck plan + speech, design brief, built deck in `papers/dist/` (Russian) |
+| `jointadaspec/` | MDP-фреймворк — пространства состояний/действий, VI-солвер, декодер, бейзлайны |
+| `sp_samp/` | Устаревшие реализации speculative / AutoJudge / SpecExec / Top-K |
+| `benchmarks/` | Единый раннер бенчмарков (`bench_speculative.py`) |
+| `scripts/` | Этапы конвейера и оркестрационные shell-скрипты |
+| `configs/` | JSON-пресеты моделей / методов / экспериментов + Hydra YAML |
+| `tests/` | Полный набор pytest по всем методам и MDP-солверу (на v1-defense прошло 94 теста) |
+| `notebooks/thesis_plots.ipynb` | Графики для защиты с пояснениями на русском |
+| `reports/`, `outputs/` | Артефакты бенчмарков, манифесты, графики |
+| `papers/` | Материалы магистерской диссертации, план презентации + речь, бриф по дизайну, собранная презентация в `papers/dist/` (русский) |
 
-## Documentation
+## Документация
 
-- [`docs/RESULTS.md`](docs/RESULTS.md) — full benchmark tables (locked + historical runs)
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — post-thesis future work
-- [`docs/REPRODUCIBILITY_RELEASE.md`](docs/REPRODUCIBILITY_RELEASE.md) — release checklist for rerun-ready thesis results
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — local checks and PR workflow
-- [`papers/ИС61_fpm_КозинАА_2026.docx`](papers/ИС61_fpm_КозинАА_2026.docx) — master's thesis text (RU, DOCX)
-- [`papers/pres.md`](papers/pres.md) — defence presentation plan (12 slides) + ~7-minute speech (RU)
-- [`papers/claude_design.md`](papers/claude_design.md) — slide-deck design brief (12 slides) for building the visual deck
-- [`papers/dist/`](papers/dist/) — legacy 14-slide auto-deck in three formats (PPTX · PDF · HTML); rebuild with `make slides`
-- [`CODEX.MD`](CODEX.MD) — chronological change log with file-level detail
+- [`docs/RESULTS.md`](docs/RESULTS.md) — полные таблицы бенчмарков (зафиксированные + исторические прогоны)
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — планы после диссертации
+- [`docs/REPRODUCIBILITY_RELEASE.md`](docs/REPRODUCIBILITY_RELEASE.md) — чек-лист релиза для готовых к перезапуску результатов диссертации
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — локальные проверки и процесс работы с PR
+- [`papers/ИС61_fpm_КозинАА_2026.docx`](papers/ИС61_fpm_КозинАА_2026.docx) — текст магистерской диссертации (RU, DOCX)
+- [`papers/pres.md`](papers/pres.md) — план презентации к защите (12 слайдов) + ~7-минутная речь (RU)
+- [`papers/claude_design.md`](papers/claude_design.md) — бриф по дизайну презентации (12 слайдов) для сборки визуальной презентации
+- [`papers/dist/`](papers/dist/) — устаревшая авто-презентация из 14 слайдов в трёх форматах (PPTX · PDF · HTML); пересборка через `make slides`
+- [`CODEX.MD`](CODEX.MD) — хронологический журнал изменений с детализацией по файлам
 
-## Key constraints
+## Ключевые ограничения
 
-- Draft and target models must share an identical tokenizer vocabulary.
-- AutoJudge requires GSM8K-format datasets (`question` + `answer` fields).
-- RTX 50-series (Blackwell, sm_120) requires `torch>=2.7+cu128` for GPU paths.
-- Benchmark resume is automatic when reusing the same `--out` JSONL file.
+- Черновая и целевая модели должны иметь идентичный словарь токенизатора.
+- AutoJudge требует датасеты в формате GSM8K (поля `question` + `answer`).
+- RTX 50-й серии (Blackwell, sm_120) требует `torch>=2.7+cu128` для GPU-путей.
+- Возобновление бенчмарка происходит автоматически при повторном использовании того же
+  JSONL-файла `--out`.
 
-## License
+## Лицензия
 
-MIT — see [LICENSE](LICENSE).
+MIT — см. [LICENSE](LICENSE).
