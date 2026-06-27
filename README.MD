@@ -26,6 +26,9 @@ Repair plan: [`docs/REPAIR_PLAN_REPO_THESIS.md`](docs/REPAIR_PLAN_REPO_THESIS.md
 Defense audit: [`docs/DEFENSE_AUDIT_2026-06-26.md`](docs/DEFENSE_AUDIT_2026-06-26.md).
 Commission Q&A: [`docs/COMMISSION_QA_2026-06-26.md`](docs/COMMISSION_QA_2026-06-26.md).
 
+Thesis-defense (ВКР) snapshot — the Russian-language README and the archived defense materials live on
+branch [`codex/defense-vkr-2026-06-26`](https://github.com/levvius/adaptive-speculative-decoding/tree/codex/defense-vkr-2026-06-26).
+
 ## Defense snapshot
 
 What is safe to defend from this snapshot:
@@ -76,6 +79,13 @@ make setup        # CPU install (uses pip + requirements.txt)
 make test         # full pytest suite; 94 passed on v1-defense
 make bench-toy    # toy benchmark without HF models
 ```
+
+> **Prerequisites — the GSM8K dataset and model weights are required to run anything beyond the toy path.**
+> The commands above (`make setup` / `make test` / `make bench-toy` / `make check`) run on CPU with no
+> downloads. Everything real — the full JointAdaSpec pipeline and every `make *-eval` target — needs the
+> **GSM8K** dataset placed in `datasets/` (`gsm8k_test.jsonl`, `gsm8k_train.jsonl`) **and** the model weights
+> downloaded into `models/` (both directories are gitignored and ship empty). Without both, `make
+> jointadaspec-full` and the eval targets will not run — this is expected behaviour, not a repository bug.
 
 Full JointAdaSpec pipeline (requires GPU):
 
