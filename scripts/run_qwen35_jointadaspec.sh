@@ -36,6 +36,9 @@ FIXED_SD_GAMMA="${FIXED_SD_GAMMA:-8}"
 FUZZY_SD_GAMMA="${FUZZY_SD_GAMMA:-8}"
 CONF_GATE_TAU="${CONF_GATE_TAU:-0.0}"
 BASELINES="${BASELINES:-[vanilla_ar,fixed_sd,cascade_verif_then_length]}"
+TRACE_RESUME="${TRACE_RESUME:-1}"
+TRACE_CHECKPOINT_EVERY="${TRACE_CHECKPOINT_EVERY:-1}"
+TRACE_PROGRESS_EVERY="${TRACE_PROGRESS_EVERY:-5}"
 
 OUTPUT_ROOT="outputs/jointadaspec_qwen35_9b_2b_${DATE_TAG}"
 REPORT_DIR="reports/qwen35_9b_2b_${DATE_TAG}"
@@ -47,6 +50,7 @@ exec > >(tee -a "$LOG_PATH") 2>&1
 export HF_HUB_DISABLE_XET="${HF_HUB_DISABLE_XET:-1}"
 export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
 export CUBLAS_WORKSPACE_CONFIG="${CUBLAS_WORKSPACE_CONFIG:-:4096:8}"
+export TRACE_RESUME TRACE_CHECKPOINT_EVERY TRACE_PROGRESS_EVERY
 
 download_model() {
   local repo="$1" dest="$2"
@@ -137,20 +141,32 @@ run_pipeline() {
 
   {
     echo "[pipeline:${subdir}] $(date -Is) experiment=${experiment}"
-    "$PYTHON_BIN" scripts/01_collect_traces.py --config-name "experiments/${experiment}" \
-      "experiments.output_dir=${trace_dir}" \
-      "experiments.n_traces=${MAX_TRACES}" \
-      "experiments.datasets.train_max_samples=${MAX_TRACES}" \
-      "experiments.datasets.max_new_tokens=${MAX_NEW_TOKENS}"
+    if [ -f "${trace_dir}/traces.parquet" ]; then
+      echo "[pipeline:${subdir}] skip collect_traces; found ${trace_dir}/traces.parquet"
+    else
+      "$PYTHON_BIN" scripts/01_collect_traces.py --config-name "experiments/${experiment}" \
+        "experiments.output_dir=${trace_dir}" \
+        "experiments.n_traces=${MAX_TRACES}" \
+        "experiments.datasets.train_max_samples=${MAX_TRACES}" \
+        "experiments.datasets.max_new_tokens=${MAX_NEW_TOKENS}"
+    fi
 
-    "$PYTHON_BIN" scripts/02_solve_mdp.py --config-name "experiments/${experiment}" \
-      "experiments.output_dir=${solve_dir}" \
-      "experiments.traces_path=${trace_dir}/traces.parquet"
+    if [ -f "${policy_path}" ]; then
+      echo "[pipeline:${subdir}] skip solve_mdp; found ${policy_path}"
+    else
+      "$PYTHON_BIN" scripts/02_solve_mdp.py --config-name "experiments/${experiment}" \
+        "experiments.output_dir=${solve_dir}" \
+        "experiments.traces_path=${trace_dir}/traces.parquet"
+    fi
 
-    "$PYTHON_BIN" scripts/04_verify_conditions.py \
-      --traces "${trace_dir}/traces.parquet" \
-      --policy "${policy_path}" \
-      --out "${REPORT_DIR}/conditions_${subdir}.json" || true
+    if [ -f "${REPORT_DIR}/conditions_${subdir}.json" ]; then
+      echo "[pipeline:${subdir}] skip verify_conditions; found ${REPORT_DIR}/conditions_${subdir}.json"
+    else
+      "$PYTHON_BIN" scripts/04_verify_conditions.py \
+        --traces "${trace_dir}/traces.parquet" \
+        --policy "${policy_path}" \
+        --out "${REPORT_DIR}/conditions_${subdir}.json" || true
+    fi
 
     "$PYTHON_BIN" scripts/03_benchmark.py --config-name "experiments/${experiment}" \
       "experiments.output_dir=${bench_dir}" \
@@ -196,6 +212,7 @@ main() {
   echo "[qwen35] $(date -Is) powered paired run"
   echo "[qwen35] traces=${MAX_TRACES} prompts=${MAX_SAMPLES} seeds=${N_SEEDS} max_new_tokens=${MAX_NEW_TOKENS}"
   echo "[qwen35] fixed_sd_gamma=${FIXED_SD_GAMMA} fuzzy_sd_gamma=${FUZZY_SD_GAMMA} conf_gate_tau=${CONF_GATE_TAU}"
+  echo "[qwen35] trace_resume=${TRACE_RESUME} checkpoint_every=${TRACE_CHECKPOINT_EVERY} progress_every=${TRACE_PROGRESS_EVERY}"
 
   local base_csv conf_csv merged_csv gate_csv
   base_csv="$(run_pipeline "${BASE_EXPERIMENT}" base "${BASELINES}" | tail -1)"

@@ -202,6 +202,12 @@ draft-confidence policy and merges it as `jointadaspec_conf` for paired
 clustered analysis. Expected wall time from the smoke rates is about 65-75
 hours on the RTX 5090.
 
+Trace collection checkpoints every completed trace by default
+(`TRACE_RESUME=1`, `TRACE_CHECKPOINT_EVERY=1`, `TRACE_PROGRESS_EVERY=5`). If the
+run is interrupted, restart with the same `DATE_TAG` and preserve
+`traces_checkpoint/`; the runner also skips completed `traces.parquet`,
+`policy.npz`, condition JSON, and benchmark ledger work.
+
 If local weights are missing or incomplete, the runner repairs them with:
 
 ```bash

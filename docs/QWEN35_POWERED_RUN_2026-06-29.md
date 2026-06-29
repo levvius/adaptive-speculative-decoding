@@ -25,6 +25,7 @@ Expected:
 - Python: `.venv-qwen35/bin/python`
 - PyTorch: `2.9.1+cu128`
 - Transformers: `5.12.1`
+- Optional fast-path package: `flash-linear-attention==0.5.1`
 - GPU: RTX 5090, at least `22000` MiB free VRAM
 - No active compute PIDs unless `ALLOW_ACTIVE_GPU=1` is intentional
 
@@ -39,6 +40,11 @@ print("transformers", transformers.__version__)
 print("qwen3_5", "qwen3_5" in CONFIG_MAPPING_NAMES)
 PY
 ```
+
+On this host, `flash-linear-attention` installs and registers the Blackwell
+scratch allocator, but `causal-conv1d` cannot build without `nvcc`. If the model
+still prints the Transformers fallback warning, continue with the checkpointed
+fallback path rather than changing the main `.venv`.
 
 ## Model And Dataset Preflight
 
@@ -88,6 +94,9 @@ Defaults:
 - `FIXED_SD_GAMMA=8`
 - `FUZZY_SD_GAMMA=8`
 - `CONF_GATE_TAU=0.0`
+- `TRACE_RESUME=1`
+- `TRACE_CHECKPOINT_EVERY=1`
+- `TRACE_PROGRESS_EVERY=5`
 
 Expected wall time from the 2026-06-29 smoke rates is about 65-75 hours on the
 RTX 5090.
@@ -117,12 +126,23 @@ The merged benchmark CSV is written to:
 reports/qwen35_9b_2b_${DATE_TAG}/merged_benchmark.csv
 ```
 
+Trace collection writes durable per-trace checkpoints under:
+
+```text
+outputs/jointadaspec_qwen35_9b_2b_${DATE_TAG}/{base,conf}/01_traces/traces_checkpoint/
+```
+
+On restart, completed trace chunks are loaded and skipped. The runner also skips
+completed `traces.parquet`, `policy.npz`, and condition JSON stages; benchmark
+resume remains handled by the existing `results.jsonl` / `run.jsonl` ledger.
+
 ## Monitoring
 
 ```bash
 tail -f logs/qwen35_jointadaspec_$(date +%F).log
 nvidia-smi --query-gpu=memory.free,utilization.gpu --format=csv,noheader
 find outputs/jointadaspec_qwen35_9b_2b_$(date +%F) -maxdepth 3 -type f | sort
+find outputs/jointadaspec_qwen35_9b_2b_$(date +%F) -path '*traces_checkpoint*' -type f | wc -l
 ```
 
 Detach tmux with `Ctrl-b d`; reattach with:
@@ -159,6 +179,8 @@ prompt-clustered statistics.
   useful evidence about whether the confidence axis changes behavior on Qwen3.5.
 - If the powered run fails, preserve logs and manifests and do not update
   `docs/RESULTS.md` with partial metrics.
+- If trace collection is interrupted, restart with the same `DATE_TAG`; do not
+  delete `traces_checkpoint/` unless intentionally discarding partial work.
 
 Sources: Hugging Face model cards for
 [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B),

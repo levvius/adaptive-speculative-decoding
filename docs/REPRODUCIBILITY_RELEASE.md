@@ -103,6 +103,11 @@ runner benchmarks the base controls once and merges the draft-confidence arm as
 `jointadaspec_conf`; expected wall time from the smoke rates is about 65-75
 hours on the RTX 5090.
 
+Trace collection is checkpointed by default with `TRACE_RESUME=1`,
+`TRACE_CHECKPOINT_EVERY=1`, and `TRACE_PROGRESS_EVERY=5`. Restart with the same
+`DATE_TAG` to reuse `traces_checkpoint/`, solved policies, and benchmark resume
+ledgers.
+
 ## RTX 5090 Rerun Boundary
 
 The repaired implementation must be benchmarked on the RTX 5090 host before
