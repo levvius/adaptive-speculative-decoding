@@ -9,6 +9,15 @@
 ## In Progress
 
 - Commission-facing documentation cleanup before defense.
+- **Draft-confidence control (post-defense, `main`).** Added an optional outer
+  draft-confidence state axis (`N_C`, `draft_conf_feature`) and an inference-time
+  early-verify gate (`conf_gate_tau`, a decoder knob) so the policy can stop/verify
+  when the draft loses confidence — targeting the Theorem-G non-monotonicity and the
+  joint≈cascade tie. `N_C=1` reproduces the legacy 3-D MDP exactly. CPU-validated end
+  to end (`tests/test_draft_confidence.py`); a powered GPU comparison is staged in
+  `scripts/run_improvement_eval.sh` (conf vs 3-D vs cascade vs target, prompt-clustered
+  stats via `scripts/merge_benchmark_runs.py` + `analyze_jointadaspec_quality.py`).
+  No quality/speed claim yet — pending the GPU rerun.
 
 ## Recently Completed
 

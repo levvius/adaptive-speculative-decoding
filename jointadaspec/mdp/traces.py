@@ -12,7 +12,7 @@ from typing import Any, Iterable, Sequence
 import pandas as pd
 import torch
 
-from jointadaspec.core.features import entropy, kl_divergence
+from jointadaspec.core.features import draft_confidence, entropy, kl_divergence
 from jointadaspec.core.verification import tv_distance_step, verify_draft_chain
 from jointadaspec.mdp.spaces import (
     ActionSpace,
@@ -95,7 +95,8 @@ def _transition_from_action(
             common_vocab_n,
         )
         next_H = entropy(q_next)
-        next_state_idx = state_space.encode(next_H, next_K, next_k)
+        next_C = draft_confidence(q_next, config.draft_conf_feature)
+        next_state_idx = state_space.encode(next_H, next_K, next_k, C=next_C)
         emitted_token = int(draft_token)
         proposed = 1
     else:
@@ -139,7 +140,8 @@ def _transition_from_action(
         next_k = 0
         q_next = next_token_probs_tensor(draft_model, next_context, common_vocab_n)
         next_H = entropy(q_next)
-        next_state_idx = state_space.encode(next_H, next_K, next_k)
+        next_C = draft_confidence(q_next, config.draft_conf_feature)
+        next_state_idx = state_space.encode(next_H, next_K, next_k, C=next_C)
 
     elapsed_ms = (time.perf_counter() - started) * 1000.0
     reward = float(emitted_count - config.c_time * elapsed_ms - config.kappa * d_step)
@@ -152,6 +154,7 @@ def _transition_from_action(
         "next_state_idx": next_state_idx,
         "next_H": next_H,
         "next_K": next_K,
+        "next_C": next_C,
         "reward": reward,
         "accepted": int(accepted),
         "proposed": int(proposed),
@@ -199,7 +202,8 @@ def collect_traces(
             )
             H = entropy(q_probs)
             K = float(K_prev)
-            state_idx = state_space.encode(H, K, k)
+            C = draft_confidence(q_probs, config.draft_conf_feature)
+            state_idx = state_space.encode(H, K, k, C=C)
             _, i_K, _ = state_space.decode(state_idx)
             additive_form = config.quality_risk_form == "additive"
             if additive_form:
@@ -260,9 +264,11 @@ def collect_traces(
                         "d_step": result["d_step"],
                         "H": H,
                         "K": K,
+                        "C": C,
                         "k": k,
                         "next_H": result["next_H"],
                         "next_K": result["next_K"],
+                        "next_C": result["next_C"],
                         "next_k": result["next_k"],
                     }
                 )

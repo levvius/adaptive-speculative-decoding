@@ -57,8 +57,8 @@ class CascadePolicy:
                 )
         self.V_star = None if V_star is None else np.asarray(V_star, dtype=np.float64)
 
-    def get_action(self, H: float, K: float, k: int) -> tuple[str, float]:
-        state_idx = self.state_space.encode(H=H, K=K, k=k)
+    def get_action(self, H: float, K: float, k: int, C: float = 0.0) -> tuple[str, float]:
+        state_idx = self.state_space.encode(H=H, K=K, k=k, C=C)
         action = self.action_space.decode(int(self.pi_star[state_idx]))
         return action.length_action, action.threshold
 

@@ -6,7 +6,7 @@ from typing import Any
 
 import torch
 
-from jointadaspec.core.features import entropy, kl_divergence
+from jointadaspec.core.features import draft_confidence, entropy, kl_divergence
 from jointadaspec.core.sd_base import GenerationResult, SpeculativeDecoder
 from jointadaspec.core.verification import tv_distance_step, verify_draft_chain
 from jointadaspec.inference.policy import JointAdaSpecPolicy
@@ -31,11 +31,16 @@ class JointAdaSpecDecoder(SpeculativeDecoder):
         draft_model: Any,
         policy: JointAdaSpecPolicy,
         eos_token_id: int | None = None,
+        conf_gate_tau: float = 0.0,
     ) -> None:
         self.target_model = target_model
         self.draft_model = draft_model
         self.policy = policy
         self.eos_token_id = eos_token_id
+        # Inference-time early-verify gate: when the next draft token's confidence
+        # falls below this threshold, stop drafting and verify the accumulated block
+        # early instead of over-trusting a weak draft. 0.0 disables the gate.
+        self.conf_gate_tau = float(conf_gate_tau)
         self.device = str(getattr(target_model, "device", "cpu"))
         self.common_vocab_n = common_vocab_size(target_model, draft_model)
 
@@ -66,9 +71,15 @@ class JointAdaSpecDecoder(SpeculativeDecoder):
             n_draft_calls += 1
 
             H = entropy(q_probs)
-            action_length, threshold = self.policy.get_action(H=H, K=K_prev, k=k)
+            C = draft_confidence(q_probs, self.policy.config.draft_conf_feature)
+            action_length, threshold = self.policy.get_action(H=H, K=K_prev, k=k, C=C)
             must_verify = k >= self.policy.config.gamma_max
             must_verify = must_verify or (bool(draft_tokens) and k >= remaining)
+            # Confidence gate (inference-time safety override, default off): when the
+            # next draft token's confidence drops below tau, stop drafting and verify
+            # the accumulated block early instead of over-trusting a weak draft.
+            if self.conf_gate_tau > 0.0 and C < self.conf_gate_tau:
+                must_verify = True
             should_continue = action_length == "continue" and not must_verify
 
             if should_continue:
@@ -80,6 +91,7 @@ class JointAdaSpecDecoder(SpeculativeDecoder):
                     {
                         "H": H,
                         "K": K_prev,
+                        "C": C,
                         "k": k,
                         "action_length": "continue",
                         "threshold": 1.0,
@@ -130,6 +142,7 @@ class JointAdaSpecDecoder(SpeculativeDecoder):
                 {
                     "H": H,
                     "K": K_prev,
+                    "C": C,
                     "k": k,
                     "action_length": "verify",
                     "threshold": threshold,

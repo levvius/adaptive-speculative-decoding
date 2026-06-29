@@ -5,7 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from jointadaspec.core.features import dequantize, quantize
+from jointadaspec.core.features import (
+    confidence_center,
+    dequantize,
+    dequantize_full,
+    quantize,
+)
 
 
 @dataclass(frozen=True)
@@ -43,6 +48,13 @@ class MDPConfig:
     quality_risk_K: float = 0.0
     quality_risk_k: float = 0.0
     quality_risk_form: str = "multiplicative"
+    # Draft-confidence state axis (outermost). N_C == 1 reproduces the legacy
+    # 3-D (H, K, k) state space exactly. The inference-time early-verify gate
+    # (conf_gate_tau) is a decoder knob, not part of the MDP identity, so it does
+    # not change the state space, traces, solved policy, or config hash.
+    N_C: int = 1
+    C_max: float = 1.0
+    draft_conf_feature: str = "max_prob"
 
     def __post_init__(self) -> None:
         if self.H_max <= 0 or self.K_max <= 0:
@@ -61,6 +73,12 @@ class MDPConfig:
             raise ValueError(
                 "quality_risk_form must be 'multiplicative' (legacy) or 'additive' (experimental)."
             )
+        if self.N_C < 1:
+            raise ValueError("N_C must be >= 1 (1 disables the draft-confidence axis).")
+        if self.C_max <= 0.0:
+            raise ValueError("C_max must be positive.")
+        if self.draft_conf_feature not in ("max_prob", "margin"):
+            raise ValueError("draft_conf_feature must be 'max_prob' or 'margin'.")
 
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, Any]) -> "MDPConfig":
@@ -72,7 +90,7 @@ class MDPConfig:
 
     @property
     def num_states(self) -> int:
-        return self.N_H * self.N_K * (self.gamma_max + 1)
+        return self.N_C * self.N_H * self.N_K * (self.gamma_max + 1)
 
     @property
     def num_actions(self) -> int:
@@ -87,14 +105,25 @@ class StateSpace:
     def num_states(self) -> int:
         return self.config.num_states
 
-    def encode(self, H: float, K: float, k: int) -> int:
-        return quantize(H=H, K=K, k=k, config=self.config)
+    def encode(self, H: float, K: float, k: int, C: float = 0.0) -> int:
+        return quantize(H=H, K=K, k=k, config=self.config, C=C)
 
     def decode(self, state_idx: int) -> tuple[int, int, int]:
+        """Return (i_H, i_K, i_k); the draft-confidence bin is stripped."""
         return dequantize(state_idx=state_idx, config=self.config)
+
+    def decode_full(self, state_idx: int) -> tuple[int, int, int, int]:
+        """Return (i_H, i_K, i_C, i_k) including the draft-confidence bin."""
+        return dequantize_full(state_idx=state_idx, config=self.config)
 
     def k_of(self, state_idx: int) -> int:
         return self.decode(state_idx)[2]
+
+    def c_of(self, state_idx: int) -> int:
+        return self.decode_full(state_idx)[2]
+
+    def C_center(self, i_C: int) -> float:
+        return confidence_center(i_C, self.config)
 
 
 def quality_risk_weight(config: MDPConfig, *, i_K: int, k: int) -> float:

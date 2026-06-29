@@ -438,6 +438,7 @@ def _build_decoders(
             target_model=target_model,
             draft_model=draft_model,
             policy=policy,
+            conf_gate_tau=float(cfg.get("conf_gate_tau", 0.0)),
         )
     return decoders
 
