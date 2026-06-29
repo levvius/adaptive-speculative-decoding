@@ -181,6 +181,12 @@
       "draft_preset": "qwen25_1p5b_instruct_local",
       "method_preset": "speculative_k4"
     },
+    "qwen35_9b_local_target_2b_local_speculative_k4": {
+      "description": "Qwen3.5 9B local target with Qwen3.5 2B local draft (large gap), speculative k=4. Requires a transformers build that ships qwen3_5.",
+      "target_preset": "qwen35_9b_local",
+      "draft_preset": "qwen35_2b_local",
+      "method_preset": "speculative_k4"
+    },
     "qwen25_7b_local_target_1p5b_local_autojudge_k4": {
       "description": "Qwen2.5 7B local target with Qwen2.5 1.5B local draft, AutoJudge k=4.",
       "target_preset": "qwen25_7b_instruct_local",

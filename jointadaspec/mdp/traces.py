@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import subprocess
 import time
-from typing import Any, Iterable, Sequence
+from typing import Any, Sequence
 
 import pandas as pd
 import torch
@@ -75,6 +75,8 @@ def _transition_from_action(
     generator: torch.Generator,
     config: MDPConfig,
     common_vocab_n: int,
+    verify_p_block: list[torch.Tensor] | None = None,
+    verify_p_block_time_ms: float = 0.0,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     accepted = 0
@@ -101,19 +103,23 @@ def _transition_from_action(
         proposed = 1
     else:
         if not draft_tokens:
-            p_block = block_next_token_probs_tensor(target_model, context_tokens, [], common_vocab_n)
+            p_block = verify_p_block
+            if p_block is None:
+                p_block = block_next_token_probs_tensor(target_model, context_tokens, [], common_vocab_n)
             p_probs = p_block[0]
             emitted_token = _sample_token(p_probs, generator)
             emitted_tokens = [int(emitted_token)]
             next_K = kl_divergence(q_probs, p_probs)
             accepted = 0
         else:
-            p_block = block_next_token_probs_tensor(
-                target_model,
-                context_tokens,
-                draft_tokens,
-                common_vocab_n,
-            )
+            p_block = verify_p_block
+            if p_block is None:
+                p_block = block_next_token_probs_tensor(
+                    target_model,
+                    context_tokens,
+                    draft_tokens,
+                    common_vocab_n,
+                )
             p_list = p_block[:-1]
             p_bonus = p_block[-1]
             n_accepted, corrective_token = verify_draft_chain(
@@ -144,6 +150,8 @@ def _transition_from_action(
         next_state_idx = state_space.encode(next_H, next_K, next_k, C=next_C)
 
     elapsed_ms = (time.perf_counter() - started) * 1000.0
+    if action.is_verify and verify_p_block is not None:
+        elapsed_ms += float(verify_p_block_time_ms)
     reward = float(emitted_count - config.c_time * elapsed_ms - config.kappa * d_step)
 
     return {
@@ -165,6 +173,61 @@ def _transition_from_action(
     }
 
 
+def _checkpoint_dir_for(output_path: Path) -> Path:
+    return output_path.with_name(f"{output_path.stem}_checkpoint")
+
+
+def _checkpoint_path(checkpoint_dir: Path, start_trace: int, end_trace: int) -> Path:
+    if start_trace == end_trace:
+        return checkpoint_dir / f"trace_{start_trace:06d}.jsonl"
+    return checkpoint_dir / f"trace_{start_trace:06d}_{end_trace:06d}.jsonl"
+
+
+def _write_checkpoint_records(path: Path, records: list[dict[str, Any]]) -> None:
+    if not records:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with tmp_path.open("w", encoding="utf-8") as handle:
+        for record in records:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+    tmp_path.replace(path)
+
+
+def _read_checkpoint_records(checkpoint_dir: Path) -> tuple[list[dict[str, Any]], set[int]]:
+    if not checkpoint_dir.is_dir():
+        return [], set()
+    records: list[dict[str, Any]] = []
+    completed: set[int] = set()
+    for path in sorted(checkpoint_dir.glob("trace_*.jsonl")):
+        if path.name.endswith(".tmp"):
+            continue
+        trace_indices: set[int] = set()
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                record = json.loads(line)
+                records.append(record)
+                trace_indices.add(int(record["trace_idx"]))
+        completed.update(trace_indices)
+    return records, completed
+
+
+def _format_eta(seconds: float) -> str:
+    if seconds == float("inf"):
+        return "unknown"
+    seconds = max(0, int(seconds))
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h{minutes:02d}m{secs:02d}s"
+    if minutes:
+        return f"{minutes}m{secs:02d}s"
+    return f"{secs}s"
+
+
 def collect_traces(
     target_model: Any,
     draft_model: Any,
@@ -173,26 +236,55 @@ def collect_traces(
     output_path: Path,
     config: MDPConfig,
     generator: torch.Generator,
+    *,
+    resume: bool = True,
+    checkpoint_every: int = 1,
+    progress_every: int = 5,
 ) -> Path:
     """Collect exploratory one-step transitions and save them as Parquet."""
     if n_traces <= 0:
         raise ValueError("n_traces must be positive.")
     if not prompts:
         raise ValueError("prompts must be non-empty.")
+    if checkpoint_every <= 0:
+        raise ValueError("checkpoint_every must be positive.")
+    if progress_every < 0:
+        raise ValueError("progress_every must be non-negative.")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint_dir = _checkpoint_dir_for(output_path)
     action_space = ActionSpace(config)
     state_space = StateSpace(config)
     common_vocab_n = common_vocab_size(target_model, draft_model)
-    records: list[dict[str, Any]] = []
+    records, completed_trace_indices = (
+        _read_checkpoint_records(checkpoint_dir) if resume else ([], set())
+    )
+    completed_trace_indices = {idx for idx in completed_trace_indices if 0 <= idx < n_traces}
+    if completed_trace_indices:
+        print(
+            f"[trace-checkpoint] loaded {len(completed_trace_indices)}/{n_traces} "
+            f"completed traces from {checkpoint_dir}",
+            flush=True,
+        )
+
+    started_at = time.perf_counter()
+    base_seed = int(generator.initial_seed())
+    pending_records: list[dict[str, Any]] = []
+    pending_start_trace: int | None = None
+    newly_completed = 0
 
     for trace_idx in range(n_traces):
+        if trace_idx in completed_trace_indices:
+            continue
+        trace_generator = torch.Generator(device="cpu")
+        trace_generator.manual_seed((base_seed + int(trace_idx)) % (2**63 - 1))
         raw_prompt = prompts[trace_idx % len(prompts)]
         context_tokens = _ensure_prompt_tokens(target_model, raw_prompt)
         draft_tokens: list[int] = []
         q_list: list[torch.Tensor] = []
         K_prev = float(config.K_init)
         k = 0
+        trace_records: list[dict[str, Any]] = []
 
         for rollout_step in range(max(2, config.gamma_max + 2)):
             q_probs = next_token_probs_tensor(
@@ -214,6 +306,17 @@ def collect_traces(
                 risk_weight = quality_risk_weight(config, i_K=i_K, k=k)
             valid_action_indices = action_space.valid_action_indices(k)
             results_by_action: dict[int, dict[str, Any]] = {}
+            verify_p_block: list[torch.Tensor] | None = None
+            verify_p_block_time_ms = 0.0
+            if any(action_space.decode(action_idx).is_verify for action_idx in valid_action_indices):
+                verify_started = time.perf_counter()
+                verify_p_block = block_next_token_probs_tensor(
+                    target_model,
+                    context_tokens,
+                    draft_tokens,
+                    common_vocab_n,
+                )
+                verify_p_block_time_ms = (time.perf_counter() - verify_started) * 1000.0
 
             for action_idx in valid_action_indices:
                 action = action_space.decode(action_idx)
@@ -228,9 +331,11 @@ def collect_traces(
                     q_probs=q_probs,
                     K_prev=K_prev,
                     state_space=state_space,
-                    generator=generator,
+                    generator=trace_generator,
                     config=config,
                     common_vocab_n=common_vocab_n,
+                    verify_p_block=verify_p_block if action.is_verify else None,
+                    verify_p_block_time_ms=verify_p_block_time_ms if action.is_verify else 0.0,
                 )
                 if additive_form:
                     reward = (
@@ -246,7 +351,7 @@ def collect_traces(
                         - config.kappa * risk_weight * float(result["d_step"])
                     )
                 results_by_action[action_idx] = result
-                records.append(
+                trace_records.append(
                     {
                         "trace_idx": trace_idx,
                         "rollout_step": rollout_step,
@@ -274,7 +379,7 @@ def collect_traces(
                 )
 
             chosen_offset = int(
-                torch.randint(len(valid_action_indices), size=(1,), generator=generator).item()
+                torch.randint(len(valid_action_indices), size=(1,), generator=trace_generator).item()
             )
             chosen_action_idx = valid_action_indices[chosen_offset]
             chosen_result = results_by_action[chosen_action_idx]
@@ -284,6 +389,38 @@ def collect_traces(
             K_prev = float(chosen_result["next_K"])
             k = int(chosen_result["next_k"])
 
+        records.extend(trace_records)
+        pending_records.extend(trace_records)
+        pending_start_trace = trace_idx if pending_start_trace is None else pending_start_trace
+        newly_completed += 1
+        completed_trace_indices.add(trace_idx)
+        should_checkpoint = newly_completed % checkpoint_every == 0 or trace_idx == n_traces - 1
+        if should_checkpoint and pending_records:
+            checkpoint_path = _checkpoint_path(checkpoint_dir, pending_start_trace, trace_idx)
+            _write_checkpoint_records(checkpoint_path, pending_records)
+            pending_records = []
+            pending_start_trace = None
+        if progress_every and (
+            newly_completed % progress_every == 0 or len(completed_trace_indices) == n_traces
+        ):
+            elapsed = max(time.perf_counter() - started_at, 1e-9)
+            rate = newly_completed / elapsed
+            remaining = n_traces - len(completed_trace_indices)
+            eta = float("inf") if rate <= 0 else remaining / rate
+            print(
+                f"[trace-progress] completed={len(completed_trace_indices)}/{n_traces} "
+                f"new={newly_completed} rate={rate:.3f} traces/s eta={_format_eta(eta)}",
+                flush=True,
+            )
+
+    records = [record for record in records if int(record["trace_idx"]) < n_traces]
+    records.sort(
+        key=lambda record: (
+            int(record["trace_idx"]),
+            int(record["rollout_step"]),
+            int(record["action_idx"]),
+        )
+    )
     pd.DataFrame.from_records(records).to_parquet(output_path, index=False)
 
     meta = semantic_metadata(

@@ -1,0 +1,26 @@
+# Local Qwen3.5 9B/2B pair for JointAdaSpec (large parameter gap, ~4.5x).
+# Qwen3.5 checkpoints are vision-language (Qwen3_5ForConditionalGeneration); the
+# text backbone is used for text-only speculative decoding. The draft pins its
+# tokenizer to the 9B dir so target/draft share an identical vocabulary (verified
+# identical md5 across the 2B/4B/9B checkpoints). Requires a transformers build
+# that registers model_type "qwen3_5".
+
+target:
+  hf_model: "models/Qwen3.5-9B"
+  tokenizer: "models/Qwen3.5-9B"
+  device: "cuda"
+  dtype: "bfloat16"
+  quant: null
+  bnb_compute_dtype: "bfloat16"
+  use_fast_tokenizer: true
+  trust_remote_code: false
+
+draft:
+  hf_model: "models/Qwen3.5-2B"
+  tokenizer: "models/Qwen3.5-9B"
+  device: "cuda"
+  dtype: "bfloat16"
+  quant: null
+  bnb_compute_dtype: "bfloat16"
+  use_fast_tokenizer: true
+  trust_remote_code: false

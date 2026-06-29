@@ -28,6 +28,20 @@ def _load_local_config_json(model_name: str) -> Optional[Dict[str, Any]]:
 
 def _load_model_config_with_compat(model_name: str, trust_remote_code: bool):
     raw = _load_local_config_json(model_name)
+    # Qwen3.5 (model_type "qwen3_5") is a vision-language ForConditionalGeneration
+    # checkpoint whose text backbone we use for text-only speculative decoding.
+    # Older transformers builds do not register it in AutoConfig; surface an
+    # actionable error instead of a cryptic KeyError. No-op once transformers ships
+    # qwen3_5 (then this falls through to the native AutoConfig below).
+    if raw is not None and str(raw.get("model_type", "")) == "qwen3_5":
+        from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
+
+        if "qwen3_5" not in CONFIG_MAPPING_NAMES:
+            raise RuntimeError(
+                f"Local checkpoint '{model_name}' has model_type 'qwen3_5', which the "
+                f"installed transformers does not support. Upgrade transformers to a "
+                f"build that ships Qwen3.5, then retry."
+            )
     try:
         config = AutoConfig.from_pretrained(model_name, trust_remote_code=trust_remote_code)
     except KeyError:
@@ -214,6 +228,21 @@ class HFModel(BaseModel):
                         RuntimeWarning,
                     )
                     return Mistral3ForConditionalGeneration.from_pretrained(model_name, **kwargs)
+                if (
+                    str(getattr(model_config, "model_type", "")) == "qwen3_5"
+                    and "Unrecognized configuration class" in str(exc)
+                ):
+                    # Qwen3.5 is a VLM (Qwen3_5ForConditionalGeneration); its text-only
+                    # forward returns logits + past_key_values like a causal LM, so it
+                    # plugs into HFModel the same way the Mistral-3 path does. Reachable
+                    # only on a transformers build that ships Qwen3.5.
+                    from transformers import Qwen3_5ForConditionalGeneration
+
+                    warnings.warn(
+                        "Falling back to Qwen3_5ForConditionalGeneration for local Qwen3.5 checkpoint.",
+                        RuntimeWarning,
+                    )
+                    return Qwen3_5ForConditionalGeneration.from_pretrained(model_name, **kwargs)
                 raise
 
         def _raise_cuda_arch_hint(exc: RuntimeError) -> None:

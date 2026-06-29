@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import os
 from pathlib import Path
 import sys
 
@@ -29,6 +30,20 @@ def _make_output_dir(cfg: DictConfig) -> Path:
     return root / str(cfg.experiment_name) / timestamp
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return int(raw)
+
+
 @hydra.main(version_base=None, config_path="../configs", config_name="experiments/default")
 def main(cfg: DictConfig) -> None:
     exp_cfg = _experiment_cfg(cfg)
@@ -48,6 +63,13 @@ def main(cfg: DictConfig) -> None:
         output_path=output_dir / "traces.parquet",
         config=mdp_config,
         generator=generator,
+        resume=bool(exp_cfg.get("trace_resume", _env_bool("TRACE_RESUME", True))),
+        checkpoint_every=int(
+            exp_cfg.get("trace_checkpoint_every", _env_int("TRACE_CHECKPOINT_EVERY", 1))
+        ),
+        progress_every=int(
+            exp_cfg.get("trace_progress_every", _env_int("TRACE_PROGRESS_EVERY", 5))
+        ),
     )
     logger.finalize(
         {

@@ -18,6 +18,22 @@
   `scripts/run_improvement_eval.sh` (conf vs 3-D vs cascade vs target, prompt-clustered
   stats via `scripts/merge_benchmark_runs.py` + `analyze_jointadaspec_quality.py`).
   No quality/speed claim yet — pending the GPU rerun.
+- **Qwen3.5 9B->2B powered comparison (staged 2026-06-29).** Presets
+  (`qwen35_{9b,4b,2b}_local`), `model_pairs/qwen35_9b_2b.yaml`, base + `_conf`
+  JointAdaSpec configs, loader compatibility for `qwen3_5`, and
+  `scripts/run_qwen35_jointadaspec.sh` are in place. Tokenizers are identical across
+  the 2B/4B/9B checkpoints (SD-compatible). `qwen3_5` requires transformers 5.x, so
+  the run uses isolated `.venv-qwen35` (`transformers 5.12.1`) via
+  `PYTHON_BIN=.venv-qwen35/bin/python`; the main thesis/CI env remains pinned to
+  4.57.x. The runner now defaults to the powered protocol: Qwen3.5-9B target,
+  Qwen3.5-2B draft, 500 traces, held-out GSM8K prompts 100-599, 3 seeds, 256 new
+  tokens, `fixed_sd_gamma=8`, and `fuzzy_sd_gamma=8`. It benchmarks the expensive
+  controls once in the base arm and merges the draft-confidence policy as
+  `jointadaspec_conf` for paired clustered analysis. The 2026-06-29 smoke
+  (10 traces, 5 prompts x 1 seed) validated the pipeline only; it is **not** a
+  result. Expected powered wall time is about 65-75 hours on the RTX 5090. 9B->2B
+  is ~4.5x, so the honest success claim is confidence-aware adaptive-control
+  evidence on Qwen3.5, not "faster than target-only".
 
 ## Recently Completed
 

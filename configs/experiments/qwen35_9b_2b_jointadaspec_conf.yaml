@@ -1,0 +1,18 @@
+# JointAdaSpec + draft-confidence state axis on the local Qwen3.5 9B/2B pair.
+# Extends the 3-D (H, K, k) MDP with the outer draft-confidence dimension (N_C),
+# mirroring the qwen2.5 *_conf configs. Requires a transformers build that registers
+# model_type "qwen3_5" and a GPU. conf_gate_tau is an optional decoder-side gate.
+# @package _global_
+
+defaults:
+  - qwen35_9b_2b_jointadaspec
+  - _self_
+
+experiment_name: "qwen35_9b_2b_jointadaspec_conf"
+
+# Draft-confidence state axis (changes |S| and config hash -> needs fresh traces).
+N_C: 5
+draft_conf_feature: max_prob
+
+# Optional inference-time early-verify gate (0.0 = off; set e.g. 0.3 for the gate arm).
+conf_gate_tau: 0.0

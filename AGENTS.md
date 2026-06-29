@@ -59,6 +59,9 @@ bash scripts/run_llama3_8b_3b_eval.sh
 # Run JointAdaSpec staged pipeline
 make jointadaspec-full MODEL_PAIR=qwen7b_1p5b
 
+# Run the powered Qwen3.5 9B->2B JointAdaSpec comparison
+PYTHON_BIN=.venv-qwen35/bin/python bash scripts/run_qwen35_jointadaspec.sh
+
 # Validate Qwen 7B/1.5B Step 2 before launching dependent full Step 3
 bash scripts/run_step3_after_step2.sh
 ```
@@ -174,6 +177,46 @@ DATE_TAG="$(date +%F)"
 - Optional VRAM reduction for the sweep script (if quantized runtime is available):
   - `QUANT=8bit DRAFT_QUANT=8bit bash scripts/run_autojudge_topk_gsm8k_bg.sh`
   - Increase preflight gate if needed: `MIN_FREE_VRAM_MIB=22000`.
+
+## Qwen3.5 Powered Run
+
+Qwen3.5 uses a separate environment because the main pinned
+`transformers==4.57.x` stack does not register `model_type: qwen3_5`.
+Use `.venv-qwen35` with `transformers 5.12.1` and leave the thesis/CI env alone.
+
+```bash
+tmux new -s qwen35_powered
+cd /home/robot/Project/adaptive-speculative-decoding
+export HF_HUB_DISABLE_XET=1
+export PYTORCH_ALLOC_CONF=expandable_segments:True
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
+PYTHON_BIN=.venv-qwen35/bin/python bash scripts/run_qwen35_jointadaspec.sh
+```
+
+`scripts/run_qwen35_jointadaspec.sh` defaults to the powered protocol:
+Qwen3.5-9B target, Qwen3.5-2B draft, 500 traces, held-out GSM8K prompts
+100-599, 3 seeds, 256 new tokens, `fixed_sd_gamma=8`, and `fuzzy_sd_gamma=8`.
+It runs the base 3-D policy once with `target_only`, `speculative`,
+`cascade_verif_then_length`, and `jointadaspec`, then runs only the
+draft-confidence policy and merges it as `jointadaspec_conf` for paired
+clustered analysis. Expected wall time from the smoke rates is about 65-75
+hours on the RTX 5090.
+
+Trace collection checkpoints every completed trace by default
+(`TRACE_RESUME=1`, `TRACE_CHECKPOINT_EVERY=1`, `TRACE_PROGRESS_EVERY=5`). If the
+run is interrupted, restart with the same `DATE_TAG` and preserve
+`traces_checkpoint/`; the runner also skips completed `traces.parquet`,
+`policy.npz`, condition JSON, and benchmark ledger work.
+
+If local weights are missing or incomplete, the runner repairs them with:
+
+```bash
+hf download Qwen/Qwen3.5-9B --local-dir models/Qwen3.5-9B
+hf download Qwen/Qwen3.5-2B --local-dir models/Qwen3.5-2B
+```
+
+The 2026-06-29 5-prompt smoke under `reports/qwen35_9b_2b_2026-06-29/`
+is pipeline validation only. Do not report it as a quality or speed result.
 
 ## Architecture
 
