@@ -46,29 +46,25 @@ def _prior_support(
     action: JointAction,
     state_space: StateSpace,
 ) -> list[int]:
+    config = state_space.config
     i_H, i_K, k = state_space.decode(state_idx)
-    if action.is_stop:
-        return [
-            state_space.encode(
-                H=(next_i_H + 0.5) * state_space.config.H_max / state_space.config.N_H,
-                K=(next_i_K + 0.5) * state_space.config.K_max / state_space.config.N_K,
-                k=0,
-            )
-            for next_i_H in _neighbour_indices(i_H, state_space.config.N_H)
-            for next_i_K in _neighbour_indices(i_K, state_space.config.N_K)
-        ]
-
-    next_k = min(k + 1, state_space.config.gamma_max)
+    # The next draft-confidence bin is a fresh per-step statistic (like H), so the
+    # low-data prior spreads mass across all confidence bins. N_C == 1 collapses
+    # this to the legacy single-bin support.
+    c_centers = [state_space.C_center(i_C) for i_C in range(config.N_C)]
+    next_k = 0 if action.is_stop else min(k + 1, config.gamma_max)
     support: list[int] = []
-    for next_i_H in _neighbour_indices(i_H, state_space.config.N_H):
-        for next_i_K in _neighbour_indices(i_K, state_space.config.N_K):
-            support.append(
-                state_space.encode(
-                    H=(next_i_H + 0.5) * state_space.config.H_max / state_space.config.N_H,
-                    K=(next_i_K + 0.5) * state_space.config.K_max / state_space.config.N_K,
-                    k=next_k,
+    for next_i_H in _neighbour_indices(i_H, config.N_H):
+        for next_i_K in _neighbour_indices(i_K, config.N_K):
+            for c_center in c_centers:
+                support.append(
+                    state_space.encode(
+                        H=(next_i_H + 0.5) * config.H_max / config.N_H,
+                        K=(next_i_K + 0.5) * config.K_max / config.N_K,
+                        k=next_k,
+                        C=c_center,
+                    )
                 )
-            )
     return support
 
 

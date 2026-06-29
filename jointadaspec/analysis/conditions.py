@@ -170,35 +170,43 @@ def _sorted_action_indices(config: MDPConfig) -> list[int]:
 def _iter_state_edges(config: MDPConfig, *, k_limit: int) -> list[tuple[str, int, int]]:
     state_space = StateSpace(config)
     edges: list[tuple[str, int, int]] = []
-    for i_H in range(config.N_H):
-        for i_K in range(config.N_K):
-            for k in range(k_limit):
-                state_idx = state_space.encode(
-                    H=(i_H + 0.5) * config.H_max / config.N_H,
-                    K=(i_K + 0.5) * config.K_max / config.N_K,
-                    k=k,
-                )
-                if i_H + 1 < config.N_H:
-                    next_idx = state_space.encode(
-                        H=(i_H + 1.5) * config.H_max / config.N_H,
-                        K=(i_K + 0.5) * config.K_max / config.N_K,
-                        k=k,
-                    )
-                    edges.append(("H", state_idx, next_idx))
-                if i_K + 1 < config.N_K:
-                    next_idx = state_space.encode(
-                        H=(i_H + 0.5) * config.H_max / config.N_H,
-                        K=(i_K + 1.5) * config.K_max / config.N_K,
-                        k=k,
-                    )
-                    edges.append(("K", state_idx, next_idx))
-                if k + 1 < k_limit and k + 1 <= config.gamma_max:
-                    next_idx = state_space.encode(
+    # Monotonicity edges are checked along H, K, k at a fixed draft-confidence bin.
+    # N_C == 1 collapses the outer loop to the single legacy confidence slice.
+    for i_C in range(config.N_C):
+        C = state_space.C_center(i_C)
+        for i_H in range(config.N_H):
+            for i_K in range(config.N_K):
+                for k in range(k_limit):
+                    state_idx = state_space.encode(
                         H=(i_H + 0.5) * config.H_max / config.N_H,
                         K=(i_K + 0.5) * config.K_max / config.N_K,
-                        k=k + 1,
+                        k=k,
+                        C=C,
                     )
-                    edges.append(("k", state_idx, next_idx))
+                    if i_H + 1 < config.N_H:
+                        next_idx = state_space.encode(
+                            H=(i_H + 1.5) * config.H_max / config.N_H,
+                            K=(i_K + 0.5) * config.K_max / config.N_K,
+                            k=k,
+                            C=C,
+                        )
+                        edges.append(("H", state_idx, next_idx))
+                    if i_K + 1 < config.N_K:
+                        next_idx = state_space.encode(
+                            H=(i_H + 0.5) * config.H_max / config.N_H,
+                            K=(i_K + 1.5) * config.K_max / config.N_K,
+                            k=k,
+                            C=C,
+                        )
+                        edges.append(("K", state_idx, next_idx))
+                    if k + 1 < k_limit and k + 1 <= config.gamma_max:
+                        next_idx = state_space.encode(
+                            H=(i_H + 0.5) * config.H_max / config.N_H,
+                            K=(i_K + 0.5) * config.K_max / config.N_K,
+                            k=k + 1,
+                            C=C,
+                        )
+                        edges.append(("k", state_idx, next_idx))
     return edges
 
 

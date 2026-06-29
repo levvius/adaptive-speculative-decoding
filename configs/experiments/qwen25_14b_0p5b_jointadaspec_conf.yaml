@@ -1,0 +1,20 @@
+# JointAdaSpec with the draft-confidence state axis on the Qwen2.5 14B/0.5B pair.
+# Extends the 3-D (H, K, k) MDP with an outer draft-confidence dimension (N_C),
+# so the policy can stop/verify earlier when the draft loses confidence. This is
+# the research arm tested against the legacy 3-D jointadaspec and the cascade
+# baseline. conf_gate_tau is an optional inference-time early-verify gate (decoder
+# knob; 0.0 = off) and does NOT change the state space, traces, or solved policy.
+# @package _global_
+
+defaults:
+  - qwen25_14b_0p5b_jointadaspec
+  - _self_
+
+experiment_name: "qwen25_14b_0p5b_jointadaspec_conf"
+
+# Draft-confidence state axis (changes |S| and config hash -> needs fresh traces).
+N_C: 5
+draft_conf_feature: max_prob
+
+# Optional inference-time early-verify gate (0.0 = off; set e.g. 0.3 for the gate arm).
+conf_gate_tau: 0.0
