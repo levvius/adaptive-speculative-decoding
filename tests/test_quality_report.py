@@ -70,3 +70,23 @@ def test_quality_report_uses_prompt_clusters_and_holm_adjustment(tmp_path) -> No
     assert comparisons["jointadaspec"]["cluster_n"] == 2
     assert "holm_p" in comparisons["jointadaspec"]
     assert "holm_significant_0p05" in comparisons["jointadaspec"]
+    # Prompt-clustered p-value (and its Holm adjustment) must be reported alongside
+    # the per-row McNemar p-value, with a valid probability range.
+    cluster_p = comparisons["jointadaspec"]["cluster_p"]
+    assert cluster_p is not None and 0.0 <= float(cluster_p) <= 1.0
+    assert "cluster_holm_p" in comparisons["jointadaspec"]
+    assert "cluster_holm_significant_0p05" in comparisons["jointadaspec"]
+
+
+def test_cluster_bootstrap_pvalue_separates_clear_effect_from_null() -> None:
+    module = _load_quality_module()
+    # Two seeds per prompt; a clean positive effect on every prompt cluster.
+    positive = [(p, 1.0) for p in range(20)] + [(p, 1.0) for p in range(20)]
+    p_pos = module._cluster_bootstrap_pvalue(positive, seed=0)
+    assert p_pos is not None and p_pos < 0.05
+    # A symmetric, zero-mean signal across clusters should not be significant.
+    null = [(p, 1.0) for p in range(10)] + [(p, -1.0) for p in range(10, 20)]
+    p_null = module._cluster_bootstrap_pvalue(null, seed=0)
+    assert p_null is not None and p_null > 0.05
+    # Fewer than two clusters cannot be bootstrapped.
+    assert module._cluster_bootstrap_pvalue([(0, 1.0)], seed=0) is None
