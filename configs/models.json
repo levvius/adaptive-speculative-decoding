@@ -140,6 +140,36 @@
       "use_chat_template": true,
       "trust_remote_code": false
     },
+    "qwen35_9b_local": {
+      "hf_model": "models/Qwen3.5-9B",
+      "tokenizer": "models/Qwen3.5-9B",
+      "device": "cuda",
+      "dtype": "bfloat16",
+      "quant": null,
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": true,
+      "trust_remote_code": false
+    },
+    "qwen35_4b_local": {
+      "hf_model": "models/Qwen3.5-4B",
+      "tokenizer": "models/Qwen3.5-9B",
+      "device": "cuda",
+      "dtype": "bfloat16",
+      "quant": null,
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": true,
+      "trust_remote_code": false
+    },
+    "qwen35_2b_local": {
+      "hf_model": "models/Qwen3.5-2B",
+      "tokenizer": "models/Qwen3.5-9B",
+      "device": "cuda",
+      "dtype": "bfloat16",
+      "quant": null,
+      "bnb_compute_dtype": "bfloat16",
+      "use_chat_template": true,
+      "trust_remote_code": false
+    },
     "qwen25_0p5b_instruct_local": {
       "hf_model": "models/qwen2.5-0.5b-Instruct-model",
       "tokenizer": "models/qwen2.5-14b-Instruct-model",

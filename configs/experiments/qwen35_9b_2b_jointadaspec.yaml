@@ -1,0 +1,10 @@
+# JointAdaSpec experiment on the local Qwen3.5 9B/2B pair (large parameter gap).
+# Requires a transformers build that registers model_type "qwen3_5" and a GPU.
+# @package _global_
+
+defaults:
+  - default
+  - override /model_pairs: qwen35_9b_2b
+  - _self_
+
+experiment_name: "qwen35_9b_2b_jointadaspec"
