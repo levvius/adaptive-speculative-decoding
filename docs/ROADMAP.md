@@ -18,13 +18,20 @@
   `scripts/run_improvement_eval.sh` (conf vs 3-D vs cascade vs target, prompt-clustered
   stats via `scripts/merge_benchmark_runs.py` + `analyze_jointadaspec_quality.py`).
   No quality/speed claim yet — pending the GPU rerun.
-- **Qwen3.5 9B→2B pair (staged).** Added presets (`qwen35_{9b,4b,2b}_local`), a
-  `model_pairs/qwen35_9b_2b.yaml`, JointAdaSpec experiment configs (base + `_conf`),
-  a loader compatibility path for the `qwen3_5` VLM text backbone (mirrors the
-  Mistral-3 fallback), and a gated runner `scripts/run_qwen35_jointadaspec.sh`.
-  Tokenizers are identical across the 2B/4B/9B checkpoints (SD-compatible). The run
-  is gated on a transformers upgrade (current build lacks `qwen3_5`) and the GPU;
-  nothing is claimed until that rerun. 9B→2B is ~4.5× (vs Qwen2.5 14B→0.5B at 28×).
+- **Qwen3.5 9B→2B pair (smoke-validated 2026-06-29).** Added presets
+  (`qwen35_{9b,4b,2b}_local`), a `model_pairs/qwen35_9b_2b.yaml`, JointAdaSpec
+  experiment configs (base + `_conf`), a loader compatibility path for the `qwen3_5`
+  VLM text backbone (mirrors the Mistral-3 fallback), and the runner
+  `scripts/run_qwen35_jointadaspec.sh`. Tokenizers are identical across the 2B/4B/9B
+  checkpoints (SD-compatible). `qwen3_5` requires transformers ≥5; to protect the
+  pinned 4.57.3 / torch-cu128 thesis env it is installed in an isolated
+  `.venv-qwen35` (transformers 5.12.1) and used via
+  `PYTHON_BIN=.venv-qwen35/bin/python` — the main env and CI stay at 4.57.3 (`<5`).
+  Under 5.x the checkpoints load directly as `Qwen3_5ForCausalLM` (the committed VLM
+  fallback is an unused safety net). A bounded smoke (10 traces, 5 prompts × 1 seed)
+  ran the full `01→04` pipeline end to end with strict `results.jsonl` validation —
+  pipeline-validation only, **not** a result. The powered protocol (≥500 prompts ×
+  3 seeds) is pending. 9B→2B is ~4.5× (vs Qwen2.5 14B→0.5B at 28×).
 
 ## Recently Completed
 
