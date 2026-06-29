@@ -21,6 +21,37 @@ implementation and semantic artifact checks, plus a reproducible rerun plan.
 The legacy tables below show the historical motivation and observed behavior of
 the pre-repair artifacts; they are not final block-v1 benchmark claims.
 
+## Qwen3.5 9B->2B Powered Run: Pending
+
+The Qwen3.5 run is staged but not yet a powered result. The selected pair is
+`Qwen/Qwen3.5-9B` as target and `Qwen/Qwen3.5-2B` as draft, using local
+checkpoints under `models/Qwen3.5-9B` and `models/Qwen3.5-2B`. This is the
+largest local Qwen3.5 target/draft gap (~4.5x) with verified compatible
+tokenizers.
+
+The 2026-06-29 smoke (`10` traces, `5` prompts x `1` seed, `128` max new
+tokens) completed the full trace->solve->condition->benchmark path and strict
+JSONL validation. It is **pipeline validation only**. Do not use its EM, speed,
+or "primary success" flag as evidence.
+
+The powered run uses `scripts/run_qwen35_jointadaspec.sh` with
+`.venv-qwen35/bin/python` (`transformers 5.12.1`) and compares:
+
+| Method label | Source |
+|---|---|
+| `target_only` | target autoregressive baseline |
+| `speculative` | fixed-window speculative decoding |
+| `cascade_verif_then_length` | staged cascade policy |
+| `jointadaspec` | base 3-D `(H,K,k)` policy |
+| `jointadaspec_conf` | draft-confidence policy from the `_conf` arm |
+
+Default powered protocol: `500` traces, held-out GSM8K prompts `100-599`,
+`3` seeds, `256` max new tokens, `fixed_sd_gamma=8`, and `fuzzy_sd_gamma=8`.
+Final reporting must use the merged benchmark CSV plus prompt-clustered paired
+statistics from `scripts/analyze_jointadaspec_quality.py`. The intended claim is
+Qwen3.5 evidence for confidence-aware adaptive control, not a claim that
+speculative variants are faster than plain `target_only`.
+
 ## Legacy / Pre-Repair Locked Results (2026-05-14 — 2026-05-27)
 
 ### Run 1 — Qwen 14B → 0.5B (legacy primary, locked 2026-05-14)
